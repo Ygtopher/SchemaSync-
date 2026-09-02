@@ -1,8 +1,11 @@
 # SchemaSync
 
-SchemaSync is a next-generation database utility for comparing schemas, validating data parity, running scripts with native psql emulation, and browsing relational databases.
+SchemaSync is a powerful, lightweight Java database utility for PostgreSQL, MS Access, and H2.
 
-## Target Databases
-- PostgreSQL
-- Embedded H2
-- Microsoft Access (.accdb, .mdb)
+## Engine Compatibility Matrix
+
+| Engine | Connect via | Schema Diff | Data Diff | PSQL Scripting |
+|---|---|---|---|---|
+| PostgreSQL 12-16 | JDBC / Dumps | Supported | Supported | Full Native Emulation |
+| MS Access (.accdb/.mdb) | UCanAccess | Supported | Supported | Partial (Transactions) |
+| Embedded H2 Engine | In-Memory / File | Supported | Supported | Supported |
