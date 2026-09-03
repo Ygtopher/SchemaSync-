@@ -1,9 +1,5 @@
 package com.dbtool.core.dialect;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.List;
-
 public interface DatabaseDialect {
     DialectType getDialectType();
     String quoteIdentifier(String identifier);
@@ -12,4 +8,7 @@ public interface DatabaseDialect {
     String getTableListQuery(String schemaName);
     String getColumnMetadataQuery(String tableName);
     String formatValue(Object value);
+    default String buildCountQuery(String sql) {
+        return "SELECT COUNT(*) FROM (" + sql + ") AS total_count_subquery";
+    }
 }
