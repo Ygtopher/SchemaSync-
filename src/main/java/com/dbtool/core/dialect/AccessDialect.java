@@ -6,12 +6,12 @@ public class AccessDialect implements DatabaseDialect {
 
     @Override
     public String quoteIdentifier(String identifier) {
-        return "[" + identifier + "]";
+        if (identifier == null) return "";
+        return "[" + identifier.replace("]", "]]") + "]";
     }
 
     @Override
     public String buildPagingQuery(String sql, int offset, int limit) {
-        // Access dialect uses simulated paging or TOP limit
         return sql;
     }
 
