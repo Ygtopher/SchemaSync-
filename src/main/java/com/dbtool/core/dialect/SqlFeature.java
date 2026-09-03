@@ -1,0 +1,12 @@
+package com.dbtool.core.dialect;
+
+public enum SqlFeature {
+    OFFSET_LIMIT_PAGING,
+    TOP_PAGING,
+    RETURNING_CLAUSE,
+    DROP_CASCADE,
+    COMMON_TABLE_EXPRESSIONS,
+    WINDOW_FUNCTIONS,
+    DOLLAR_QUOTES,
+    TRANSACTION_SAVEPOINTS
+}
