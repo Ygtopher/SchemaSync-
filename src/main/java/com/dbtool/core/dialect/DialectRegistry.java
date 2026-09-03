@@ -1,11 +1,12 @@
 package com.dbtool.core.dialect;
 
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 
 public class DialectRegistry {
     private static final DialectRegistry INSTANCE = new DialectRegistry();
-    private final Map<DialectType, DatabaseDialect> registry = new EnumMap<>(DialectType.class);
+    private final Map<DialectType, DatabaseDialect> registry = Collections.synchronizedMap(new EnumMap<>(DialectType.class));
 
     private DialectRegistry() {
         register(new GenericSqlDialect());
