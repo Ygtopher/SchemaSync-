@@ -3,10 +3,12 @@ package com.dbtool.core.dialect;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class DialectRegistry {
     private static final DialectRegistry INSTANCE = new DialectRegistry();
-    private final Map<DialectType, DatabaseDialect> registry = Collections.synchronizedMap(new EnumMap<>(DialectType.class));
+    private final Map<DialectType, DatabaseDialect> registry = new EnumMap<>(DialectType.class);
+    private final Map<String, DatabaseDialect> urlCache = new ConcurrentHashMap<>();
 
     private DialectRegistry() {
         register(new GenericSqlDialect());
@@ -17,20 +19,23 @@ public class DialectRegistry {
 
     public static DialectRegistry getInstance() { return INSTANCE; }
 
-    public void register(DatabaseDialect dialect) {
+    public synchronized void register(DatabaseDialect dialect) {
         registry.put(dialect.getDialectType(), dialect);
+        urlCache.clear();
     }
 
-    public DatabaseDialect getDialect(DialectType type) {
+    public synchronized DatabaseDialect getDialect(DialectType type) {
         return registry.getOrDefault(type, registry.get(DialectType.GENERIC));
     }
 
     public DatabaseDialect resolveFromJdbcUrl(String url) {
         if (url == null) return getDialect(DialectType.GENERIC);
-        String lower = url.toLowerCase();
-        if (lower.startsWith("jdbc:postgresql:")) return getDialect(DialectType.POSTGRESQL);
-        if (lower.startsWith("jdbc:h2:")) return getDialect(DialectType.H2);
-        if (lower.startsWith("jdbc:ucanaccess:")) return getDialect(DialectType.ACCESS);
-        return getDialect(DialectType.GENERIC);
+        return urlCache.computeIfAbsent(url, u -> {
+            String lower = u.toLowerCase();
+            if (lower.startsWith("jdbc:postgresql:")) return getDialect(DialectType.POSTGRESQL);
+            if (lower.startsWith("jdbc:h2:")) return getDialect(DialectType.H2);
+            if (lower.startsWith("jdbc:ucanaccess:")) return getDialect(DialectType.ACCESS);
+            return getDialect(DialectType.GENERIC);
+        });
     }
 }
