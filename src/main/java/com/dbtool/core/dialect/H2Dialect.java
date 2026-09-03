@@ -14,4 +14,8 @@ public class H2Dialect extends GenericSqlDialect {
         String schema = (schemaName != null && !schemaName.isEmpty()) ? schemaName : "PUBLIC";
         return "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '" + schema.toUpperCase() + "' AND TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME";
     }
+
+    public String getIndexMetadataQuery(String tableName) {
+        return "SELECT INDEX_NAME, COLUMN_NAME, NON_UNIQUE FROM INFORMATION_SCHEMA.INDEXES WHERE TABLE_NAME = '" + tableName.toUpperCase() + "'";
+    }
 }
