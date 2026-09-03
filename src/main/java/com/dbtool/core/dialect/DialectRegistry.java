@@ -23,4 +23,13 @@ public class DialectRegistry {
     public DatabaseDialect getDialect(DialectType type) {
         return registry.getOrDefault(type, registry.get(DialectType.GENERIC));
     }
+
+    public DatabaseDialect resolveFromJdbcUrl(String url) {
+        if (url == null) return getDialect(DialectType.GENERIC);
+        String lower = url.toLowerCase();
+        if (lower.startsWith("jdbc:postgresql:")) return getDialect(DialectType.POSTGRESQL);
+        if (lower.startsWith("jdbc:h2:")) return getDialect(DialectType.H2);
+        if (lower.startsWith("jdbc:ucanaccess:")) return getDialect(DialectType.ACCESS);
+        return getDialect(DialectType.GENERIC);
+    }
 }
