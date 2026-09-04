@@ -11,7 +11,10 @@ public class JdbcSchemaInspector implements SchemaInspector {
         DatabaseMetaData meta = connection.getMetaData();
         try (ResultSet rs = meta.getTables(null, schemaPattern, "%", new String[]{"TABLE"})) {
             while (rs.next()) {
-                tableNames.add(rs.getString("TABLE_NAME"));
+                String name = rs.getString("TABLE_NAME");
+                if (!name.startsWith("~") && !name.startsWith("MSys")) {
+                    tableNames.add(name);
+                }
             }
         }
         return tableNames;
