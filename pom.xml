@@ -14,6 +14,11 @@
     </properties>
     <dependencies>
         <dependency>
+            <groupId>net.sf.ucanaccess</groupId>
+            <artifactId>ucanaccess</artifactId>
+            <version>5.0.1</version>
+        </dependency>
+        <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <version>42.7.2</version>
