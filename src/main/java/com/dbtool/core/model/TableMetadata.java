@@ -18,16 +18,21 @@ public class TableMetadata implements Serializable {
         this.tableName = tableName;
     }
 
+    public ColumnMetadata findColumn(String colName) {
+        if (colName == null) return null;
+        for (ColumnMetadata col : columns) {
+            if (colName.equalsIgnoreCase(col.getColumnName())) return col;
+        }
+        return null;
+    }
+
     public String getSchemaName() { return schemaName; }
     public void setSchemaName(String schemaName) { this.schemaName = schemaName; }
-
     public String getTableName() { return tableName; }
     public void setTableName(String tableName) { this.tableName = tableName; }
-
     public List<ColumnMetadata> getColumns() { return columns; }
     public void setColumns(List<ColumnMetadata> columns) { this.columns = columns; }
     public void addColumn(ColumnMetadata column) { this.columns.add(column); }
-
     public List<IndexMetadata> getIndices() { return indices; }
     public void setIndices(List<IndexMetadata> indices) { this.indices = indices; }
     public void addIndex(IndexMetadata index) { this.indices.add(index); }
