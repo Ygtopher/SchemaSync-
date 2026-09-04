@@ -10,9 +10,9 @@ public class TableMetadata implements Serializable {
     private String schemaName;
     private String tableName;
     private List<ColumnMetadata> columns = new ArrayList<>();
+    private List<IndexMetadata> indices = new ArrayList<>();
 
     public TableMetadata() {}
-
     public TableMetadata(String schemaName, String tableName) {
         this.schemaName = schemaName;
         this.tableName = tableName;
@@ -27,4 +27,8 @@ public class TableMetadata implements Serializable {
     public List<ColumnMetadata> getColumns() { return columns; }
     public void setColumns(List<ColumnMetadata> columns) { this.columns = columns; }
     public void addColumn(ColumnMetadata column) { this.columns.add(column); }
+
+    public List<IndexMetadata> getIndices() { return indices; }
+    public void setIndices(List<IndexMetadata> indices) { this.indices = indices; }
+    public void addIndex(IndexMetadata index) { this.indices.add(index); }
 }
