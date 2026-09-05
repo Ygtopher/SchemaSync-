@@ -1,6 +1,7 @@
 package com.dbtool.util;
 
-import java.io.File;
+import java.io.*;
+import java.util.zip.GZIPInputStream;
 
 public final class FileUtil {
     private FileUtil() {}
@@ -17,6 +18,14 @@ public final class FileUtil {
             if (ext.equalsIgnoreCase(candidate)) return true;
         }
         return false;
+    }
+
+    public static InputStream getDecompressingInputStream(String filePath) throws IOException {
+        InputStream is = new FileInputStream(filePath);
+        if (filePath.toLowerCase().endsWith(".gz")) {
+            return new GZIPInputStream(is);
+        }
+        return is;
     }
 
     public static boolean ensureDirectoryExists(File dir) {
