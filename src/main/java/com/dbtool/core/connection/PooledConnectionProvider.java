@@ -11,17 +11,23 @@ public class PooledConnectionProvider implements ConnectionProvider {
     private final ConnectionConfig config;
     private final BlockingQueue<Connection> pool = new LinkedBlockingQueue<>(10);
     private volatile boolean closed = false;
+    private int maxPoolSize = 5;
 
     public PooledConnectionProvider(ConnectionConfig config) {
         this.config = config;
+    }
+
+    public void setMaxPoolSize(int maxPoolSize) {
+        this.maxPoolSize = maxPoolSize;
     }
 
     @Override
     public Connection getConnection() throws SQLException {
         if (closed) throw new SQLException("Connection pool is closed.");
         Connection conn = pool.poll();
-        if (conn == null || conn.isClosed()) {
+        if (conn == null || conn.isClosed() || !ConnectionValidator.isValid(conn, 2)) {
             String url = JdbcUrlBuilder.buildUrl(config);
+            DriverManager.setLoginTimeout(config.getTimeoutSeconds());
             conn = DriverManager.getConnection(url, config.getUsername(), config.getPassword());
         }
         return conn;
@@ -29,7 +35,7 @@ public class PooledConnectionProvider implements ConnectionProvider {
 
     @Override
     public void releaseConnection(Connection connection) throws SQLException {
-        if (connection != null && !connection.isClosed() && !closed) {
+        if (connection != null && !connection.isClosed() && !closed && pool.size() < maxPoolSize) {
             pool.offer(connection);
         } else if (connection != null) {
             connection.close();
