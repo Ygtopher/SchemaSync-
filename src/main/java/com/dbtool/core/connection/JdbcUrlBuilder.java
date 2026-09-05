@@ -11,6 +11,9 @@ public class JdbcUrlBuilder {
             case POSTGRESQL:
                 return "jdbc:postgresql://" + config.getHost() + ":" + config.getPort() + "/" + config.getDatabaseName();
             case H2:
+                if (config.getFilePath() != null && !config.getFilePath().isEmpty()) {
+                    return "jdbc:h2:" + config.getFilePath() + ";AUTO_SERVER=TRUE";
+                }
                 return "jdbc:h2:mem:" + config.getDatabaseName() + ";DB_CLOSE_DELAY=-1";
             case MS_ACCESS:
                 return "jdbc:ucanaccess://" + config.getFilePath();
