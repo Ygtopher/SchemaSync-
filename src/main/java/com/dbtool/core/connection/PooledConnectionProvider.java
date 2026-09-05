@@ -12,14 +12,15 @@ public class PooledConnectionProvider implements ConnectionProvider {
     private final BlockingQueue<Connection> pool = new LinkedBlockingQueue<>(10);
     private volatile boolean closed = false;
     private int maxPoolSize = 5;
+    private int activeCount = 0;
 
     public PooledConnectionProvider(ConnectionConfig config) {
         this.config = config;
     }
 
-    public void setMaxPoolSize(int maxPoolSize) {
-        this.maxPoolSize = maxPoolSize;
-    }
+    public synchronized int getActiveCount() { return activeCount; }
+    public int getIdleCount() { return pool.size(); }
+    public int getMaxPoolSize() { return maxPoolSize; }
 
     @Override
     public Connection getConnection() throws SQLException {
@@ -30,11 +31,13 @@ public class PooledConnectionProvider implements ConnectionProvider {
             DriverManager.setLoginTimeout(config.getTimeoutSeconds());
             conn = DriverManager.getConnection(url, config.getUsername(), config.getPassword());
         }
+        synchronized (this) { activeCount++; }
         return conn;
     }
 
     @Override
     public void releaseConnection(Connection connection) throws SQLException {
+        synchronized (this) { if (activeCount > 0) activeCount--; }
         if (connection != null && !connection.isClosed() && !closed && pool.size() < maxPoolSize) {
             pool.offer(connection);
         } else if (connection != null) {
