@@ -14,6 +14,9 @@ public class QueryResult implements Serializable {
 
     public QueryResult() {}
 
+    public int getRowCount() { return rows.size(); }
+    public int getColumnCount() { return columnNames.size(); }
+
     public List<String> getColumnNames() { return columnNames; }
     public void setColumnNames(List<String> columnNames) { this.columnNames = columnNames; }
 
