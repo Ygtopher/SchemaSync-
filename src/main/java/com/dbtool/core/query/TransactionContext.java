@@ -2,6 +2,7 @@ package com.dbtool.core.query;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Savepoint;
 
 public class TransactionContext implements AutoCloseable {
     private final Connection connection;
@@ -21,6 +22,14 @@ public class TransactionContext implements AutoCloseable {
 
     public void rollback() throws SQLException {
         connection.rollback();
+    }
+
+    public Savepoint setSavepoint(String name) throws SQLException {
+        return connection.setSavepoint(name);
+    }
+
+    public void rollbackToSavepoint(Savepoint savepoint) throws SQLException {
+        connection.rollback(savepoint);
     }
 
     @Override
