@@ -15,8 +15,13 @@ public class SchemaComparator {
             ColumnMetadata tCol = target.findColumn(sCol.getColumnName());
             if (tCol == null) {
                 tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.REMOVED, sCol, null, "Column missing in target"));
-            } else if (!sCol.getTypeName().equalsIgnoreCase(tCol.getTypeName())) {
-                tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.MODIFIED, sCol, tCol, "Type mismatch: " + sCol.getTypeName() + " vs " + tCol.getTypeName()));
+            } else {
+                if (!sCol.getTypeName().equalsIgnoreCase(tCol.getTypeName())) {
+                    tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.MODIFIED, sCol, tCol, "Type mismatch: " + sCol.getTypeName() + " vs " + tCol.getTypeName()));
+                }
+                if (sCol.isNullable() != tCol.isNullable()) {
+                    tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.MODIFIED, sCol, tCol, "Nullability changed: " + sCol.isNullable() + " -> " + tCol.isNullable()));
+                }
             }
         }
         for (ColumnMetadata tCol : target.getColumns()) {
