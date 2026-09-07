@@ -15,11 +15,12 @@ public class SchemaComparator {
             ColumnMetadata tCol = target.findColumn(sCol.getColumnName());
             if (tCol == null) {
                 tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.REMOVED, sCol, null, "Column missing in target"));
+            } else if (!sCol.getTypeName().equalsIgnoreCase(tCol.getTypeName())) {
+                tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.MODIFIED, sCol, tCol, "Type mismatch: " + sCol.getTypeName() + " vs " + tCol.getTypeName()));
             }
         }
         for (ColumnMetadata tCol : target.getColumns()) {
-            ColumnMetadata sCol = source.findColumn(tCol.getColumnName());
-            if (sCol == null) {
+            if (source.findColumn(tCol.getColumnName()) == null) {
                 tableDiff.addColumnDiff(new ColumnDiff(tCol.getColumnName(), DifferenceType.ADDED, null, tCol, "New column in target"));
             }
         }
