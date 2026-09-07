@@ -2,6 +2,7 @@ package com.dbtool.core.diff;
 
 import com.dbtool.core.model.ColumnMetadata;
 import com.dbtool.core.model.TableMetadata;
+import java.util.Objects;
 
 public class SchemaComparator {
     public TableDiff compareTables(TableMetadata source, TableMetadata target) {
@@ -21,6 +22,9 @@ public class SchemaComparator {
                 }
                 if (sCol.isNullable() != tCol.isNullable()) {
                     tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.MODIFIED, sCol, tCol, "Nullability changed: " + sCol.isNullable() + " -> " + tCol.isNullable()));
+                }
+                if (!Objects.equals(sCol.getDefaultValue(), tCol.getDefaultValue())) {
+                    tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.MODIFIED, sCol, tCol, "Default value changed: " + sCol.getDefaultValue() + " -> " + tCol.getDefaultValue()));
                 }
             }
         }
