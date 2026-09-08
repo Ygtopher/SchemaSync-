@@ -6,12 +6,14 @@ import java.util.*;
 
 public class DataComparator {
     public DataDiffResult compare(String tableName, QueryResult source, QueryResult target, int pkIndex) {
+        long start = System.currentTimeMillis();
         DataDiffResult result = new DataDiffResult(tableName);
         result.setColumnNames(source.getColumnNames());
 
-        Map<Object, RowData> targetMap = new HashMap<>();
+        Map<Object, RowData> targetMap = new LinkedHashMap<>();
         for (RowData r : target.getRows()) {
-            targetMap.put(r.getValue(pkIndex), r);
+            Object pk = r.getValue(pkIndex);
+            if (pk != null) targetMap.put(pk, r);
         }
 
         for (RowData sRow : source.getRows()) {
@@ -31,6 +33,7 @@ public class DataComparator {
             result.addRowDiff(new RowDiff(entry.getKey(), DifferenceType.ADDED, null, entry.getValue()));
         }
 
+        result.setDurationMs(System.currentTimeMillis() - start);
         return result;
     }
 
@@ -44,7 +47,9 @@ public class DataComparator {
             }
         }
         if (!diff.getCellDiffs().isEmpty()) {
-            return new RowDiff(pk, DifferenceType.MODIFIED, sRow, tRow);
+            RowDiff modified = new RowDiff(pk, DifferenceType.MODIFIED, sRow, tRow);
+            for (CellDiff cd : diff.getCellDiffs()) modified.addCellDiff(cd);
+            return modified;
         }
         return diff;
     }
