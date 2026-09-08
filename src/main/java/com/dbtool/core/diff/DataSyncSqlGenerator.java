@@ -16,7 +16,7 @@ public class DataSyncSqlGenerator {
         String tbl = dialect.quoteIdentifier(diff.getTableName());
         for (RowDiff r : diff.getRowDiffs()) {
             if (r.getType() == DifferenceType.REMOVED) {
-                statements.add("DELETE FROM " + tbl + " WHERE " + r.getPrimaryKey() + ";");
+                statements.add("DELETE FROM " + tbl + " WHERE id = " + r.getPrimaryKey() + ";");
             }
         }
         return statements;
