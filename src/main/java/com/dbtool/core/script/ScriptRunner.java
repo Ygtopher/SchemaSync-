@@ -13,27 +13,46 @@ public class ScriptRunner {
         List<ScriptToken> tokens = tokenizer.tokenize(script);
 
         String lastSql = null;
-        for (ScriptToken token : tokens) {
-            if (token.getType() == TokenType.META_COMMAND) {
-                ParsedMetaCommand cmd = PsqlMetaCommandParser.parse(token.getContent());
-                if (cmd != null) {
-                    if (cmd.getCommand() == PsqlMetaCommand.SET) {
-                        ctx.getVariableContext().set(cmd.getArgument(), cmd.getValue());
-                    } else if (cmd.getCommand() == PsqlMetaCommand.ECHO) {
-                        String msg = VariableReplacer.replaceVariables(cmd.getValue(), ctx.getVariableContext());
-                        ctx.getOutputLogger().log(msg);
-                    } else if (cmd.getCommand() == PsqlMetaCommand.GSET && lastSql != null) {
-                        QueryResult qr = statementRunner.executeQuery(ctx.getConnection(), lastSql);
-                        GsetHandler.applyGset(qr, cmd.getArgument(), ctx.getVariableContext());
+        boolean inTransaction = false;
+
+        try {
+            for (ScriptToken token : tokens) {
+                if (token.getType() == TokenType.META_COMMAND) {
+                    ParsedMetaCommand cmd = PsqlMetaCommandParser.parse(token.getContent());
+                    if (cmd != null) {
+                        if (cmd.getCommand() == PsqlMetaCommand.SET) {
+                            ctx.getVariableContext().set(cmd.getArgument(), cmd.getValue());
+                        } else if (cmd.getCommand() == PsqlMetaCommand.ECHO) {
+                            String msg = VariableReplacer.replaceVariables(cmd.getValue(), ctx.getVariableContext());
+                            ctx.getOutputLogger().log(msg);
+                        } else if (cmd.getCommand() == PsqlMetaCommand.GSET && lastSql != null) {
+                            QueryResult qr = statementRunner.executeQuery(ctx.getConnection(), lastSql);
+                            GsetHandler.applyGset(qr, cmd.getArgument(), ctx.getVariableContext());
+                        }
+                    }
+                } else if (token.getType() == TokenType.SQL_STATEMENT) {
+                    String sql = VariableReplacer.replaceVariables(token.getContent(), ctx.getVariableContext());
+                    lastSql = sql;
+                    if (sql.trim().equalsIgnoreCase("BEGIN") || sql.trim().equalsIgnoreCase("BEGIN;")) {
+                        ctx.getConnection().setAutoCommit(false);
+                        inTransaction = true;
+                    } else if (sql.trim().equalsIgnoreCase("COMMIT") || sql.trim().equalsIgnoreCase("COMMIT;")) {
+                        ctx.getConnection().commit();
+                        ctx.getConnection().setAutoCommit(true);
+                        inTransaction = false;
+                    } else {
+                        try (Statement stmt = ctx.getConnection().createStatement()) {
+                            stmt.execute(sql);
+                        }
                     }
                 }
-            } else if (token.getType() == TokenType.SQL_STATEMENT) {
-                String sql = VariableReplacer.replaceVariables(token.getContent(), ctx.getVariableContext());
-                lastSql = sql;
-                try (Statement stmt = ctx.getConnection().createStatement()) {
-                    stmt.execute(sql);
-                }
             }
+        } catch (Exception e) {
+            if (inTransaction) {
+                ctx.getConnection().rollback();
+                ctx.getConnection().setAutoCommit(true);
+            }
+            throw e;
         }
     }
 }
