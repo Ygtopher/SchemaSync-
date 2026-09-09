@@ -19,8 +19,14 @@ public class SqlStatementSplitter {
                 stringChar = c;
                 sb.append(c);
             } else if (inString && c == stringChar) {
-                inString = false;
-                sb.append(c);
+                // Check for escaped quote (e.g. '')
+                if (i + 1 < script.length() && script.charAt(i + 1) == stringChar) {
+                    sb.append(c).append(stringChar);
+                    i++;
+                } else {
+                    inString = false;
+                    sb.append(c);
+                }
             } else if (!inString && c == ';') {
                 String stmt = sb.toString().trim();
                 if (!stmt.isEmpty()) stmts.add(stmt);
