@@ -11,26 +11,39 @@ public class SqlStatementSplitter {
         StringBuilder sb = new StringBuilder();
         boolean inString = false;
         char stringChar = 0;
+        boolean inDollarQuote = false;
 
         for (int i = 0; i < script.length(); i++) {
             char c = script.charAt(i);
-            if (!inString && (c == ''' || c == '"')) {
-                inString = true;
-                stringChar = c;
-                sb.append(c);
-            } else if (inString && c == stringChar) {
-                // Check for escaped quote (e.g. '')
-                if (i + 1 < script.length() && script.charAt(i + 1) == stringChar) {
-                    sb.append(c).append(stringChar);
-                    i++;
+
+            // Check for dollar quoting $$
+            if (!inString && c == '$' && i + 1 < script.length() && script.charAt(i + 1) == '$') {
+                inDollarQuote = !inDollarQuote;
+                sb.append("$$");
+                i++;
+                continue;
+            }
+
+            if (!inDollarQuote) {
+                if (!inString && (c == ''' || c == '"')) {
+                    inString = true;
+                    stringChar = c;
+                    sb.append(c);
+                } else if (inString && c == stringChar) {
+                    if (i + 1 < script.length() && script.charAt(i + 1) == stringChar) {
+                        sb.append(c).append(stringChar);
+                        i++;
+                    } else {
+                        inString = false;
+                        sb.append(c);
+                    }
+                } else if (!inString && c == ';') {
+                    String stmt = sb.toString().trim();
+                    if (!stmt.isEmpty()) stmts.add(stmt);
+                    sb.setLength(0);
                 } else {
-                    inString = false;
                     sb.append(c);
                 }
-            } else if (!inString && c == ';') {
-                String stmt = sb.toString().trim();
-                if (!stmt.isEmpty()) stmts.add(stmt);
-                sb.setLength(0);
             } else {
                 sb.append(c);
             }
