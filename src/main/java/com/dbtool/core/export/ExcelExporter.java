@@ -19,11 +19,19 @@ public class ExcelExporter implements DataExporter {
             Sheet sheet = workbook.createSheet(options != null ? options.getTableName() : "Data");
             int rowIdx = 0;
 
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font font = workbook.createFont();
+            font.setBold(true);
+            headerStyle.setFont(font);
+            headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
             if (options == null || options.isIncludeHeaders()) {
                 Row headerRow = sheet.createRow(rowIdx++);
                 for (int i = 0; i < queryResult.getColumnNames().size(); i++) {
                     Cell cell = headerRow.createCell(i);
                     cell.setCellValue(queryResult.getColumnNames().get(i));
+                    cell.setCellStyle(headerStyle);
                 }
             }
 
