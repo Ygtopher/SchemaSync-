@@ -50,6 +50,12 @@ public class ExcelExporter implements DataExporter {
                 }
             }
 
+            // Auto-size up to 20 columns
+            int cols = Math.min(queryResult.getColumnNames().size(), 20);
+            for (int i = 0; i < cols; i++) {
+                sheet.autoSizeColumn(i);
+            }
+
             try (FileOutputStream fos = new FileOutputStream(destinationFile)) {
                 workbook.write(fos);
             }
