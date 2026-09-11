@@ -9,6 +9,7 @@ public class AppSettings implements Serializable {
     private int maxQueryRows = 1000;
     private int queryTimeoutSeconds = 30;
     private boolean autoCommitDefault = true;
+    private String exportDirectory = System.getProperty("user.home");
 
     public String getTheme() { return theme; }
     public void setTheme(String theme) { this.theme = theme; }
@@ -18,4 +19,6 @@ public class AppSettings implements Serializable {
     public void setQueryTimeoutSeconds(int queryTimeoutSeconds) { this.queryTimeoutSeconds = queryTimeoutSeconds; }
     public boolean isAutoCommitDefault() { return autoCommitDefault; }
     public void setAutoCommitDefault(boolean autoCommitDefault) { this.autoCommitDefault = autoCommitDefault; }
+    public String getExportDirectory() { return exportDirectory; }
+    public void setExportDirectory(String exportDirectory) { this.exportDirectory = exportDirectory; }
 }
