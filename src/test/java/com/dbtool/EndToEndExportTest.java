@@ -1,4 +1,4 @@
-package com.dbtool.export;
+package com.dbtool;
 
 import com.dbtool.core.export.CsvExporter;
 import org.junit.jupiter.api.Test;

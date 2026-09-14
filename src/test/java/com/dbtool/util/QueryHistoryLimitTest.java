@@ -6,8 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class QueryHistoryLimitTest {
     @Test
     void testLimit() {
-        QueryHistory qh = new QueryHistory();
-        for (int i = 0; i < 60; i++) qh.addQuery("SELECT " + i);
-        assertTrue(qh.getHistory().size() <= 50);
+        for (int i = 0; i < 60; i++) QueryHistory.add("SELECT " + i);
+        assertTrue(QueryHistory.load().size() <= 50);
     }
 }

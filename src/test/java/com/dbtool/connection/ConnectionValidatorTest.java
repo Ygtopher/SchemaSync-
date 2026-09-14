@@ -1,5 +1,6 @@
 package com.dbtool.connection;
 
+import com.dbtool.core.connection.ConnectionValidator;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 

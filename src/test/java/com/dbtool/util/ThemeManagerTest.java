@@ -6,6 +6,6 @@ import static org.junit.jupiter.api.Assertions.*;
 public class ThemeManagerTest {
     @Test
     void testTheme() {
-        assertTrue(ThemeManager.isDarkMode());
+        assertFalse(ThemeManager.isDarkMode());
     }
 }

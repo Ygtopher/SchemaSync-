@@ -16,7 +16,7 @@ public class PsqlMetaCommandParser {
                 return new ParsedMetaCommand(PsqlMetaCommand.SET, parts[0], parts.length > 1 ? parts[1] : "");
             }
         } else if (trimmed.startsWith("\\echo ")) {
-            return new ParsedMetaCommand(PsqlMetaCommand.ECHO, null, trimmed.substring(7).trim());
+            return new ParsedMetaCommand(PsqlMetaCommand.ECHO, null, trimmed.substring(6).trim());
         } else if (trimmed.startsWith("\\gset")) {
             String prefix = trimmed.length() > 5 ? trimmed.substring(5).trim() : "";
             return new ParsedMetaCommand(PsqlMetaCommand.GSET, prefix, null);

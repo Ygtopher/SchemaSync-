@@ -6,8 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class QueryHistoryTest {
     @Test
     void testQueryHistory() {
-        QueryHistory qh = new QueryHistory();
-        qh.addQuery("SELECT * FROM users");
-        assertTrue(qh.getHistory().contains("SELECT * FROM users"));
+        QueryHistory.add("SELECT * FROM users");
+        assertTrue(QueryHistory.load().contains("SELECT * FROM users"));
     }
 }

@@ -25,7 +25,7 @@ public class SqlStatementSplitter {
             }
 
             if (!inDollarQuote) {
-                if (!inString && (c == ''' || c == '"')) {
+                if (!inString && (c == '\'' || c == '"')) {
                     inString = true;
                     stringChar = c;
                     sb.append(c);
