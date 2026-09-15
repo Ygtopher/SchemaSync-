@@ -23,6 +23,9 @@ public class SshTerminalPanel extends JPanel {
                 f.setAccessible(true);
                 com.jediterm.terminal.model.StyleState styleState = (com.jediterm.terminal.model.StyleState) f.get(terminalArea.getTerminalTextBuffer());
                 styleState.setDefaultStyle(settingsProvider.getDefaultStyle());
+                java.lang.reflect.Field fCurrent = com.jediterm.terminal.model.StyleState.class.getDeclaredField("myCurrentStyle");
+                fCurrent.setAccessible(true);
+                fCurrent.set(styleState, settingsProvider.getDefaultStyle());
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
