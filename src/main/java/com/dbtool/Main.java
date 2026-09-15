@@ -52,6 +52,7 @@ public class Main extends JFrame {
     private JCheckBox joinDistinctCheckbox = new JCheckBox("Distinct");
     private JPanel whereContainer = new JPanel();
     private List<WherePanel> wherePanels = new ArrayList<>();
+    private JComboBox<String> joinOrderByTableDropdown = new JComboBox<>();
     private JComboBox<String> joinOrderByDropdown = new JComboBox<>();
     private JComboBox<String> joinOrderDirDropdown = new JComboBox<>(new String[]{"ASC", "DESC"});
     
@@ -474,7 +475,30 @@ public class Main extends JFrame {
         tbRun.add(joinLimitField);
         
         tbRun.add(new JLabel(" |  Order By: "));
-        joinOrderByDropdown.setPreferredSize(new Dimension(150, 26));
+        joinOrderByTableDropdown.setPreferredSize(new Dimension(130, 26));
+        joinOrderByDropdown.setPreferredSize(new Dimension(130, 26));
+        
+        joinOrderByTableDropdown.addActionListener(e -> {
+            String t = (String) joinOrderByTableDropdown.getSelectedItem();
+            if (t != null) {
+                if (t.equals("(none)")) {
+                    joinOrderByDropdown.removeAllItems();
+                    joinOrderByDropdown.addItem("(none)");
+                    joinOrderByDropdown.setEnabled(false);
+                } else {
+                    joinOrderByDropdown.setEnabled(true);
+                    Object current = joinOrderByDropdown.getSelectedItem();
+                    joinOrderByDropdown.removeAllItems();
+                    for (String c : dbManager.getColumnNames(t)) {
+                        joinOrderByDropdown.addItem(c);
+                    }
+                    if (current != null) joinOrderByDropdown.setSelectedItem(current);
+                }
+            }
+        });
+        
+        tbRun.add(joinOrderByTableDropdown);
+        tbRun.add(new JLabel(" . "));
         tbRun.add(joinOrderByDropdown);
         tbRun.add(joinOrderDirDropdown);
         
@@ -992,11 +1016,12 @@ public class Main extends JFrame {
         for (int i = 0; i < browseWherePanels.size(); i++) {
             WherePanel wp = browseWherePanels.get(i);
             if (i > 0) sb.append(wp.logicDropdown.getSelectedItem()).append(" ");
+            String tbl = (String) wp.tableDropdown.getSelectedItem();
             String col = (String) wp.columnDropdown.getSelectedItem();
             String op = (String) wp.operatorDropdown.getSelectedItem();
             String val = wp.valueField.getText();
-            if (col != null) {
-                sb.append(dbManager.quoteColumnName(col)).append(" ").append(op).append(" ");
+            if (tbl != null && col != null) {
+                sb.append(dbManager.quoteColumnName(tbl + "." + col)).append(" ").append(op).append(" ");
                 if (!op.contains("NULL")) {
                     sb.append("'").append(val.replace("'", "''")).append("' ");
                 }
@@ -1008,9 +1033,11 @@ public class Main extends JFrame {
     private void addBrowseWhereRow() {
         boolean isFirst = browseWherePanels.isEmpty();
         String selectedTable = (String) browseTableDropdown.getSelectedItem();
-        List<String> cols = selectedTable != null ? dbManager.getColumnNames(selectedTable) : new ArrayList<>();
         WherePanel wp = new WherePanel(isFirst, browseWherePanels, browseWhereContainer);
-        wp.updateColumns(cols);
+        List<String> tables = new ArrayList<>();
+        if (selectedTable != null) tables.add(selectedTable);
+        wp.updateTables(tables);
+        if (selectedTable != null) wp.tableDropdown.setSelectedItem(selectedTable);
         browseWherePanels.add(wp);
         browseWhereContainer.add(wp);
         browseWhereContainer.revalidate();
@@ -1089,36 +1116,32 @@ public class Main extends JFrame {
     }
 
     private void updateWhereDropdowns() {
-        List<String> allCols = new ArrayList<>();
+        List<String> availableTables = new ArrayList<>();
         String baseTable = (String) baseTableDropdown.getSelectedItem();
         if (baseTable != null) {
-            for (String col : dbManager.getColumnNames(baseTable)) {
-                allCols.add(baseTable + "." + col);
-            }
+            availableTables.add(baseTable);
         }
         for (JoinPanel jp : joinPanels) {
             String joinTable = (String) jp.joinTableDropdown.getSelectedItem();
             if (joinTable != null) {
-                for (String col : dbManager.getColumnNames(joinTable)) {
-                    allCols.add(joinTable + "." + col);
-                }
+                availableTables.add(joinTable);
             }
         }
         
-        Object currentOrderSelected = joinOrderByDropdown.getSelectedItem();
-        joinOrderByDropdown.removeAllItems();
-        joinOrderByDropdown.addItem("(none)");
+        Object currentOrderTable = joinOrderByTableDropdown.getSelectedItem();
+        joinOrderByTableDropdown.removeAllItems();
+        joinOrderByTableDropdown.addItem("(none)");
         
-        for (String col : allCols) {
-            joinOrderByDropdown.addItem(col);
+        for (String t : availableTables) {
+            joinOrderByTableDropdown.addItem(t);
         }
         
-        if (currentOrderSelected != null && allCols.contains(currentOrderSelected.toString())) {
-            joinOrderByDropdown.setSelectedItem(currentOrderSelected);
+        if (currentOrderTable != null && (availableTables.contains(currentOrderTable.toString()) || currentOrderTable.equals("(none)"))) {
+            joinOrderByTableDropdown.setSelectedItem(currentOrderTable);
         }
 
         for (WherePanel wp : wherePanels) {
-            wp.updateColumns(allCols);
+            wp.updateTables(availableTables);
         }
     }
 
@@ -1167,21 +1190,23 @@ public class Main extends JFrame {
                     sql.append(wp.logicDropdown.getSelectedItem()).append(" ");
                 }
                 
+                String tbl = (String) wp.tableDropdown.getSelectedItem();
                 String col = (String) wp.columnDropdown.getSelectedItem();
                 String op = (String) wp.operatorDropdown.getSelectedItem();
                 String val = wp.valueField.getText();
                 
-                if (col != null) {
-                    sql.append(dbManager.quoteColumnName(col)).append(" ").append(op).append(" ");
+                if (tbl != null && col != null) {
+                    sql.append(dbManager.quoteColumnName(tbl + "." + col)).append(" ").append(op).append(" ");
                     if (!op.contains("NULL")) {
                         sql.append("'").append(val.replace("'", "''")).append("' ");
                     }
                 }
             }
         }
+        String orderTbl = (String) joinOrderByTableDropdown.getSelectedItem();
         String orderCol = (String) joinOrderByDropdown.getSelectedItem();
-        if (orderCol != null && !orderCol.equals("(none)")) {
-            sql.append(" ORDER BY ").append(dbManager.quoteColumnName(orderCol))
+        if (orderTbl != null && !orderTbl.equals("(none)") && orderCol != null && !orderCol.equals("(none)")) {
+            sql.append(" ORDER BY ").append(dbManager.quoteColumnName(orderTbl + "." + orderCol))
                .append(" ").append(joinOrderDirDropdown.getSelectedItem());
         }
         
@@ -1291,6 +1316,7 @@ public class Main extends JFrame {
 
     class WherePanel extends JPanel {
         JComboBox<String> logicDropdown = new JComboBox<>(new String[]{"AND", "OR"});
+        JComboBox<String> tableDropdown = new JComboBox<>();
         JComboBox<String> columnDropdown = new JComboBox<>();
         JComboBox<String> operatorDropdown = new JComboBox<>(new String[]{"=", "!=", ">", "<", ">=", "<=", "LIKE", "ILIKE", "IS NULL", "IS NOT NULL"});
         JTextField valueField = new JTextField(15);
@@ -1302,6 +1328,20 @@ public class Main extends JFrame {
                 add(logicDropdown);
             }
             
+            tableDropdown.addActionListener(e -> {
+                String t = (String) tableDropdown.getSelectedItem();
+                if (t != null) {
+                    Object currentCol = columnDropdown.getSelectedItem();
+                    columnDropdown.removeAllItems();
+                    for (String c : dbManager.getColumnNames(t)) {
+                        columnDropdown.addItem(c);
+                    }
+                    if (currentCol != null) columnDropdown.setSelectedItem(currentCol);
+                }
+            });
+            
+            add(tableDropdown);
+            add(new JLabel(" . "));
             add(columnDropdown);
             add(operatorDropdown);
             add(valueField);
@@ -1330,11 +1370,11 @@ public class Main extends JFrame {
             add(removeBtn);
         }
 
-        public void updateColumns(List<String> cols) {
-            Object selected = columnDropdown.getSelectedItem();
-            columnDropdown.removeAllItems();
-            for (String col : cols) columnDropdown.addItem(col);
-            if (selected != null && cols.contains(selected)) columnDropdown.setSelectedItem(selected);
+        public void updateTables(List<String> tables) {
+            Object selected = tableDropdown.getSelectedItem();
+            tableDropdown.removeAllItems();
+            for (String t : tables) tableDropdown.addItem(t);
+            if (selected != null && tables.contains(selected)) tableDropdown.setSelectedItem(selected);
         }
     }
 
