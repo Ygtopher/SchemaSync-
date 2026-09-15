@@ -97,13 +97,15 @@ public class Main extends JFrame {
         com.dbtool.util.ThemeManager.init(themeBtn);
         add(topPanel, BorderLayout.NORTH);
 
-        // Tabs
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.addTab("Browse & Search", createBrowsePanel());
         tabbedPane.addTab("Visual Join Builder", createJoinPanel());
         tabbedPane.addTab("SQL Editor", sqlEditorPanel);
         tabbedPane.addTab("Script Builder", scriptBuilderPanel);
-        tabbedPane.addTab("Table Compare", tableComparePanel);
+        tabbedPane.addTab("Compare Queries", tableComparePanel);
+        
+        com.dbtool.panels.SshTerminalPanel sshTerminalPanel = new com.dbtool.panels.SshTerminalPanel(dbManager);
+        tabbedPane.addTab("SSH / Server", sshTerminalPanel);
 
         // Main layout: Schema sidebar left, tabs center
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, schemaPanel, tabbedPane);

@@ -7,13 +7,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Vector;
 import java.util.zip.GZIPInputStream;
+import javax.swing.filechooser.FileSystemView;
 
 public class DatabaseManager {
     public Connection connection;
     private java.util.Properties learnedJoins = new java.util.Properties();
-    private File learnedJoinsFile = new File("learned_joins.properties");
+    private File learnedJoinsFile;
+
+    private File getSaveFile(String filename) {
+        File docsFolder = FileSystemView.getFileSystemView().getDefaultDirectory();
+        File savesFolder = new File(docsFolder, "SchemaSyncSaves");
+        if (!savesFolder.exists()) {
+            savesFolder.mkdirs();
+        }
+        return new File(savesFolder, filename);
+    }
 
     public DatabaseManager() {
+        learnedJoinsFile = getSaveFile("learned_joins.properties");
         if (learnedJoinsFile.exists()) {
             try (FileInputStream in = new FileInputStream(learnedJoinsFile)) {
                 learnedJoins.load(in);
@@ -441,7 +452,7 @@ public class DatabaseManager {
     }
     public void saveConnectionProfile(String profileName, String host, String port, String user, String pass, String dbName) {
         java.util.Properties props = new java.util.Properties();
-        java.io.File propFile = new java.io.File("saved_connections.properties");
+        java.io.File propFile = getSaveFile("saved_connections.properties");
         if (propFile.exists()) {
             try (java.io.FileInputStream in = new java.io.FileInputStream(propFile)) {
                 props.load(in);
@@ -461,7 +472,38 @@ public class DatabaseManager {
     
     public java.util.Properties getSavedConnections() {
         java.util.Properties props = new java.util.Properties();
-        java.io.File propFile = new java.io.File("saved_connections.properties");
+        java.io.File propFile = getSaveFile("saved_connections.properties");
+        if (propFile.exists()) {
+            try (java.io.FileInputStream in = new java.io.FileInputStream(propFile)) {
+                props.load(in);
+            } catch (Exception e) {}
+        }
+        return props;
+    }
+
+    public void saveSshProfile(String profileName, String host, String port, String user, String pass) {
+        java.util.Properties props = new java.util.Properties();
+        java.io.File propFile = getSaveFile("saved_ssh_connections.properties");
+        if (propFile.exists()) {
+            try (java.io.FileInputStream in = new java.io.FileInputStream(propFile)) {
+                props.load(in);
+            } catch (Exception e) {}
+        }
+        
+        String encodedPass = java.util.Base64.getEncoder().encodeToString(pass.getBytes());
+        String val = host + ";" + port + ";" + user + ";" + encodedPass;
+        props.setProperty(profileName, val);
+        
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(propFile)) {
+            props.store(out, "Saved SSH Profiles");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    public java.util.Properties getSavedSshProfiles() {
+        java.util.Properties props = new java.util.Properties();
+        java.io.File propFile = getSaveFile("saved_ssh_connections.properties");
         if (propFile.exists()) {
             try (java.io.FileInputStream in = new java.io.FileInputStream(propFile)) {
                 props.load(in);

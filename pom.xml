@@ -57,7 +57,13 @@
             <version>3.4.0</version>
         </dependency>
 
-        <!-- FlatLaf for modern Light/Dark themes -->
+        <dependency>
+            <groupId>com.github.mwiede</groupId>
+            <artifactId>jsch</artifactId>
+            <version>0.2.16</version>
+        </dependency>
+
+        <!-- UI Theme -->
         <dependency>
             <groupId>com.formdev</groupId>
             <artifactId>flatlaf</artifactId>
