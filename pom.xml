@@ -77,7 +77,25 @@
             <version>5.10.2</version>
             <scope>test</scope>
         </dependency>
+        <!-- JediTerm for full terminal emulation -->
+        <dependency>
+            <groupId>org.jetbrains.jediterm</groupId>
+            <artifactId>jediterm-core</artifactId>
+            <version>3.74</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.jediterm</groupId>
+            <artifactId>jediterm-ui</artifactId>
+            <version>3.74</version>
+        </dependency>
     </dependencies>
+
+    <repositories>
+        <repository>
+            <id>jetbrains-intellij-dependencies</id>
+            <url>https://cache-redirector.jetbrains.com/intellij-dependencies</url>
+        </repository>
+    </repositories>
 
     <build>
         <plugins>
