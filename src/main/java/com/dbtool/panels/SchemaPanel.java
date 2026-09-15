@@ -118,8 +118,8 @@ public class SchemaPanel extends JPanel {
                 root.add(tableNode);
             }
             treeModel.reload();
-            // Expand all top-level nodes
-            for (int i = 0; i < tree.getRowCount(); i++) tree.expandRow(i);
+            // Expand only the root node (Database name) so tables remain closed
+            tree.expandRow(0);
         } catch (Exception ex) {
             root.setUserObject("Error: " + ex.getMessage());
             treeModel.reload();
@@ -137,7 +137,8 @@ public class SchemaPanel extends JPanel {
             if (!name.contains(filter)) root.remove(i);
         }
         treeModel.reload();
-        for (int i = 0; i < tree.getRowCount(); i++) tree.expandRow(i);
+        // Expand root node but keep tables closed unless searching
+        tree.expandRow(0);
     }
 
     private void showTableStats(String tableName) {

@@ -34,6 +34,8 @@ public class Main extends JFrame {
     private JComboBox<String> orderByDropdown = new JComboBox<>();
     private JComboBox<String> orderDirDropdown = new JComboBox<>(new String[]{"ASC", "DESC"});
     private String lastExecutedBrowseQuery = "";
+    private JCheckBox browseDistinctCheckbox = new JCheckBox("Distinct");
+    
     // Join Tab Components
     private JComboBox<String> baseTableDropdown = new JComboBox<>();
     private JPanel joinsContainer = new JPanel();
@@ -43,8 +45,11 @@ public class Main extends JFrame {
     private List<String> joinSelectedColumns = new ArrayList<>();
     private JTextField joinLimitField = new JTextField(5);
     private String lastExecutedJoinQuery = "";
+    private JCheckBox joinDistinctCheckbox = new JCheckBox("Distinct");
     private JPanel whereContainer = new JPanel();
     private List<WherePanel> wherePanels = new ArrayList<>();
+    private JComboBox<String> joinOrderByDropdown = new JComboBox<>();
+    private JComboBox<String> joinOrderDirDropdown = new JComboBox<>(new String[]{"ASC", "DESC"});
     
     // New panels
     private SchemaPanel schemaPanel;
@@ -110,9 +115,20 @@ public class Main extends JFrame {
     private JPanel createBrowsePanel() {
         JPanel panel = new JPanel(new BorderLayout());
         
-        // Row 1: Table selector + column selector + search + limit + where
-        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        row1.add(new JLabel("Table:"));
+        JToolBar tbSelect = new JToolBar();
+        tbSelect.setFloatable(false);
+        tbSelect.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        tbSelect.add(new JLabel(" Filter: "));
+        browseTableSearchField.setToolTipText("Filter table list...");
+        browseTableSearchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { filterBrowseTableList(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { filterBrowseTableList(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { filterBrowseTableList(); }
+        });
+        browseTableSearchField.setPreferredSize(new Dimension(150, 26));
+        tbSelect.add(browseTableSearchField);
+        
+        tbSelect.add(new JLabel(" |  Table: "));
         browseTableDropdown.addActionListener(e -> {
             currentSelectedColumns.clear();
             selectColsButton.setText("Columns (All)");
@@ -123,45 +139,51 @@ public class Main extends JFrame {
             refreshOrderByDropdown();
             loadTableData();
         });
-        row1.add(browseTableDropdown);
+        browseTableDropdown.setPreferredSize(new Dimension(200, 26));
+        tbSelect.add(browseTableDropdown);
         
-        // Table search filter
-        browseTableSearchField.setToolTipText("Filter table list...");
-        browseTableSearchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { filterBrowseTableList(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { filterBrowseTableList(); }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { filterBrowseTableList(); }
-        });
-        row1.add(new JLabel("Filter:"));
-        row1.add(browseTableSearchField);
-
+        tbSelect.add(new JLabel(" | "));
         selectColsButton.addActionListener(e -> openColumnSelector());
-        row1.add(selectColsButton);
+        tbSelect.add(selectColsButton);
         
-        row1.add(new JLabel("Search:"));
-        row1.add(browseSearchField);
+        tbSelect.add(new JLabel(" |  Search: "));
+        browseSearchField.setPreferredSize(new Dimension(150, 26));
+        tbSelect.add(browseSearchField);
         JButton searchBtn = new JButton("Search");
         searchBtn.addActionListener(e -> performSearch());
-        row1.add(searchBtn);
+        tbSelect.add(searchBtn);
         
-        limitField.setToolTipText("Limit (empty for none)");
-        row1.add(new JLabel("Limit:"));
-        row1.add(limitField);
+        tbSelect.add(new JLabel(" |  Limit: "));
+        limitField.setPreferredSize(new Dimension(60, 26));
+        tbSelect.add(limitField);
         
+        JToolBar tbQuery = new JToolBar();
+        tbQuery.setFloatable(false);
+        tbQuery.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
         JButton addWhereBtn = new JButton("+ Add Where");
         addWhereBtn.addActionListener(e -> addBrowseWhereRow());
-        row1.add(addWhereBtn);
-
-        // Row 2: ORDER BY + export + edit actions
-        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        row2.add(new JLabel("Order By:"));
-        row2.add(orderByDropdown);
-        row2.add(orderDirDropdown);
+        tbQuery.add(addWhereBtn);
+        tbQuery.add(new JLabel(" | "));
+        tbQuery.add(browseDistinctCheckbox);
+        tbQuery.add(new JLabel(" |  Order By: "));
+        orderByDropdown.setPreferredSize(new Dimension(150, 26));
+        tbQuery.add(orderByDropdown);
+        tbQuery.add(orderDirDropdown);
         JButton applyOrderBtn = new JButton("Apply");
         applyOrderBtn.addActionListener(e -> loadTableData());
-        row2.add(applyOrderBtn);
-        row2.add(new JSeparator(SwingConstants.VERTICAL));
-
+        tbQuery.add(applyOrderBtn);
+        
+        JToolBar tbActions = new JToolBar();
+        tbActions.setFloatable(false);
+        tbActions.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        JButton insertRowBtn = new JButton("➕ Insert Row");
+        JButton deleteRowBtn = new JButton("🗑 Delete Row");
+        insertRowBtn.addActionListener(e -> openInsertRowDialog());
+        deleteRowBtn.addActionListener(e -> deleteSelectedRow());
+        tbActions.add(insertRowBtn);
+        tbActions.add(deleteRowBtn);
+        tbActions.addSeparator();
+        
         JButton exportCsvBtn = new JButton("📥 CSV");
         JButton exportXlsxBtn = new JButton("📥 Excel");
         JButton exportInsertBtn = new JButton("📥 SQL Inserts");
@@ -183,20 +205,12 @@ public class Main extends JFrame {
                 JOptionPane.showMessageDialog(this, "No query executed yet.");
             }
         });
-        row2.add(exportCsvBtn);
-        row2.add(exportXlsxBtn);
-        row2.add(exportInsertBtn);
-        row2.add(copyBtn);
-        row2.add(copySqlBtn);
-        row2.add(copyBtn);
-        row2.add(new JSeparator(SwingConstants.VERTICAL));
-
-        JButton insertRowBtn = new JButton("➕ Insert Row");
-        JButton deleteRowBtn = new JButton("🗑 Delete Row");
-        insertRowBtn.addActionListener(e -> openInsertRowDialog());
-        deleteRowBtn.addActionListener(e -> deleteSelectedRow());
-        row2.add(insertRowBtn);
-        row2.add(deleteRowBtn);
+        tbActions.add(exportCsvBtn);
+        tbActions.add(exportXlsxBtn);
+        tbActions.add(exportInsertBtn);
+        tbActions.addSeparator();
+        tbActions.add(copyBtn);
+        tbActions.add(copySqlBtn);
 
         // Enable sorting on browseTable
         browseTable.setAutoCreateRowSorter(true);
@@ -206,8 +220,9 @@ public class Main extends JFrame {
         JPanel northPanel = new JPanel(new BorderLayout());
         JPanel rowsPanel = new JPanel();
         rowsPanel.setLayout(new BoxLayout(rowsPanel, BoxLayout.Y_AXIS));
-        rowsPanel.add(row1);
-        rowsPanel.add(row2);
+        rowsPanel.add(tbSelect);
+        rowsPanel.add(tbQuery);
+        rowsPanel.add(tbActions);
         northPanel.add(rowsPanel, BorderLayout.NORTH);
         northPanel.add(browseWhereContainer, BorderLayout.CENTER);
         
@@ -364,21 +379,25 @@ public class Main extends JFrame {
         JPanel configPanel = new JPanel(new BorderLayout());
         
         // Base Table Selection
-        JPanel basePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        basePanel.add(new JLabel("Base Table:"));
+        JToolBar tbBase = new JToolBar();
+        tbBase.setFloatable(false);
+        tbBase.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        tbBase.add(new JLabel(" Base Table: "));
         baseTableDropdown.addActionListener(e -> {
             joinSelectedColumns.clear();
             joinSelectColsButton.setText("Columns (All)");
             updateJoinDropdowns();
         });
-        basePanel.add(baseTableDropdown);
+        baseTableDropdown.setPreferredSize(new Dimension(200, 26));
+        tbBase.add(baseTableDropdown);
+        tbBase.add(new JLabel(" | "));
         JButton addJoinBtn = new JButton("+ Add Join");
         addJoinBtn.addActionListener(e -> addJoinRow());
-        basePanel.add(addJoinBtn);
+        tbBase.add(addJoinBtn);
         JButton addWhereBtn = new JButton("+ Add Where");
         addWhereBtn.addActionListener(e -> addWhereRow());
-        basePanel.add(addWhereBtn);
-        configPanel.add(basePanel, BorderLayout.NORTH);
+        tbBase.add(addWhereBtn);
+        configPanel.add(tbBase, BorderLayout.NORTH);
         
         // Dynamic Joins and Where List
         joinsContainer.setLayout(new BoxLayout(joinsContainer, BoxLayout.Y_AXIS));
@@ -391,14 +410,50 @@ public class Main extends JFrame {
         
         configPanel.add(new JScrollPane(listsPanel), BorderLayout.CENTER);
         
-        // Run Button
-        JPanel runPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        // Bottom Options
+        JPanel bottomOptionsPanel = new JPanel();
+        bottomOptionsPanel.setLayout(new BoxLayout(bottomOptionsPanel, BoxLayout.Y_AXIS));
+        
+        JToolBar tbRun = new JToolBar();
+        tbRun.setFloatable(false);
+        tbRun.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
         joinSelectColsButton.addActionListener(e -> openJoinColumnSelector());
-        runPanel.add(joinSelectColsButton);
+        tbRun.add(joinSelectColsButton);
+        tbRun.add(new JLabel(" | "));
+        tbRun.add(joinDistinctCheckbox);
+        tbRun.add(new JLabel(" |  Limit: "));
         joinLimitField.setToolTipText("Limit (empty for none)");
-        runPanel.add(new JLabel("Limit:"));
-        runPanel.add(joinLimitField);
+        joinLimitField.setPreferredSize(new Dimension(60, 26));
+        tbRun.add(joinLimitField);
+        
+        tbRun.add(new JLabel(" |  Order By: "));
+        joinOrderByDropdown.setPreferredSize(new Dimension(150, 26));
+        tbRun.add(joinOrderByDropdown);
+        tbRun.add(joinOrderDirDropdown);
+        
+        tbRun.add(new JLabel(" | "));
+        JButton runJoinBtn = new JButton("▶ Execute Join");
+        runJoinBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        runJoinBtn.setForeground(new Color(0, 102, 51));
+        runJoinBtn.addActionListener(e -> executeVisualJoin());
+        tbRun.add(runJoinBtn);
+        
+        JToolBar tbActions = new JToolBar();
+        tbActions.setFloatable(false);
+        tbActions.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        JButton exportCsvBtn = new JButton("📥 CSV");
+        JButton exportXlsxBtn = new JButton("📥 Excel");
+        JButton exportInsertBtn = new JButton("📥 SQL Inserts");
+        JButton copyDataBtn = new JButton("📋 Copy Data");
         JButton copySqlBtn = new JButton("📋 Copy SQL");
+        
+        exportCsvBtn.addActionListener(e -> ExportUtil.exportCsv(joinResultTable, this));
+        exportXlsxBtn.addActionListener(e -> ExportUtil.exportExcel(joinResultTable, this));
+        exportInsertBtn.addActionListener(e -> {
+            String tbl = (String) baseTableDropdown.getSelectedItem();
+            if (tbl != null) ExportUtil.exportSqlInserts(joinResultTable, tbl, this);
+        });
+        copyDataBtn.addActionListener(e -> ExportUtil.copyToClipboard(joinResultTable));
         copySqlBtn.addActionListener(e -> {
             if (!lastExecutedJoinQuery.isEmpty()) {
                 java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
@@ -408,12 +463,17 @@ public class Main extends JFrame {
                 JOptionPane.showMessageDialog(this, "No query executed yet.");
             }
         });
-        runPanel.add(copySqlBtn);
         
-        JButton runJoinBtn = new JButton("Execute Join");
-        runJoinBtn.addActionListener(e -> executeVisualJoin());
-        runPanel.add(runJoinBtn);
-        configPanel.add(runPanel, BorderLayout.SOUTH);
+        tbActions.add(exportCsvBtn);
+        tbActions.add(exportXlsxBtn);
+        tbActions.add(exportInsertBtn);
+        tbActions.addSeparator();
+        tbActions.add(copyDataBtn);
+        tbActions.add(copySqlBtn);
+        
+        bottomOptionsPanel.add(tbRun);
+        bottomOptionsPanel.add(tbActions);
+        configPanel.add(bottomOptionsPanel, BorderLayout.SOUTH);
         
         panel.add(configPanel, BorderLayout.NORTH);
         panel.add(new JScrollPane(joinResultTable), BorderLayout.CENTER);
@@ -619,24 +679,73 @@ public class Main extends JFrame {
 
 
     private void connectExistingDatabase() {
-        String host = "localhost";
-        String port = "5432";
-        String user = "postgres";
-        String pass = "postgres";
-        String dbName = "fisa";
+        java.util.Properties savedConnections = dbManager.getSavedConnections();
+        JComboBox<String> profileDropdown = new JComboBox<>();
+        profileDropdown.setEditable(true);
+        JTextField editor = (JTextField) profileDropdown.getEditor().getEditorComponent();
 
-        JTextField hostField = new JTextField(host);
-        JTextField portField = new JTextField(port);
-        JTextField userField = new JTextField(user);
-        JPasswordField passField = new JPasswordField(pass);
-        JTextField dbNameField = new JTextField(dbName);
+        profileDropdown.addItem("-- New Connection --");
+        for (String key : savedConnections.stringPropertyNames()) {
+            profileDropdown.addItem(key);
+        }
+
+        editor.addKeyListener(new java.awt.event.KeyAdapter() {
+            public void keyReleased(java.awt.event.KeyEvent e) {
+                char ch = e.getKeyChar();
+                if (Character.isLetterOrDigit(ch) || Character.isSpaceChar(ch) || e.getKeyCode() == java.awt.event.KeyEvent.VK_BACK_SPACE) {
+                    String filter = editor.getText();
+                    String filterLower = filter.toLowerCase();
+                    profileDropdown.hidePopup();
+                    profileDropdown.removeAllItems();
+                    profileDropdown.addItem("-- New Connection --");
+                    for (String key : savedConnections.stringPropertyNames()) {
+                        if (key.toLowerCase().contains(filterLower)) {
+                            profileDropdown.addItem(key);
+                        }
+                    }
+                    editor.setText(filter);
+                    profileDropdown.showPopup();
+                }
+            }
+        });
+
+        JTextField hostField = new JTextField("localhost");
+        JTextField portField = new JTextField("5432");
+        JTextField userField = new JTextField("postgres");
+        JPasswordField passField = new JPasswordField("postgres");
+        JTextField dbNameField = new JTextField("fisa");
+        JCheckBox saveProfileCheck = new JCheckBox("Save this connection profile", true);
+        
+        profileDropdown.addActionListener(e -> {
+            String selected = (String) profileDropdown.getSelectedItem();
+            if (selected != null && !selected.equals("-- New Connection --")) {
+                String val = savedConnections.getProperty(selected);
+                if (val != null) {
+                    String[] parts = val.split(";");
+                    if (parts.length >= 5) {
+                        hostField.setText(parts[0]);
+                        portField.setText(parts[1]);
+                        userField.setText(parts[2]);
+                        try {
+                            String decodedPass = new String(java.util.Base64.getDecoder().decode(parts[3]));
+                            passField.setText(decodedPass);
+                        } catch (Exception ex) {}
+                        dbNameField.setText(parts[4]);
+                    }
+                }
+            }
+        });
 
         Object[] message = {
+            "Search / Select Profile:", profileDropdown,
+            " ",
             "PostgreSQL Host:", hostField,
             "PostgreSQL Port:", portField,
             "PostgreSQL Username:", userField,
             "PostgreSQL Password:", passField,
-            "Database Name:", dbNameField
+            "Database Name:", dbNameField,
+            " ",
+            saveProfileCheck
         };
 
         int option = JOptionPane.showConfirmDialog(this, message, "Connect to Existing Database", JOptionPane.OK_CANCEL_OPTION);
@@ -649,6 +758,11 @@ public class Main extends JFrame {
         final String finalUser = userField.getText();
         final String finalPass = new String(passField.getPassword());
         final String finalDbName = dbNameField.getText();
+        
+        if (saveProfileCheck.isSelected()) {
+            String profileName = finalUser + "@" + finalHost + ":" + finalPort + "/" + finalDbName;
+            dbManager.saveConnectionProfile(profileName, finalHost, finalPort, finalUser, finalPass, finalDbName);
+        }
         
         statusLabel.setText("Connecting to " + finalDbName + "...");
         statusLabel.setForeground(Color.BLUE);
@@ -705,9 +819,10 @@ public class Main extends JFrame {
             try { limitClause = " LIMIT " + Integer.parseInt(limitStr); } catch (NumberFormatException ignored) {}
         }
         
+        String distinctStr = browseDistinctCheckbox.isSelected() ? "DISTINCT " : "";
         String query = "";
         try {
-            query = "SELECT " + cols + " FROM " + dbManager.quoteTableName(selectedTable)
+            query = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
                     + buildBrowseWhereClause() + orderClause + limitClause;
             lastExecutedBrowseQuery = query;
             DefaultTableModel model = dbManager.executeQuery(query);
@@ -751,21 +866,22 @@ public class Main extends JFrame {
             try { limitClause = " LIMIT " + Integer.parseInt(limitStr); } catch (NumberFormatException ignored) {}
         }
         
+        String distinctStr = browseDistinctCheckbox.isSelected() ? "DISTINCT " : "";
         String query = "";
         try {
             String whereClause = buildBrowseWhereClause();
             DefaultTableModel model;
             if (keyword.isEmpty()) {
-                query = "SELECT " + cols + " FROM " + dbManager.quoteTableName(selectedTable) + whereClause + orderClause + limitClause;
+                query = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable) + whereClause + orderClause + limitClause;
                 model = dbManager.executeQuery(query);
             } else {
                 // If there's a where clause, we need to build the full query manually
                 if (!whereClause.isEmpty()) {
-                    query = "SELECT " + cols + " FROM " + dbManager.quoteTableName(selectedTable)
+                    query = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
                             + whereClause + " AND CAST(" + dbManager.quoteTableName(selectedTable) + "::text AS TEXT) ILIKE '%" + keyword.replace("'", "''") + "%'" + orderClause + limitClause;
                     model = dbManager.executeQuery(query);
                 } else {
-                    query = "SELECT " + cols + " FROM " + dbManager.quoteTableName(selectedTable)
+                    query = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
                             + " WHERE CAST(" + dbManager.quoteTableName(selectedTable) + "::text AS TEXT) ILIKE '%" + keyword.replace("'", "''") + "%'" + orderClause + limitClause;
                     model = dbManager.executeQuery(query);
                 }
@@ -838,9 +954,11 @@ public class Main extends JFrame {
     private void updateJoinDropdowns() {
         // Collect all available tables from the base table and previous joins to populate the "Left" side of the ON clause
         List<String> availableLeftColumns = new ArrayList<>();
+        List<String> availableLeftTables = new ArrayList<>();
         
         String baseTable = (String) baseTableDropdown.getSelectedItem();
         if (baseTable != null) {
+            availableLeftTables.add(baseTable);
             for (String col : dbManager.getColumnNames(baseTable)) {
                 availableLeftColumns.add(baseTable + "." + col);
             }
@@ -854,10 +972,40 @@ public class Main extends JFrame {
                 for (String col : dbManager.getColumnNames(joinTable)) {
                     rightCols.add(joinTable + "." + col);
                 }
+                
+                // Track if user already explicitly chose something, or if this is fresh
+                Object currentLeft = jp.leftColDropdown.getSelectedItem();
+                Object currentRight = jp.rightColDropdown.getSelectedItem();
+                boolean hadSelection = (currentLeft != null && currentRight != null);
+                
                 jp.updateRightColumns(rightCols);
+                jp.updateLeftColumns(new ArrayList<>(availableLeftColumns));
+                
+                // Auto-detect Foreign Keys if no explicit selection was previously made
+                // (or if we want to overwrite it if it's new. usually if hadSelection is false)
+                if (!hadSelection || jp.leftColDropdown.getSelectedItem() == null) {
+                    for (String leftTable : availableLeftTables) {
+                        // 1. Memory check (Did the user do this manually before?)
+                        String[] match = dbManager.getLearnedJoin(leftTable, joinTable);
+                        
+                        // 2. Formal Foreign Key constraint check
+                        if (match == null) {
+                            match = dbManager.getForeignKeyMatch(leftTable, joinTable);
+                        }
+                        // 3. Smart Name match check
+                        if (match == null) {
+                            match = dbManager.getHeuristicMatch(leftTable, joinTable);
+                        }
+                        if (match != null) {
+                            jp.leftColDropdown.setSelectedItem(match[0]);
+                            jp.rightColDropdown.setSelectedItem(match[1]);
+                            break; // Stop checking once we find one match
+                        }
+                    }
+                }
                 
                 // Now this joinTable becomes available for the left side of subsequent joins
-                jp.updateLeftColumns(new ArrayList<>(availableLeftColumns));
+                availableLeftTables.add(joinTable);
                 availableLeftColumns.addAll(rightCols);
             }
         }
@@ -880,6 +1028,19 @@ public class Main extends JFrame {
                 }
             }
         }
+        
+        Object currentOrderSelected = joinOrderByDropdown.getSelectedItem();
+        joinOrderByDropdown.removeAllItems();
+        joinOrderByDropdown.addItem("(none)");
+        
+        for (String col : allCols) {
+            joinOrderByDropdown.addItem(col);
+        }
+        
+        if (currentOrderSelected != null && allCols.contains(currentOrderSelected.toString())) {
+            joinOrderByDropdown.setSelectedItem(currentOrderSelected);
+        }
+
         for (WherePanel wp : wherePanels) {
             wp.updateColumns(allCols);
         }
@@ -898,8 +1059,11 @@ public class Main extends JFrame {
             }
             cols = sb.toString();
         }
+        
+        String distinctStr = joinDistinctCheckbox.isSelected() ? "DISTINCT " : "";
+        
         StringBuilder sql = new StringBuilder();
-        sql.append("SELECT ").append(cols).append(" FROM ").append(dbManager.quoteTableName(baseTable)).append(" ");
+        sql.append("SELECT ").append(distinctStr).append(cols).append(" FROM ").append(dbManager.quoteTableName(baseTable)).append(" ");
 
         for (JoinPanel jp : joinPanels) {
             String type = (String) jp.joinTypeDropdown.getSelectedItem();
@@ -913,6 +1077,9 @@ public class Main extends JFrame {
 
                 sql.append(type).append(" JOIN ").append(dbManager.quoteTableName(table)).append(" ");
                 sql.append("ON ").append(leftFormatted).append(" = ").append(rightFormatted).append(" ");
+            } else {
+                JOptionPane.showMessageDialog(this, "Please make sure both 'Left' and 'Right' columns are selected for the join on table: " + table, "Incomplete Join", JOptionPane.WARNING_MESSAGE);
+                return;
             }
         }
         if (!wherePanels.isEmpty()) {
@@ -935,6 +1102,12 @@ public class Main extends JFrame {
                 }
             }
         }
+        String orderCol = (String) joinOrderByDropdown.getSelectedItem();
+        if (orderCol != null && !orderCol.equals("(none)")) {
+            sql.append(" ORDER BY ").append(dbManager.quoteColumnName(orderCol))
+               .append(" ").append(joinOrderDirDropdown.getSelectedItem());
+        }
+        
         String limitStr = joinLimitField.getText().trim();
         if (!limitStr.isEmpty()) {
             try { sql.append(" LIMIT ").append(Integer.parseInt(limitStr)); } catch (NumberFormatException ignored) {}
@@ -946,6 +1119,20 @@ public class Main extends JFrame {
             System.out.println("Executing JOIN: " + lastExecutedJoinQuery);
             DefaultTableModel model = dbManager.executeQuery(lastExecutedJoinQuery);
             joinResultTable.setModel(model);
+            
+            // If execution succeeded, learn the joins!
+            for (JoinPanel jp : joinPanels) {
+                String table = (String) jp.joinTableDropdown.getSelectedItem();
+                String leftCol = (String) jp.leftColDropdown.getSelectedItem();
+                String rightCol = (String) jp.rightColDropdown.getSelectedItem();
+                
+                if (table != null && leftCol != null && rightCol != null) {
+                    // Extract table name from the left side (e.g. ad_abonnement.id_client -> ad_abonnement)
+                    String leftTable = leftCol.contains(".") ? leftCol.split("\\.")[0] : baseTable;
+                    dbManager.learnJoin(leftTable, leftCol, table, rightCol);
+                }
+            }
+            
         } catch (SQLException ex) {
             ex.printStackTrace();
             JOptionPane.showMessageDialog(this, "SQL Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);

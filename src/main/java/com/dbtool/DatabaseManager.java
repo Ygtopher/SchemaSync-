@@ -10,6 +10,16 @@ import java.util.zip.GZIPInputStream;
 
 public class DatabaseManager {
     public Connection connection;
+    private java.util.Properties learnedJoins = new java.util.Properties();
+    private File learnedJoinsFile = new File("learned_joins.properties");
+
+    public DatabaseManager() {
+        if (learnedJoinsFile.exists()) {
+            try (FileInputStream in = new FileInputStream(learnedJoinsFile)) {
+                learnedJoins.load(in);
+            } catch (Exception e) {}
+        }
+    }
 
     public void connect(String dbFilePath) throws Exception {
         // Fallback for old method without credentials
@@ -230,6 +240,120 @@ public class DatabaseManager {
         return columns;
     }
 
+    public void learnJoin(String tableA, String colA, String tableB, String colB) {
+        if (tableA == null || colA == null || tableB == null || colB == null) return;
+        
+        // Strip schema just to be safe for matching
+        String cleanA = tableA.contains(".") ? tableA.split("\\.")[1] : tableA;
+        String cleanB = tableB.contains(".") ? tableB.split("\\.")[1] : tableB;
+        
+        String key1 = cleanA + ":" + cleanB;
+        String val1 = colA + ":" + colB;
+        String key2 = cleanB + ":" + cleanA;
+        String val2 = colB + ":" + colA;
+        
+        learnedJoins.setProperty(key1, val1);
+        learnedJoins.setProperty(key2, val2);
+        
+        try (FileOutputStream out = new FileOutputStream(learnedJoinsFile)) {
+            learnedJoins.store(out, "Auto-learned Foreign Key Joins");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public String[] getLearnedJoin(String tableA, String tableB) {
+        if (tableA == null || tableB == null) return null;
+        String cleanA = tableA.contains(".") ? tableA.split("\\.")[1] : tableA;
+        String cleanB = tableB.contains(".") ? tableB.split("\\.")[1] : tableB;
+        
+        String key = cleanA + ":" + cleanB;
+        String val = learnedJoins.getProperty(key);
+        if (val != null) {
+            String[] parts = val.split(":");
+            if (parts.length == 2) {
+                return new String[]{parts[0], parts[1]};
+            }
+        }
+        return null;
+    }
+
+    public String[] getForeignKeyMatch(String tableA, String tableB) {
+        if (connection == null || tableA == null || tableB == null) return null;
+        try {
+            DatabaseMetaData metaData = connection.getMetaData();
+            
+            String schemaA = null;
+            String nameA = tableA;
+            if (tableA.contains(".")) {
+                schemaA = tableA.split("\\.")[0];
+                nameA = tableA.split("\\.")[1];
+            }
+            
+            String schemaB = null;
+            String nameB = tableB;
+            if (tableB.contains(".")) {
+                schemaB = tableB.split("\\.")[0];
+                nameB = tableB.split("\\.")[1];
+            }
+
+            // 1. Check if tableA has a foreign key pointing to tableB
+            try (ResultSet rs = metaData.getImportedKeys(null, schemaA, nameA)) {
+                while (rs.next()) {
+                    String pkTable = rs.getString("PKTABLE_NAME");
+                    if (nameB.equalsIgnoreCase(pkTable)) {
+                        String fkColumn = rs.getString("FKCOLUMN_NAME");
+                        String pkColumn = rs.getString("PKCOLUMN_NAME");
+                        return new String[]{tableA + "." + fkColumn, tableB + "." + pkColumn};
+                    }
+                }
+            }
+
+            // 2. Check if tableB has a foreign key pointing to tableA
+            try (ResultSet rs = metaData.getImportedKeys(null, schemaB, nameB)) {
+                while (rs.next()) {
+                    String pkTable = rs.getString("PKTABLE_NAME");
+                    if (nameA.equalsIgnoreCase(pkTable)) {
+                        String fkColumn = rs.getString("FKCOLUMN_NAME");
+                        String pkColumn = rs.getString("PKCOLUMN_NAME");
+                        return new String[]{tableA + "." + pkColumn, tableB + "." + fkColumn};
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null; // No formal foreign key found
+    }
+
+    public String[] getHeuristicMatch(String tableA, String tableB) {
+        List<String> colsA = getColumnNames(tableA);
+        List<String> colsB = getColumnNames(tableB);
+        
+        String cleanA = tableA.contains(".") ? tableA.split("\\.")[1] : tableA;
+        String cleanB = tableB.contains(".") ? tableB.split("\\.")[1] : tableB;
+        
+        // 1. Check if tableA has 'tableB_id' and tableB has 'id'
+        if (colsA.contains(cleanB + "_id") && colsB.contains("id")) {
+            return new String[]{tableA + "." + cleanB + "_id", tableB + ".id"};
+        }
+        
+        // 2. Check if tableB has 'tableA_id' and tableA has 'id'
+        if (colsB.contains(cleanA + "_id") && colsA.contains("id")) {
+            return new String[]{tableA + ".id", tableB + "." + cleanA + "_id"};
+        }
+        
+        // 3. Check for matching exact column names (excluding standard 'id', 'created_at', etc)
+        for (String colA : colsA) {
+            if (colA.equalsIgnoreCase("id") || colA.equalsIgnoreCase("created_at") || colA.equalsIgnoreCase("updated_at")) continue;
+            if (colsB.contains(colA)) {
+                return new String[]{tableA + "." + colA, tableB + "." + colA};
+            }
+        }
+        
+        return null;
+    }
+
     public String quoteTableName(String tableName) {
         if (tableName.contains(".")) {
             String[] parts = tableName.split("\\.", 2);
@@ -314,5 +438,35 @@ public class DatabaseManager {
         }
 
         return new DefaultTableModel(data, columnNames);
+    }
+    public void saveConnectionProfile(String profileName, String host, String port, String user, String pass, String dbName) {
+        java.util.Properties props = new java.util.Properties();
+        java.io.File propFile = new java.io.File("saved_connections.properties");
+        if (propFile.exists()) {
+            try (java.io.FileInputStream in = new java.io.FileInputStream(propFile)) {
+                props.load(in);
+            } catch (Exception e) {}
+        }
+        
+        String encodedPass = java.util.Base64.getEncoder().encodeToString(pass.getBytes());
+        String val = host + ";" + port + ";" + user + ";" + encodedPass + ";" + dbName;
+        props.setProperty(profileName, val);
+        
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(propFile)) {
+            props.store(out, "Saved Connection Profiles");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    public java.util.Properties getSavedConnections() {
+        java.util.Properties props = new java.util.Properties();
+        java.io.File propFile = new java.io.File("saved_connections.properties");
+        if (propFile.exists()) {
+            try (java.io.FileInputStream in = new java.io.FileInputStream(propFile)) {
+                props.load(in);
+            } catch (Exception e) {}
+        }
+        return props;
     }
 }
