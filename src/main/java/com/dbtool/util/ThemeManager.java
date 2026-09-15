@@ -26,15 +26,15 @@ public class ThemeManager {
         try {
             if (isDarkMode) {
                 UIManager.setLookAndFeel(new FlatDarkLaf());
-                UIManager.put("ScrollBar.thumb", Color.WHITE);
-                UIManager.put("ScrollBar.hoverThumb", new Color(200, 200, 200));
-                UIManager.put("ScrollBar.pressedThumb", new Color(150, 150, 150));
+                UIManager.put("ScrollBar.thumb", new Color(180, 180, 180)); // Soft white/light gray
+                UIManager.put("ScrollBar.hoverThumb", new Color(220, 220, 220));
+                UIManager.put("ScrollBar.pressedThumb", new Color(255, 255, 255));
                 if (toggleButton != null) toggleButton.setText("💡 Light Mode");
             } else {
                 UIManager.setLookAndFeel(new FlatLightLaf());
-                UIManager.put("ScrollBar.thumb", Color.BLACK);
-                UIManager.put("ScrollBar.hoverThumb", new Color(50, 50, 50));
-                UIManager.put("ScrollBar.pressedThumb", new Color(100, 100, 100));
+                UIManager.put("ScrollBar.thumb", new Color(100, 100, 100)); // Soft dark gray instead of pure black
+                UIManager.put("ScrollBar.hoverThumb", new Color(60, 60, 60));
+                UIManager.put("ScrollBar.pressedThumb", new Color(20, 20, 20));
                 if (toggleButton != null) toggleButton.setText("🌙 Dark Mode");
             }
             
