@@ -39,6 +39,7 @@ public class DataOpsPanel extends JPanel {
     private final JComboBox<String> juTypeCb   = new JComboBox<>(new String[]{"INNER JOIN", "LEFT JOIN"});
     private final JComboBox<String> juOnMainCb = new JComboBox<>();   // target.col
     private final JComboBox<String> juOnJoinCb = new JComboBox<>();   // join.col
+    private final JComboBox<String> juWhereTableCb = new JComboBox<>();
     private final JComboBox<String> juWhereColCb = new JComboBox<>();
     private final JTextField        juWhereValFld = new JTextField(16);
 
@@ -83,7 +84,11 @@ public class DataOpsPanel extends JPanel {
         operationCb.addActionListener(e -> onOperationChanged());
         mainTableCb.addActionListener(e -> refreshMainTableColumns());
         alterOpCb.addActionListener(e -> refreshAlterFields());
-        juJoinCb.addActionListener(e -> refreshCols((String) juJoinCb.getSelectedItem(), juOnJoinCb));
+        juJoinCb.addActionListener(e -> {
+            refreshCols((String) juJoinCb.getSelectedItem(), juOnJoinCb);
+            refreshJuWhereTables();
+        });
+        juWhereTableCb.addActionListener(e -> refreshCols((String) juWhereTableCb.getSelectedItem(), juWhereColCb));
 
         juSetRowsCtr.setLayout(new BoxLayout(juSetRowsCtr, BoxLayout.Y_AXIS));
         sqlPreview.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
@@ -155,7 +160,8 @@ public class DataOpsPanel extends JPanel {
         tbJ.add(new JLabel(" ON target.")); tbJ.add(juOnMainCb);
         tbJ.add(new JLabel(" = join."));   tbJ.add(juOnJoinCb);
         tbJ.addSeparator();
-        tbJ.add(new JLabel(" WHERE Column: ")); tbJ.add(juWhereColCb);
+        tbJ.add(new JLabel(" WHERE Table: ")); tbJ.add(juWhereTableCb);
+        tbJ.add(new JLabel(" Col: "));      tbJ.add(juWhereColCb);
         tbJ.add(new JLabel(" = Value: "));      tbJ.add(juWhereValFld);
         cardPanel.add(tbJ, "UPDATE + JOIN");
 
@@ -341,8 +347,18 @@ public class DataOpsPanel extends JPanel {
         refreshCols(tbl, alterOldColCb);
         refreshCols(tbl, indexColCb);
         refreshCols(tbl, juOnMainCb);
-        refreshCols(tbl, juWhereColCb);
+        refreshJuWhereTables();
         refreshSetRowCols();
+    }
+
+    private void refreshJuWhereTables() {
+        String mainTbl = (String) mainTableCb.getSelectedItem();
+        String joinTbl = (String) juJoinCb.getSelectedItem();
+        Object prev = juWhereTableCb.getSelectedItem();
+        juWhereTableCb.removeAllItems();
+        if (mainTbl != null) juWhereTableCb.addItem(mainTbl);
+        if (joinTbl != null) juWhereTableCb.addItem(joinTbl);
+        if (prev != null) juWhereTableCb.setSelectedItem(prev);
     }
 
     private void refreshAlterFields() {
@@ -414,6 +430,7 @@ public class DataOpsPanel extends JPanel {
                 String joinTbl = (String) juJoinCb.getSelectedItem();
                 String onMain  = (String) juOnMainCb.getSelectedItem();
                 String onJoin  = (String) juOnJoinCb.getSelectedItem();
+                String whereTable = (String) juWhereTableCb.getSelectedItem();
                 String whereCol = (String) juWhereColCb.getSelectedItem();
                 String whereVal = juWhereValFld.getText().trim();
                 if (joinTbl == null || onMain == null || onJoin == null) {
@@ -434,8 +451,8 @@ public class DataOpsPanel extends JPanel {
                 sql.append("\nFROM ").append(q(joinTbl));
                 sql.append("\nWHERE ").append(q(tbl)).append(".").append(q(onMain))
                    .append(" = ").append(q(joinTbl)).append(".").append(q(onJoin));
-                if (whereCol != null && !whereVal.isEmpty()) {
-                    sql.append("\n  AND ").append(q(tbl)).append(".").append(q(whereCol))
+                if (whereTable != null && whereCol != null && !whereVal.isEmpty()) {
+                    sql.append("\n  AND ").append(q(whereTable)).append(".").append(q(whereCol))
                        .append(" = '").append(whereVal.replace("'", "''")).append("'");
                 }
                 return sql.toString();
