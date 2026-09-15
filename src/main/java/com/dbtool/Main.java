@@ -745,6 +745,20 @@ public class Main extends JFrame {
         JTextField portField = new JTextField("5432");
         JTextField userField = new JTextField("postgres");
         JPasswordField passField = new JPasswordField("postgres");
+        JToggleButton showPassBtn = new JToggleButton("👁");
+        showPassBtn.setMargin(new java.awt.Insets(0, 4, 0, 4));
+        showPassBtn.setFocusable(false);
+        showPassBtn.addActionListener(e -> {
+            if (showPassBtn.isSelected()) {
+                passField.setEchoChar((char) 0);
+            } else {
+                passField.setEchoChar('•');
+            }
+        });
+        JPanel passPanel = new JPanel(new BorderLayout());
+        passPanel.add(passField, BorderLayout.CENTER);
+        passPanel.add(showPassBtn, BorderLayout.EAST);
+
         JTextField dbNameField = new JTextField("fisa");
         JCheckBox saveProfileCheck = new JCheckBox("Save this connection profile", true);
         
@@ -774,7 +788,7 @@ public class Main extends JFrame {
             "PostgreSQL Host:", hostField,
             "PostgreSQL Port:", portField,
             "PostgreSQL Username:", userField,
-            "PostgreSQL Password:", passField,
+            "PostgreSQL Password:", passPanel,
             "Database Name:", dbNameField,
             " ",
             saveProfileCheck
