@@ -1,15 +1,25 @@
 # SchemaSync
 
-SchemaSync is a powerful, lightweight Java database tool for PostgreSQL, MS Access, and H2. It features a modern Dark Mode UI, a Visual Join Builder, Schema & Data diffing, and a robust Script Builder with native psql command emulation (\set, \gset, \echo). Easily browse, query, compare, and export your database securely and efficiently.
+SchemaSync is a powerful, lightweight Java database tool for PostgreSQL, MS Access, and H2. It features a modern Dark Mode UI, a Visual Join Builder, Schema & Data diffing, Data Operations, a built-in SSH Terminal, and a robust Script Builder with native psql command emulation. Easily browse, query, compare, and modify your database securely and efficiently.
 
 ## Key Features
 
 * **Multi-Database Support:** Connect directly to PostgreSQL, MS Access (.accdb), or standard SQL dump files (powered by an embedded H2 engine).
 * **Browse & Search:** Instantly view tables, select specific columns, filter data with a custom WHERE builder, and execute rapid text searches across entire tables.
+* **Data Operations:** A dedicated interface to safely build and execute structural and data changes:
+  * Multi-column **UPDATE** and **UPDATE + JOIN** builder
+  * **DELETE** record builder
+  * **ALTER TABLE** (Add, Drop, Rename columns, Change data types)
+  * **CREATE INDEX** (Standard and Unique)
+  * **TRUNCATE** tables safely
+* **Query History & Transaction Control:** Every tab features a global Query History panel to track, re-run, or export previously executed statements. Toggle **Auto-Commit** on the fly and manually **Commit** or **Rollback** transactions with single button clicks.
 * **Visual Join Builder:** Construct complex multi-table JOINs through a simple dropdown interface without needing to write raw SQL.
 * **Script Builder (with PSQL Emulation):** Write, save, and execute complex transaction scripts. It natively intercepts and emulates PostgreSQL shell meta-commands (like \set, \gset, and \echo) and handles standard variable injection securely via JDBC.
 * **Table Compare (Diff):** Select any two tables and a primary key to instantly generate a Schema Diff (identifying missing columns) and a Data Diff (identifying differing rows).
-* **Robust Exporting:** Export any queried data directly to CSV, Excel (.xlsx), or raw SQL INSERT statements.
+* **SSH Terminal:** Built-in server management tab with an interactive SSH terminal. Supports executing server commands directly and seamless drag-and-drop file transfers (upload/download) to and from Windows Explorer.
+* **Smart SQL Quoting:** Generates clean, standard SQL. Table and column identifiers are only enclosed in quotation marks when strictly necessary (e.g., when they contain capital letters, spaces, or reserved SQL keywords).
+* **Robust Exporting:** Export any queried data or query history directly to CSV, Excel (.xlsx), or raw SQL INSERT statements.
+* **Persistent Sessions:** Connection details, saved queries, and settings are saved persistently in your Documents folder (`Documents/SchemaSyncSaves/`) to prevent data loss across updates.
 * **Modern UI:** Built on top of FlatLaf, offering a sleek, fully functional Dark Mode that toggles instantly without requiring a restart.
 
 ## Technologies Used
@@ -22,6 +32,7 @@ SchemaSync is a powerful, lightweight Java database tool for PostgreSQL, MS Acce
 * H2 Database Engine
 * Apache POI (Excel Exports)
 * RSyntaxTextArea (SQL Syntax Highlighting)
+* JSch (SSH Terminal & SFTP)
 
 ## Building from Source
 
@@ -32,7 +43,7 @@ This project uses Maven for dependency management and packaging.
 3. Run the following command to compile and build the standalone Fat JAR:
 
 ```bash
-mvn clean package
+mvn clean package -DskipTests
 ```
 
 This will generate a self-contained executable JAR in the `target/` directory.
