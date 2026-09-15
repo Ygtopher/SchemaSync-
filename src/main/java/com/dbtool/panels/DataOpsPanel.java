@@ -341,14 +341,24 @@ public class DataOpsPanel extends JPanel {
 
     private void refreshMainTableColumns() {
         String tbl = (String) mainTableCb.getSelectedItem();
-        if (tbl == null) return;
-        refreshCols(tbl, updateWhereColCb);
-        refreshCols(tbl, deleteColCb);
-        refreshCols(tbl, alterOldColCb);
-        refreshCols(tbl, indexColCb);
-        refreshCols(tbl, juOnMainCb);
+        if (tbl == null || dbManager.connection == null) return;
+        
+        java.util.List<String> cols = dbManager.getColumnNames(tbl);
+        
+        refreshCols(cols, updateWhereColCb);
+        refreshCols(cols, deleteColCb);
+        refreshCols(cols, alterOldColCb);
+        refreshCols(cols, indexColCb);
+        refreshCols(cols, juOnMainCb);
         refreshJuWhereTables();
-        refreshSetRowCols();
+        
+        // Also update set rows here directly instead of querying DB again
+        for (SetRow sr : juSetRows) {
+            Object prev = sr.colCb.getSelectedItem();
+            sr.colCb.removeAllItems();
+            for (String c : cols) sr.colCb.addItem(c);
+            if (prev != null) sr.colCb.setSelectedItem(prev);
+        }
     }
 
     private void refreshJuWhereTables() {
@@ -521,6 +531,13 @@ public class DataOpsPanel extends JPanel {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
+
+    private void refreshCols(java.util.List<String> cols, JComboBox<String> target) {
+        Object prev = target.getSelectedItem();
+        target.removeAllItems();
+        for (String col : cols) target.addItem(col);
+        if (prev != null) target.setSelectedItem(prev);
+    }
 
     private void refreshCols(String table, JComboBox<String> target) {
         if (table == null || dbManager.connection == null) return;
