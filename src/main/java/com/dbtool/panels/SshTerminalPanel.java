@@ -188,6 +188,9 @@ public class SshTerminalPanel extends JPanel {
             if (node == null) return;
             if (node.getUserObject() instanceof SftpFileNode) {
                 SftpFileNode fileNode = (SftpFileNode) node.getUserObject();
+                // Update the address bar to show the selected path
+                pathField.setText(fileNode.fullPath);
+                
                 if (fileNode.isDir && node.getChildCount() == 1 && node.getChildAt(0).toString().equals("...")) {
                     loadDirectory(node, fileNode.fullPath);
                 }
