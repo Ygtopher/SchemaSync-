@@ -16,17 +16,36 @@ import java.util.List;
 import java.util.ArrayList;
 
 public class SshTerminalPanel extends JPanel {
+    private void updateJediTermStyleState() {
+        if (terminalArea != null && terminalArea.getTerminalTextBuffer() != null && settingsProvider != null) {
+            try {
+                java.lang.reflect.Field f = com.jediterm.terminal.model.TerminalTextBuffer.class.getDeclaredField("styleState");
+                f.setAccessible(true);
+                com.jediterm.terminal.model.StyleState styleState = (com.jediterm.terminal.model.StyleState) f.get(terminalArea.getTerminalTextBuffer());
+                styleState.setDefaultStyle(settingsProvider.getDefaultStyle());
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+            if (terminalArea.getTerminalPanel() != null) {
+                terminalArea.getTerminalPanel().repaint();
+            }
+        }
+    }
 
     @Override
     public void updateUI() {
         super.updateUI();
-        if (terminalArea != null && terminalArea.getTerminalPanel() != null) {
-            // Force JediTerm to repaint when the global L&F changes
-            terminalArea.getTerminalPanel().repaint();
-        }
         if (settingsProvider != null) {
             // Unset the local override so it follows the global theme again
             settingsProvider.setDark(com.dbtool.util.ThemeManager.isDarkMode());
+        }
+        if (terminalArea != null) {
+            if (settingsProvider != null && terminalArea.getTerminalTextBuffer() != null ) {
+                updateJediTermStyleState();
+            }
+            if (terminalArea.getTerminalPanel() != null) {
+                terminalArea.getTerminalPanel().repaint();
+            }
         }
     }
 
@@ -144,9 +163,11 @@ public class SshTerminalPanel extends JPanel {
             settingsProvider.setDark(!currentDark);
             themeBtn.setText(!currentDark ? "Light Theme" : "Dark Theme");
             if (terminalArea != null) {
-                // To force JediTerm to refresh its background
+                if (terminalArea.getTerminalTextBuffer() != null ) {
+                    updateJediTermStyleState();
+                }
                 terminalArea.updateUI();
-                terminalArea.getTerminalPanel().repaint();
+                if (terminalArea.getTerminalPanel() != null) terminalArea.getTerminalPanel().repaint();
             }
         });
         topPanel.add(themeBtn);
