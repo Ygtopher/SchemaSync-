@@ -1038,63 +1038,54 @@ public class Main extends JFrame {
 
     private void updateJoinDropdowns() {
         // Collect all available tables from the base table and previous joins to populate the "Left" side of the ON clause
-        List<String> availableLeftColumns = new ArrayList<>();
         List<String> availableLeftTables = new ArrayList<>();
         
         String baseTable = (String) baseTableDropdown.getSelectedItem();
         if (baseTable != null) {
             availableLeftTables.add(baseTable);
-            for (String col : dbManager.getColumnNames(baseTable)) {
-                availableLeftColumns.add(baseTable + "." + col);
-            }
         }
 
         for (JoinPanel jp : joinPanels) {
             String joinTable = (String) jp.joinTableDropdown.getSelectedItem();
             if (joinTable != null) {
-                // The right side columns are strictly from the joined table
-                List<String> rightCols = new ArrayList<>();
-                for (String col : dbManager.getColumnNames(joinTable)) {
-                    rightCols.add(joinTable + "." + col);
-                }
+                List<String> rightCols = new ArrayList<>(dbManager.getColumnNames(joinTable));
                 
-                // Track if user already explicitly chose something, or if this is fresh
-                Object currentLeft = jp.leftColDropdown.getSelectedItem();
-                Object currentRight = jp.rightColDropdown.getSelectedItem();
-                boolean hadSelection = (currentLeft != null && currentRight != null);
+                Object currentLeftTable = jp.leftTableDropdown.getSelectedItem();
+                Object currentLeftCol = jp.leftColDropdown.getSelectedItem();
+                Object currentRightCol = jp.rightColDropdown.getSelectedItem();
+                boolean hadSelection = (currentLeftTable != null && currentLeftCol != null && currentRightCol != null);
                 
                 jp.updateRightColumns(rightCols);
-                jp.updateLeftColumns(new ArrayList<>(availableLeftColumns));
+                jp.updateLeftTables(new ArrayList<>(availableLeftTables));
                 
-                // Auto-detect Foreign Keys if no explicit selection was previously made
-                // (or if we want to overwrite it if it's new. usually if hadSelection is false)
                 if (!hadSelection || jp.leftColDropdown.getSelectedItem() == null) {
+                    boolean found = false;
                     for (String leftTable : availableLeftTables) {
-                        // 1. Memory check (Did the user do this manually before?)
                         String[] match = dbManager.getLearnedJoin(leftTable, joinTable);
-                        
-                        // 2. Formal Foreign Key constraint check
-                        if (match == null) {
-                            match = dbManager.getForeignKeyMatch(leftTable, joinTable);
-                        }
-                        // 3. Smart Name match check
-                        if (match == null) {
-                            match = dbManager.getHeuristicMatch(leftTable, joinTable);
-                        }
+                        if (match == null) match = dbManager.getForeignKeyMatch(leftTable, joinTable);
+                        if (match == null) match = dbManager.getHeuristicMatch(leftTable, joinTable);
                         if (match != null) {
-                            jp.leftColDropdown.setSelectedItem(match[0]);
-                            jp.rightColDropdown.setSelectedItem(match[1]);
-                            break; // Stop checking once we find one match
+                            String leftMatch = match[0];
+                            if (leftMatch.startsWith(leftTable + ".")) leftMatch = leftMatch.substring(leftTable.length() + 1);
+                            
+                            String rightMatch = match[1];
+                            if (rightMatch.startsWith(joinTable + ".")) rightMatch = rightMatch.substring(joinTable.length() + 1);
+                            
+                            jp.leftTableDropdown.setSelectedItem(leftTable);
+                            jp.leftColDropdown.setSelectedItem(leftMatch);
+                            jp.rightColDropdown.setSelectedItem(rightMatch);
+                            found = true;
+                            break;
                         }
+                    }
+                    if (!found && !availableLeftTables.isEmpty()) {
+                        jp.leftTableDropdown.setSelectedItem(availableLeftTables.get(0));
                     }
                 }
                 
-                // Now this joinTable becomes available for the left side of subsequent joins
                 availableLeftTables.add(joinTable);
-                availableLeftColumns.addAll(rightCols);
             }
         }
-        updateWhereDropdowns();
     }
 
     private void updateWhereDropdowns() {
@@ -1153,14 +1144,15 @@ public class Main extends JFrame {
         for (JoinPanel jp : joinPanels) {
             String type = (String) jp.joinTypeDropdown.getSelectedItem();
             String table = (String) jp.joinTableDropdown.getSelectedItem();
+            String leftTable = (String) jp.leftTableDropdown.getSelectedItem();
             String leftCol = (String) jp.leftColDropdown.getSelectedItem();
             String rightCol = (String) jp.rightColDropdown.getSelectedItem();
             
-            if (table != null && leftCol != null && rightCol != null) {
-                String leftFormatted = dbManager.quoteColumnName(leftCol);
-                String rightFormatted = dbManager.quoteColumnName(rightCol);
+            if (table != null && leftTable != null && leftCol != null && rightCol != null) {
+                String leftFormatted = dbManager.quoteColumnName(leftTable + "." + leftCol);
+                String rightFormatted = dbManager.quoteColumnName(table + "." + rightCol);
 
-                sql.append(type).append(" ").append(dbManager.quoteTableName(table)).append(" ");
+                sql.append(" ").append(type).append(" ").append(dbManager.quoteTableName(table)).append(" ");
                 sql.append("ON ").append(leftFormatted).append(" = ").append(rightFormatted).append(" ");
             } else {
                 JOptionPane.showMessageDialog(this, "Please make sure both 'Left' and 'Right' columns are selected for the join on table: " + table, "Incomplete Join", JOptionPane.WARNING_MESSAGE);
@@ -1208,13 +1200,12 @@ public class Main extends JFrame {
             // If execution succeeded, learn the joins!
             for (JoinPanel jp : joinPanels) {
                 String table = (String) jp.joinTableDropdown.getSelectedItem();
+                String leftTable = (String) jp.leftTableDropdown.getSelectedItem();
                 String leftCol = (String) jp.leftColDropdown.getSelectedItem();
                 String rightCol = (String) jp.rightColDropdown.getSelectedItem();
                 
-                if (table != null && leftCol != null && rightCol != null) {
-                    // Extract table name from the left side (e.g. ad_abonnement.id_client -> ad_abonnement)
-                    String leftTable = leftCol.contains(".") ? leftCol.split("\\.")[0] : baseTable;
-                    dbManager.learnJoin(leftTable, leftCol, table, rightCol);
+                if (table != null && leftTable != null && leftCol != null && rightCol != null) {
+                    dbManager.learnJoin(leftTable, leftTable + "." + leftCol, table, table + "." + rightCol);
                 }
             }
             
@@ -1228,7 +1219,9 @@ public class Main extends JFrame {
     class JoinPanel extends JPanel {
         JComboBox<String> joinTypeDropdown = new JComboBox<>(new String[]{"JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN"});
         JComboBox<String> joinTableDropdown = new JComboBox<>();
+        JComboBox<String> leftTableDropdown = new JComboBox<>();
         JComboBox<String> leftColDropdown = new JComboBox<>();
+        JLabel rightTableLabel = new JLabel("");
         JComboBox<String> rightColDropdown = new JComboBox<>();
 
         public JoinPanel() {
@@ -1239,17 +1232,33 @@ public class Main extends JFrame {
             }
             
             joinTableDropdown.addActionListener(e -> {
+                String t = (String) joinTableDropdown.getSelectedItem();
+                if (t != null) rightTableLabel.setText(t + " . ");
                 joinSelectedColumns.clear();
                 joinSelectColsButton.setText("Columns (All)");
                 updateJoinDropdowns();
             });
 
+            leftTableDropdown.addActionListener(e -> {
+                String t = (String) leftTableDropdown.getSelectedItem();
+                if (t != null) {
+                    Object currentCol = leftColDropdown.getSelectedItem();
+                    leftColDropdown.removeAllItems();
+                    for (String c : dbManager.getColumnNames(t)) {
+                        leftColDropdown.addItem(c);
+                    }
+                    if (currentCol != null) leftColDropdown.setSelectedItem(currentCol);
+                }
+            });
+
             add(joinTypeDropdown);
-            add(new JLabel("JOIN"));
             add(joinTableDropdown);
-            add(new JLabel("ON"));
+            add(new JLabel(" ON "));
+            add(leftTableDropdown);
+            add(new JLabel(" . "));
             add(leftColDropdown);
-            add(new JLabel("="));
+            add(new JLabel(" = "));
+            add(rightTableLabel);
             add(rightColDropdown);
             
             JButton removeBtn = new JButton("X");
@@ -1265,11 +1274,11 @@ public class Main extends JFrame {
             add(removeBtn);
         }
 
-        public void updateLeftColumns(List<String> cols) {
-            Object selected = leftColDropdown.getSelectedItem();
-            leftColDropdown.removeAllItems();
-            for (String col : cols) leftColDropdown.addItem(col);
-            if (selected != null && cols.contains(selected)) leftColDropdown.setSelectedItem(selected);
+        public void updateLeftTables(List<String> tables) {
+            Object selected = leftTableDropdown.getSelectedItem();
+            leftTableDropdown.removeAllItems();
+            for (String t : tables) leftTableDropdown.addItem(t);
+            if (selected != null && tables.contains(selected)) leftTableDropdown.setSelectedItem(selected);
         }
 
         public void updateRightColumns(List<String> cols) {
