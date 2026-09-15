@@ -35,6 +35,9 @@ public class Main extends JFrame {
     private JComboBox<String> orderByDropdown = new JComboBox<>();
     private JComboBox<String> orderDirDropdown = new JComboBox<>(new String[]{"ASC", "DESC"});
     private String lastExecutedBrowseQuery = "";
+    private int browseCurrentOffset = 0;
+    private boolean isBrowseLoading = false;
+    private String lastBrowseBaseQuery = "";
     private JCheckBox browseDistinctCheckbox = new JCheckBox("Distinct");
     
     // Join Tab Components
@@ -258,7 +261,20 @@ public class Main extends JFrame {
         northPanel.add(browseWhereContainer, BorderLayout.CENTER);
         
         panel.add(northPanel, BorderLayout.NORTH);
-        panel.add(new JScrollPane(browseTable), BorderLayout.CENTER);
+        JScrollPane browseScroll = new JScrollPane(browseTable);
+        browseScroll.getVerticalScrollBar().addAdjustmentListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                javax.swing.JScrollBar scrollBar = (javax.swing.JScrollBar) e.getAdjustable();
+                int extent = scrollBar.getModel().getExtent();
+                int maximum = scrollBar.getModel().getMaximum();
+                if (maximum > 0 && scrollBar.getValue() + extent >= maximum - 50) {
+                    if (!isBrowseLoading && lastBrowseBaseQuery != null && !lastBrowseBaseQuery.isEmpty()) {
+                        fetchBrowseData(true);
+                    }
+                }
+            }
+        });
+        panel.add(browseScroll, BorderLayout.CENTER);
         
         return panel;
     }
@@ -859,45 +875,14 @@ public class Main extends JFrame {
         if (orderCol != null && !orderCol.equals("(none)")) {
             orderClause = " ORDER BY " + dbManager.quoteColumnName(orderCol) + " " + orderDirDropdown.getSelectedItem();
         }
-        String limitStr = limitField.getText().trim();
-        String limitClause = "";
-        if (!limitStr.isEmpty()) {
-            try { limitClause = " LIMIT " + Integer.parseInt(limitStr); } catch (NumberFormatException ignored) {}
-        }
         
         String distinctStr = browseDistinctCheckbox.isSelected() ? "DISTINCT " : "";
-        String query = "";
-        try {
-            query = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
-                    + buildBrowseWhereClause() + orderClause + limitClause;
-            lastExecutedBrowseQuery = query;
-            
-            // Show loading indicator
-            browseTable.setModel(new DefaultTableModel(new Object[][]{{"Loading..."}}, new String[]{"Status"}));
-            
-            final String finalQuery = query;
-            new Thread(() -> {
-                try {
-                    DefaultTableModel model = dbManager.executeQuery(finalQuery);
-                    SwingUtilities.invokeLater(() -> browseTable.setModel(model));
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                    SwingUtilities.invokeLater(() -> {
-                        browseTable.setModel(new DefaultTableModel(new Object[][]{{"Error"}}, new String[]{"Status"}));
-                        String debugInfo = "Query: " + finalQuery + "\n";
-                        try {
-                            java.sql.ResultSet rs = dbManager.connection.createStatement().executeQuery("SELECT current_database(), current_schema()");
-                            if (rs.next()) {
-                                debugInfo += "DB: " + rs.getString(1) + ", Schema: " + rs.getString(2) + "\n";
-                            }
-                        } catch (Exception e) {}
-                        JOptionPane.showMessageDialog(Main.this, debugInfo + "Error loading data: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                    });
-                }
-            }).start();
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
+        
+        lastBrowseBaseQuery = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
+                + buildBrowseWhereClause() + orderClause;
+        
+        browseCurrentOffset = 0;
+        fetchBrowseData(false);
     }
 
     private void performSearch() {
@@ -920,56 +905,85 @@ public class Main extends JFrame {
         if (orderCol != null && !orderCol.equals("(none)")) {
             orderClause = " ORDER BY " + dbManager.quoteColumnName(orderCol) + " " + orderDirDropdown.getSelectedItem();
         }
-        String limitStr = limitField.getText().trim();
-        String limitClause = "";
-        if (!limitStr.isEmpty()) {
-            try { limitClause = " LIMIT " + Integer.parseInt(limitStr); } catch (NumberFormatException ignored) {}
-        }
         
         String distinctStr = browseDistinctCheckbox.isSelected() ? "DISTINCT " : "";
-        String query = "";
-        try {
-            String whereClause = buildBrowseWhereClause();
-            if (keyword.isEmpty()) {
-                query = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable) + whereClause + orderClause + limitClause;
+        String whereClause = buildBrowseWhereClause();
+        
+        if (keyword.isEmpty()) {
+            lastBrowseBaseQuery = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable) + whereClause + orderClause;
+        } else {
+            if (!whereClause.isEmpty()) {
+                lastBrowseBaseQuery = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
+                        + whereClause + " AND CAST(" + dbManager.quoteTableName(selectedTable) + "::text AS TEXT) ILIKE '%" + keyword.replace("'", "''") + "%'" + orderClause;
             } else {
-                // If there's a where clause, we need to build the full query manually
-                if (!whereClause.isEmpty()) {
-                    query = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
-                            + whereClause + " AND CAST(" + dbManager.quoteTableName(selectedTable) + "::text AS TEXT) ILIKE '%" + keyword.replace("'", "''") + "%'" + orderClause + limitClause;
-                } else {
-                    query = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
-                            + " WHERE CAST(" + dbManager.quoteTableName(selectedTable) + "::text AS TEXT) ILIKE '%" + keyword.replace("'", "''") + "%'" + orderClause + limitClause;
-                }
+                lastBrowseBaseQuery = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
+                        + " WHERE CAST(" + dbManager.quoteTableName(selectedTable) + "::text AS TEXT) ILIKE '%" + keyword.replace("'", "''") + "%'" + orderClause;
             }
-            lastExecutedBrowseQuery = query;
-            
-            // Show loading indicator
-            browseTable.setModel(new DefaultTableModel(new Object[][]{{"Loading..."}}, new String[]{"Status"}));
-            
-            final String finalQuery = query;
-            new Thread(() -> {
-                try {
-                    DefaultTableModel model = dbManager.executeQuery(finalQuery);
-                    SwingUtilities.invokeLater(() -> browseTable.setModel(model));
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                    SwingUtilities.invokeLater(() -> {
-                        browseTable.setModel(new DefaultTableModel(new Object[][]{{"Error"}}, new String[]{"Status"}));
-                        String debugInfo = "Query: " + finalQuery + "\n";
-                        try {
-                            java.sql.ResultSet rs = dbManager.connection.createStatement().executeQuery("SELECT current_database(), current_schema()");
-                            if (rs.next()) {
-                                debugInfo += "DB: " + rs.getString(1) + ", Schema: " + rs.getString(2) + "\n";
-                            }
-                        } catch (Exception e) {}
-                        JOptionPane.showMessageDialog(Main.this, debugInfo + "Error searching data: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                    });
-                }
-            }).start();
-        } catch (Exception ex) {
-            ex.printStackTrace();
         }
+        
+        browseCurrentOffset = 0;
+        fetchBrowseData(false);
+    }
+    
+    private void fetchBrowseData(boolean append) {
+        if (isBrowseLoading || lastBrowseBaseQuery == null || lastBrowseBaseQuery.isEmpty()) return;
+        isBrowseLoading = true;
+        
+        String limitStr = limitField.getText().trim();
+        int chunkLimit = 1000; // default chunk size if not specified
+        if (!limitStr.isEmpty()) {
+            try { chunkLimit = Integer.parseInt(limitStr); } catch (NumberFormatException ignored) {}
+        }
+        
+        String query = lastBrowseBaseQuery + " LIMIT " + chunkLimit + " OFFSET " + browseCurrentOffset;
+        
+        if (!append) {
+            lastExecutedBrowseQuery = query;
+            browseTable.setModel(new DefaultTableModel(new Object[][]{{"Loading..."}}, new String[]{"Status"}));
+        }
+        
+        final String finalQuery = query;
+        final int currentLimit = chunkLimit;
+        
+        new Thread(() -> {
+            try {
+                DefaultTableModel model = dbManager.executeQuery(finalQuery);
+                SwingUtilities.invokeLater(() -> {
+                    if (append) {
+                        // Append rows if the model isn't "Loading..."
+                        if (browseTable.getModel() instanceof DefaultTableModel && browseTable.getModel().getColumnCount() == model.getColumnCount()) {
+                            DefaultTableModel existing = (DefaultTableModel) browseTable.getModel();
+                            for (int r = 0; r < model.getRowCount(); r++) {
+                                java.util.Vector<Object> row = new java.util.Vector<>();
+                                for (int c = 0; c < model.getColumnCount(); c++) {
+                                    row.add(model.getValueAt(r, c));
+                                }
+                                existing.addRow(row);
+                            }
+                        }
+                    } else {
+                        browseTable.setModel(model);
+                    }
+                    
+                    if (model.getRowCount() > 0) {
+                        browseCurrentOffset += currentLimit;
+                    }
+                    isBrowseLoading = false;
+                });
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                SwingUtilities.invokeLater(() -> {
+                    if (!append) browseTable.setModel(new DefaultTableModel(new Object[][]{{"Error"}}, new String[]{"Status"}));
+                    isBrowseLoading = false;
+                    String debugInfo = "Query: " + finalQuery + "\n";
+                    try {
+                        java.sql.ResultSet rs = dbManager.connection.createStatement().executeQuery("SELECT current_database(), current_schema()");
+                        if (rs.next()) debugInfo += "DB: " + rs.getString(1) + ", Schema: " + rs.getString(2) + "\n";
+                    } catch (Exception e) {}
+                    JOptionPane.showMessageDialog(Main.this, debugInfo + "Error fetching data: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        }).start();
     }
 
     private String buildBrowseWhereClause() {
