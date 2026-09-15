@@ -46,11 +46,37 @@ public class SqlEditorPanel extends JPanel {
         JButton loadQueryBtn = new JButton("Load Query");
         JButton exportCsvBtn = new JButton("Export CSV");
         JButton exportXlsxBtn = new JButton("Export XLSX");
+        
+        JCheckBox autoCommitCheck = new JCheckBox("Auto-Commit", true);
+        JButton commitBtn = new JButton("Commit");
+        JButton rollbackBtn = new JButton("Rollback");
+        commitBtn.setEnabled(false);
+        rollbackBtn.setEnabled(false);
+        
+        autoCommitCheck.addActionListener(e -> {
+            boolean ac = autoCommitCheck.isSelected();
+            try {
+                if (dbManager.connection != null) dbManager.connection.setAutoCommit(ac);
+                commitBtn.setEnabled(!ac);
+                rollbackBtn.setEnabled(!ac);
+            } catch (Exception ex) {}
+        });
+        commitBtn.addActionListener(e -> {
+            try { if (dbManager.connection != null) dbManager.connection.commit(); statusLabel.setText("Transaction committed."); } catch (Exception ex) {}
+        });
+        rollbackBtn.addActionListener(e -> {
+            try { if (dbManager.connection != null) dbManager.connection.rollback(); statusLabel.setText("Transaction rolled back."); } catch (Exception ex) {}
+        });
+
         savedQueriesDropdown.setPrototypeDisplayValue("Select saved query...");
 
         toolbar.add(runBtn);
         toolbar.add(explainBtn);
         toolbar.add(clearBtn);
+        toolbar.add(new JSeparator(SwingConstants.VERTICAL));
+        toolbar.add(autoCommitCheck);
+        toolbar.add(commitBtn);
+        toolbar.add(rollbackBtn);
         toolbar.add(new JSeparator(SwingConstants.VERTICAL));
         toolbar.add(saveQueryBtn);
         toolbar.add(savedQueriesDropdown);
@@ -105,9 +131,41 @@ public class SqlEditorPanel extends JPanel {
         clearHistBtn.addActionListener(e -> { QueryHistory.clear(); historyModel.clear(); });
         historyList.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseClicked(java.awt.event.MouseEvent e) {
-                if (e.getClickCount() == 2) {
+                if (e.getClickCount() == 2 && !e.isConsumed() && e.getButton() == java.awt.event.MouseEvent.BUTTON1) {
                     String sel = historyList.getSelectedValue();
                     if (sel != null) editor.setText(sel);
+                }
+            }
+            private void showPopup(java.awt.event.MouseEvent e) {
+                if (!e.isPopupTrigger()) return;
+                int idx = historyList.locationToIndex(e.getPoint());
+                if (idx != -1) {
+                    historyList.setSelectedIndex(idx);
+                    javax.swing.JPopupMenu popup = new javax.swing.JPopupMenu();
+                    javax.swing.JMenuItem delItem = new javax.swing.JMenuItem("Delete");
+                    delItem.addActionListener(evt -> {
+                        String sel = historyList.getSelectedValue();
+                        if (sel != null) {
+                            QueryHistory.remove(sel);
+                            refreshHistory();
+                        }
+                    });
+                    popup.add(delItem);
+                    popup.show(e.getComponent(), e.getX(), e.getY());
+                }
+            }
+            @Override public void mousePressed(java.awt.event.MouseEvent e) { showPopup(e); }
+            @Override public void mouseReleased(java.awt.event.MouseEvent e) { showPopup(e); }
+        });
+
+        historyList.addKeyListener(new java.awt.event.KeyAdapter() {
+            public void keyPressed(java.awt.event.KeyEvent e) {
+                if (e.getKeyCode() == java.awt.event.KeyEvent.VK_DELETE || e.getKeyCode() == java.awt.event.KeyEvent.VK_BACK_SPACE) {
+                    String sel = historyList.getSelectedValue();
+                    if (sel != null) {
+                        QueryHistory.remove(sel);
+                        refreshHistory();
+                    }
                 }
             }
         });

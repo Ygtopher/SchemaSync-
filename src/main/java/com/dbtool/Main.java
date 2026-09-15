@@ -4,6 +4,7 @@ import com.dbtool.panels.SchemaPanel;
 import com.dbtool.panels.SqlEditorPanel;
 import com.dbtool.panels.TableComparePanel;
 import com.dbtool.panels.ScriptBuilderPanel;
+import com.dbtool.panels.DataOpsPanel;
 import com.dbtool.util.ExportUtil;
 
 import javax.swing.*;
@@ -56,6 +57,7 @@ public class Main extends JFrame {
     private SqlEditorPanel sqlEditorPanel;
     private TableComparePanel tableComparePanel;
     private ScriptBuilderPanel scriptBuilderPanel;
+    private DataOpsPanel dataOpsPanel;
     
     // Cache for currently loaded tables
     private List<String> loadedTables = new ArrayList<>();
@@ -71,6 +73,7 @@ public class Main extends JFrame {
         sqlEditorPanel = new SqlEditorPanel(dbManager);
         tableComparePanel = new TableComparePanel(dbManager);
         scriptBuilderPanel = new ScriptBuilderPanel(dbManager);
+        dataOpsPanel = new DataOpsPanel(dbManager);
 
         // Schema panel: double-click loads table in browse
         schemaPanel.setOnTableSelected(tableName -> {
@@ -100,6 +103,7 @@ public class Main extends JFrame {
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.addTab("Browse & Search", createBrowsePanel());
         tabbedPane.addTab("Visual Join Builder", createJoinPanel());
+        tabbedPane.addTab("Data Operations", dataOpsPanel);
         tabbedPane.addTab("SQL Editor", sqlEditorPanel);
         tabbedPane.addTab("Script Builder", scriptBuilderPanel);
         tabbedPane.addTab("Compare Queries", tableComparePanel);
@@ -186,7 +190,32 @@ public class Main extends JFrame {
         tbActions.add(deleteRowBtn);
         tbActions.addSeparator();
         
-        JButton exportCsvBtn = new JButton("📥 CSV");
+        JCheckBox autoCommitCheck = new JCheckBox("Auto-Commit", true);
+        JButton commitBtn = new JButton("Commit");
+        JButton rollbackBtn = new JButton("Rollback");
+        commitBtn.setEnabled(false);
+        rollbackBtn.setEnabled(false);
+        autoCommitCheck.addActionListener(e -> {
+            boolean ac = autoCommitCheck.isSelected();
+            try {
+                if (dbManager.connection != null) dbManager.connection.setAutoCommit(ac);
+                commitBtn.setEnabled(!ac);
+                rollbackBtn.setEnabled(!ac);
+            } catch (Exception ex) {}
+        });
+        commitBtn.addActionListener(e -> {
+            try { if (dbManager.connection != null) dbManager.connection.commit(); JOptionPane.showMessageDialog(this, "Transaction committed."); } catch (Exception ex) {}
+        });
+        rollbackBtn.addActionListener(e -> {
+            try { if (dbManager.connection != null) dbManager.connection.rollback(); JOptionPane.showMessageDialog(this, "Transaction rolled back."); loadTableData(); } catch (Exception ex) {}
+        });
+        
+        tbActions.add(autoCommitCheck);
+        tbActions.add(commitBtn);
+        tbActions.add(rollbackBtn);
+        tbActions.addSeparator();
+
+        JButton exportCsvBtn = new JButton("📄 CSV");
         JButton exportXlsxBtn = new JButton("📥 Excel");
         JButton exportInsertBtn = new JButton("📥 SQL Inserts");
         JButton copyBtn = new JButton("📋 Copy Data");
@@ -677,6 +706,7 @@ public class Main extends JFrame {
         schemaPanel.refresh();
         tableComparePanel.refreshTables();
         sqlEditorPanel.refreshSavedQueries();
+        if (dataOpsPanel != null) dataOpsPanel.refreshTables();
     }
 
 

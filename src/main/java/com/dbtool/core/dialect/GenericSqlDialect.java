@@ -4,8 +4,16 @@ public class GenericSqlDialect implements DatabaseDialect {
     @Override
     public DialectType getDialectType() { return DialectType.GENERIC; }
 
+    private static final java.util.Set<String> SQL_KEYWORDS = new java.util.HashSet<>(java.util.Arrays.asList(
+        "user", "order", "group", "select", "where", "from", "table", "update", "delete", "insert", "into", "values", "set", "limit", "offset", "all", "any", "as", "asc", "desc", "between", "case", "cast", "check", "column", "constraint", "create", "cross", "current_date", "current_time", "current_timestamp", "current_user", "default", "distinct", "drop", "else", "end", "except", "false", "for", "foreign", "full", "grant", "having", "in", "inner", "intersect", "is", "join", "left", "like", "natural", "not", "null", "on", "or", "outer", "primary", "references", "right", "table", "then", "to", "true", "union", "unique", "using", "when", "with"
+    ));
+
     @Override
     public String quoteIdentifier(String identifier) {
+        if (identifier == null) return "";
+        if (identifier.matches("^[a-z_][a-z0-9_]*$") && !SQL_KEYWORDS.contains(identifier)) {
+            return identifier;
+        }
         return "\"" + identifier.replace("\"", "\"\"") + "\"";
     }
 

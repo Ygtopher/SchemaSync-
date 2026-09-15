@@ -365,19 +365,31 @@ public class DatabaseManager {
         return null;
     }
 
+    private static final java.util.Set<String> SQL_KEYWORDS = new java.util.HashSet<>(java.util.Arrays.asList(
+        "user", "order", "group", "select", "where", "from", "table", "update", "delete", "insert", "into", "values", "set", "limit", "offset", "all", "any", "as", "asc", "desc", "between", "case", "cast", "check", "column", "constraint", "create", "cross", "current_date", "current_time", "current_timestamp", "current_user", "default", "distinct", "drop", "else", "end", "except", "false", "for", "foreign", "full", "grant", "having", "in", "inner", "intersect", "is", "join", "left", "like", "natural", "not", "null", "on", "or", "outer", "primary", "references", "right", "table", "then", "to", "true", "union", "unique", "using", "when", "with"
+    ));
+
+    private String quoteIfNecessary(String identifier) {
+        if (identifier == null) return "";
+        if (identifier.matches("^[a-z_][a-z0-9_]*$") && !SQL_KEYWORDS.contains(identifier)) {
+            return identifier;
+        }
+        return "\"" + identifier.replace("\"", "\"\"") + "\"";
+    }
+
     public String quoteTableName(String tableName) {
         if (tableName.contains(".")) {
             String[] parts = tableName.split("\\.", 2);
-            return "\"" + parts[0] + "\".\"" + parts[1] + "\"";
+            return quoteIfNecessary(parts[0]) + "." + quoteIfNecessary(parts[1]);
         }
-        return "\"" + tableName + "\"";
+        return quoteIfNecessary(tableName);
     }
 
     public String quoteColumnName(String fullColumnName) {
         String[] parts = fullColumnName.split("\\.");
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < parts.length; i++) {
-            sb.append("\"").append(parts[i]).append("\"");
+            sb.append(quoteIfNecessary(parts[i]));
             if (i < parts.length - 1) {
                 sb.append(".");
             }

@@ -30,6 +30,12 @@ public class QueryHistory {
         if (history.size() > MAX) history = history.subList(0, MAX);
         save(history);
     }
+    
+    public static void remove(String query) {
+        List<String> history = load();
+        history.remove(query);
+        save(history);
+    }
 
     public static void save(List<String> history) {
         try { mapper.writeValue(FILE, history); } catch (Exception ignored) {}
