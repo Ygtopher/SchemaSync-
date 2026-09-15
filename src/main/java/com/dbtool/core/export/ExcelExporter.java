@@ -3,7 +3,7 @@ package com.dbtool.core.export;
 import com.dbtool.core.query.QueryResult;
 import com.dbtool.core.query.RowData;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -15,7 +15,7 @@ public class ExcelExporter implements DataExporter {
     @Override
     public ExportResult export(QueryResult queryResult, File destinationFile, ExportOptions options) throws IOException {
         long start = System.currentTimeMillis();
-        try (Workbook workbook = new XSSFWorkbook()) {
+        try (Workbook workbook = new SXSSFWorkbook(100)) {
             Sheet sheet = workbook.createSheet(options != null ? options.getTableName() : "Data");
             int rowIdx = 0;
 
@@ -50,11 +50,7 @@ public class ExcelExporter implements DataExporter {
                 }
             }
 
-            // Auto-size up to 20 columns
-            int cols = Math.min(queryResult.getColumnNames().size(), 20);
-            for (int i = 0; i < cols; i++) {
-                sheet.autoSizeColumn(i);
-            }
+// Auto-size removed for performance
 
             try (FileOutputStream fos = new FileOutputStream(destinationFile)) {
                 workbook.write(fos);

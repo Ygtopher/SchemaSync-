@@ -1,7 +1,7 @@
 package com.dbtool.util;
 
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 import javax.swing.*;
 import javax.swing.table.TableModel;
@@ -44,7 +44,7 @@ public class ExportUtil {
         JFileChooser fc = new JFileChooser();
         fc.setSelectedFile(new File("export.xlsx"));
         if (fc.showSaveDialog(parent) != JFileChooser.APPROVE_OPTION) return;
-        try (Workbook wb = new XSSFWorkbook()) {
+        try (Workbook wb = new SXSSFWorkbook(100)) {
             Sheet sheet = wb.createSheet("Data");
             TableModel m = table.getModel();
             // Header row
@@ -66,8 +66,7 @@ public class ExportUtil {
                     row.createCell(c).setCellValue(val == null ? "" : val.toString());
                 }
             }
-            // Auto-size columns
-            for (int c = 0; c < m.getColumnCount(); c++) sheet.autoSizeColumn(c);
+            // Auto-size columns removed for performance
             try (FileOutputStream fos = new FileOutputStream(fc.getSelectedFile())) {
                 wb.write(fos);
             }
