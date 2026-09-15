@@ -17,6 +17,19 @@ import java.util.ArrayList;
 
 public class SshTerminalPanel extends JPanel {
 
+    @Override
+    public void updateUI() {
+        super.updateUI();
+        if (terminalArea != null && terminalArea.getTerminalPanel() != null) {
+            // Force JediTerm to repaint when the global L&F changes
+            terminalArea.getTerminalPanel().repaint();
+        }
+        if (settingsProvider != null) {
+            // Unset the local override so it follows the global theme again
+            settingsProvider.setDark(com.dbtool.util.ThemeManager.isDarkMode());
+        }
+    }
+
     private final com.dbtool.DatabaseManager dbManager;
 
     private JComboBox<String> profileDropdown = new JComboBox<>();
