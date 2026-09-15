@@ -3,6 +3,7 @@ package com.dbtool.util;
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import javax.swing.*;
+import java.awt.Color;
 import java.awt.Window;
 
 public class ThemeManager {
@@ -25,9 +26,15 @@ public class ThemeManager {
         try {
             if (isDarkMode) {
                 UIManager.setLookAndFeel(new FlatDarkLaf());
+                UIManager.put("ScrollBar.thumb", Color.WHITE);
+                UIManager.put("ScrollBar.hoverThumb", new Color(200, 200, 200));
+                UIManager.put("ScrollBar.pressedThumb", new Color(150, 150, 150));
                 if (toggleButton != null) toggleButton.setText("💡 Light Mode");
             } else {
                 UIManager.setLookAndFeel(new FlatLightLaf());
+                UIManager.put("ScrollBar.thumb", Color.BLACK);
+                UIManager.put("ScrollBar.hoverThumb", new Color(50, 50, 50));
+                UIManager.put("ScrollBar.pressedThumb", new Color(100, 100, 100));
                 if (toggleButton != null) toggleButton.setText("🌙 Dark Mode");
             }
             
