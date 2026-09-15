@@ -33,6 +33,7 @@ public class SshTerminalPanel extends JPanel {
     private DefaultTreeModel treeModel;
     private DefaultMutableTreeNode rootNode;
 
+    private com.dbtool.panels.terminal.DynamicSettingsProvider settingsProvider;
     private com.jediterm.terminal.ui.JediTermWidget terminalArea;
     private JTextField commandField = new JTextField();
 
@@ -123,6 +124,19 @@ public class SshTerminalPanel extends JPanel {
         topPanel.add(connectBtn);
         topPanel.add(disconnectBtn);
         disconnectBtn.setEnabled(false);
+
+        JButton themeBtn = new JButton(com.dbtool.util.ThemeManager.isDarkMode() ? "Light Theme" : "Dark Theme");
+        themeBtn.addActionListener(e -> {
+            boolean currentDark = settingsProvider.isDark();
+            settingsProvider.setDark(!currentDark);
+            themeBtn.setText(!currentDark ? "Light Theme" : "Dark Theme");
+            if (terminalArea != null) {
+                // To force JediTerm to refresh its background
+                terminalArea.updateUI();
+                terminalArea.getTerminalPanel().repaint();
+            }
+        });
+        topPanel.add(themeBtn);
 
 
 
@@ -259,7 +273,8 @@ public class SshTerminalPanel extends JPanel {
             }
         });
 
-        terminalArea = new com.jediterm.terminal.ui.JediTermWidget(new com.dbtool.panels.terminal.DynamicSettingsProvider());
+        settingsProvider = new com.dbtool.panels.terminal.DynamicSettingsProvider();
+        terminalArea = new com.jediterm.terminal.ui.JediTermWidget(settingsProvider);
         
         
         

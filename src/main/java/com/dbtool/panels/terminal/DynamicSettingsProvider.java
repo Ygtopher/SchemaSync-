@@ -7,11 +7,20 @@ import com.dbtool.util.ThemeManager;
 
 public class DynamicSettingsProvider extends DefaultSettingsProvider {
 
-    // Removed the internal boolean and setter. Now we rely on the global ThemeManager!
+    private Boolean isDark = null;
+
+    public void setDark(boolean dark) {
+        this.isDark = dark;
+    }
+    
+    public boolean isDark() {
+        if (isDark != null) return isDark;
+        return ThemeManager.isDarkMode();
+    }
 
     @Override
     public TextStyle getDefaultStyle() {
-        if (ThemeManager.isDarkMode()) {
+        if (isDark()) {
             return new TextStyle(TerminalColor.WHITE, TerminalColor.rgb(30, 30, 30));
         } else {
             return new TextStyle(TerminalColor.BLACK, TerminalColor.WHITE);
