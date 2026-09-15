@@ -32,8 +32,8 @@ public class Main extends JFrame {
     private JTable browseTable = new JTable();
     private JPanel browseWhereContainer = new JPanel();
     private List<WherePanel> browseWherePanels = new ArrayList<>();
-    private JComboBox<String> orderByDropdown = new JComboBox<>();
-    private JComboBox<String> orderDirDropdown = new JComboBox<>(new String[]{"ASC", "DESC"});
+    private JPanel browseOrderByContainer = new JPanel();
+    private List<OrderByPanel> browseOrderByPanels = new ArrayList<>();
     private String lastExecutedBrowseQuery = "";
     private int browseCurrentOffset = 0;
     private boolean isBrowseLoading = false;
@@ -52,9 +52,8 @@ public class Main extends JFrame {
     private JCheckBox joinDistinctCheckbox = new JCheckBox("Distinct");
     private JPanel whereContainer = new JPanel();
     private List<WherePanel> wherePanels = new ArrayList<>();
-    private JComboBox<String> joinOrderByTableDropdown = new JComboBox<>();
-    private JComboBox<String> joinOrderByDropdown = new JComboBox<>();
-    private JComboBox<String> joinOrderDirDropdown = new JComboBox<>(new String[]{"ASC", "DESC"});
+    private JPanel joinOrderByContainer = new JPanel();
+    private List<OrderByPanel> joinOrderByPanels = new ArrayList<>();
     
     // New panels
     private SchemaPanel schemaPanel;
@@ -144,6 +143,8 @@ public class Main extends JFrame {
             selectColsButton.setText("Columns (All)");
             browseWherePanels.clear();
             browseWhereContainer.removeAll();
+            browseOrderByPanels.clear();
+            browseOrderByContainer.removeAll();
             browseWhereContainer.revalidate();
             browseWhereContainer.repaint();
             refreshOrderByDropdown();
@@ -175,10 +176,10 @@ public class Main extends JFrame {
         tbQuery.add(addWhereBtn);
         tbQuery.add(new JLabel(" | "));
         tbQuery.add(browseDistinctCheckbox);
-        tbQuery.add(new JLabel(" |  Order By: "));
-        orderByDropdown.setPreferredSize(new Dimension(150, 26));
-        tbQuery.add(orderByDropdown);
-        tbQuery.add(orderDirDropdown);
+        tbQuery.add(new JLabel(" | "));
+        JButton addBrowseOrderBtn = new JButton("+ Add Order By");
+        addBrowseOrderBtn.addActionListener(e -> addBrowseOrderByRow());
+        tbQuery.add(addBrowseOrderBtn);
         JButton applyOrderBtn = new JButton("Apply");
         applyOrderBtn.addActionListener(e -> loadTableData());
         tbQuery.add(applyOrderBtn);
@@ -258,8 +259,13 @@ public class Main extends JFrame {
         rowsPanel.add(tbSelect);
         rowsPanel.add(tbQuery);
         rowsPanel.add(tbActions);
+        browseOrderByContainer.setLayout(new BoxLayout(browseOrderByContainer, BoxLayout.Y_AXIS));
         northPanel.add(rowsPanel, BorderLayout.NORTH);
-        northPanel.add(browseWhereContainer, BorderLayout.CENTER);
+        JPanel filtersPanel = new JPanel();
+        filtersPanel.setLayout(new BoxLayout(filtersPanel, BoxLayout.Y_AXIS));
+        filtersPanel.add(browseWhereContainer);
+        filtersPanel.add(browseOrderByContainer);
+        northPanel.add(filtersPanel, BorderLayout.CENTER);
         
         panel.add(northPanel, BorderLayout.NORTH);
         JScrollPane browseScroll = new JScrollPane(browseTable);
@@ -289,10 +295,11 @@ public class Main extends JFrame {
     }
 
     private void refreshOrderByDropdown() {
-        orderByDropdown.removeAllItems();
-        orderByDropdown.addItem("(none)");
         String tbl = (String) browseTableDropdown.getSelectedItem();
-        if (tbl != null) for (String col : dbManager.getColumnNames(tbl)) orderByDropdown.addItem(col);
+        if (tbl != null) {
+            java.util.List<String> cols = dbManager.getColumnNames(tbl);
+            for (OrderByPanel op : browseOrderByPanels) op.updateColumns(cols);
+        }
     }
 
     private void openInsertRowDialog() {
@@ -474,33 +481,10 @@ public class Main extends JFrame {
         joinLimitField.setPreferredSize(new Dimension(60, 26));
         tbRun.add(joinLimitField);
         
-        tbRun.add(new JLabel(" |  Order By: "));
-        joinOrderByTableDropdown.setPreferredSize(new Dimension(130, 26));
-        joinOrderByDropdown.setPreferredSize(new Dimension(130, 26));
-        
-        joinOrderByTableDropdown.addActionListener(e -> {
-            String t = (String) joinOrderByTableDropdown.getSelectedItem();
-            if (t != null) {
-                if (t.equals("(none)")) {
-                    joinOrderByDropdown.removeAllItems();
-                    joinOrderByDropdown.addItem("(none)");
-                    joinOrderByDropdown.setEnabled(false);
-                } else {
-                    joinOrderByDropdown.setEnabled(true);
-                    Object current = joinOrderByDropdown.getSelectedItem();
-                    joinOrderByDropdown.removeAllItems();
-                    for (String c : dbManager.getColumnNames(t)) {
-                        joinOrderByDropdown.addItem(c);
-                    }
-                    if (current != null) joinOrderByDropdown.setSelectedItem(current);
-                }
-            }
-        });
-        
-        tbRun.add(joinOrderByTableDropdown);
-        tbRun.add(new JLabel(" . "));
-        tbRun.add(joinOrderByDropdown);
-        tbRun.add(joinOrderDirDropdown);
+        tbRun.add(new JLabel(" | "));
+        JButton addJoinOrderBtn = new JButton("+ Add Order By");
+        addJoinOrderBtn.addActionListener(e -> addJoinOrderByRow());
+        tbRun.add(addJoinOrderBtn);
         
         tbRun.add(new JLabel(" | "));
         JButton runJoinBtn = new JButton("▶ Execute Join");
@@ -542,6 +526,8 @@ public class Main extends JFrame {
         tbActions.add(copyDataBtn);
         tbActions.add(copySqlBtn);
         
+        joinOrderByContainer.setLayout(new BoxLayout(joinOrderByContainer, BoxLayout.Y_AXIS));
+        bottomOptionsPanel.add(joinOrderByContainer);
         bottomOptionsPanel.add(tbRun);
         bottomOptionsPanel.add(tbActions);
         configPanel.add(bottomOptionsPanel, BorderLayout.SOUTH);
@@ -894,10 +880,19 @@ public class Main extends JFrame {
             cols = sb.toString();
         }
         
-        String orderCol = (String) orderByDropdown.getSelectedItem();
         String orderClause = "";
-        if (orderCol != null && !orderCol.equals("(none)")) {
-            orderClause = " ORDER BY " + dbManager.quoteColumnName(orderCol) + " " + orderDirDropdown.getSelectedItem();
+        if (!browseOrderByPanels.isEmpty()) {
+            StringBuilder osb = new StringBuilder(" ORDER BY ");
+            for (int i = 0; i < browseOrderByPanels.size(); i++) {
+                OrderByPanel op = browseOrderByPanels.get(i);
+                String col = (String) op.columnDropdown.getSelectedItem();
+                String dir = (String) op.dirDropdown.getSelectedItem();
+                if (col != null) {
+                    osb.append(dbManager.quoteColumnName(col)).append(" ").append(dir);
+                    if (i < browseOrderByPanels.size() - 1) osb.append(", ");
+                }
+            }
+            orderClause = osb.toString();
         }
         
         String distinctStr = browseDistinctCheckbox.isSelected() ? "DISTINCT " : "";
@@ -924,10 +919,19 @@ public class Main extends JFrame {
             cols = sb.toString();
         }
         
-        String orderCol = (String) orderByDropdown.getSelectedItem();
         String orderClause = "";
-        if (orderCol != null && !orderCol.equals("(none)")) {
-            orderClause = " ORDER BY " + dbManager.quoteColumnName(orderCol) + " " + orderDirDropdown.getSelectedItem();
+        if (!browseOrderByPanels.isEmpty()) {
+            StringBuilder osb = new StringBuilder(" ORDER BY ");
+            for (int i = 0; i < browseOrderByPanels.size(); i++) {
+                OrderByPanel op = browseOrderByPanels.get(i);
+                String col = (String) op.columnDropdown.getSelectedItem();
+                String dir = (String) op.dirDropdown.getSelectedItem();
+                if (col != null) {
+                    osb.append(dbManager.quoteColumnName(col)).append(" ").append(dir);
+                    if (i < browseOrderByPanels.size() - 1) osb.append(", ");
+                }
+            }
+            orderClause = osb.toString();
         }
         
         String distinctStr = browseDistinctCheckbox.isSelected() ? "DISTINCT " : "";
@@ -1030,6 +1034,27 @@ public class Main extends JFrame {
         return sb.toString();
     }
 
+    
+    private void addBrowseOrderByRow() {
+        String selectedTable = (String) browseTableDropdown.getSelectedItem();
+        List<String> cols = selectedTable != null ? dbManager.getColumnNames(selectedTable) : new ArrayList<>();
+        OrderByPanel op = new OrderByPanel(false, browseOrderByPanels, browseOrderByContainer);
+        op.updateColumns(cols);
+        browseOrderByPanels.add(op);
+        browseOrderByContainer.add(op);
+        browseOrderByContainer.revalidate();
+        browseOrderByContainer.repaint();
+    }
+
+    private void addJoinOrderByRow() {
+        OrderByPanel op = new OrderByPanel(true, joinOrderByPanels, joinOrderByContainer);
+        joinOrderByPanels.add(op);
+        joinOrderByContainer.add(op);
+        joinOrderByContainer.revalidate();
+        joinOrderByContainer.repaint();
+        updateWhereDropdowns(); // Re-use this to update tables
+    }
+
     private void addBrowseWhereRow() {
         boolean isFirst = browseWherePanels.isEmpty();
         String selectedTable = (String) browseTableDropdown.getSelectedItem();
@@ -1128,16 +1153,8 @@ public class Main extends JFrame {
             }
         }
         
-        Object currentOrderTable = joinOrderByTableDropdown.getSelectedItem();
-        joinOrderByTableDropdown.removeAllItems();
-        joinOrderByTableDropdown.addItem("(none)");
-        
-        for (String t : availableTables) {
-            joinOrderByTableDropdown.addItem(t);
-        }
-        
-        if (currentOrderTable != null && (availableTables.contains(currentOrderTable.toString()) || currentOrderTable.equals("(none)"))) {
-            joinOrderByTableDropdown.setSelectedItem(currentOrderTable);
+        for (OrderByPanel op : joinOrderByPanels) {
+            op.updateTables(availableTables);
         }
 
         for (WherePanel wp : wherePanels) {
@@ -1203,11 +1220,22 @@ public class Main extends JFrame {
                 }
             }
         }
-        String orderTbl = (String) joinOrderByTableDropdown.getSelectedItem();
-        String orderCol = (String) joinOrderByDropdown.getSelectedItem();
-        if (orderTbl != null && !orderTbl.equals("(none)") && orderCol != null && !orderCol.equals("(none)")) {
-            sql.append(" ORDER BY ").append(dbManager.quoteColumnName(orderTbl + "." + orderCol))
-               .append(" ").append(joinOrderDirDropdown.getSelectedItem());
+        if (!joinOrderByPanels.isEmpty()) {
+            sql.append(" ORDER BY ");
+            for (int i = 0; i < joinOrderByPanels.size(); i++) {
+                OrderByPanel op = joinOrderByPanels.get(i);
+                String tbl = (String) op.tableDropdown.getSelectedItem();
+                String col = (String) op.columnDropdown.getSelectedItem();
+                String dir = (String) op.dirDropdown.getSelectedItem();
+                if (tbl != null && col != null) {
+                    sql.append(dbManager.quoteColumnName(tbl + "." + col)).append(" ").append(dir);
+                    if (i < joinOrderByPanels.size() - 1) sql.append(", ");
+                }
+            }
+            if (sql.toString().endsWith(", ")) {
+                sql.setLength(sql.length() - 2);
+            }
+            sql.append(" ");
         }
         
         String limitStr = joinLimitField.getText().trim();
@@ -1314,7 +1342,59 @@ public class Main extends JFrame {
         }
     }
 
-    class WherePanel extends JPanel {
+        class OrderByPanel extends JPanel {
+        JComboBox<String> tableDropdown = new JComboBox<>();
+        JComboBox<String> columnDropdown = new JComboBox<>();
+        JComboBox<String> dirDropdown = new JComboBox<>(new String[]{"ASC", "DESC"});
+
+        public OrderByPanel(boolean showTable, List<OrderByPanel> ownerList, JPanel ownerContainer) {
+            setLayout(new FlowLayout(FlowLayout.LEFT));
+            
+            if (showTable) {
+                tableDropdown.addActionListener(e -> {
+                    String t = (String) tableDropdown.getSelectedItem();
+                    if (t != null) {
+                        Object currentCol = columnDropdown.getSelectedItem();
+                        columnDropdown.removeAllItems();
+                        for (String c : dbManager.getColumnNames(t)) {
+                            columnDropdown.addItem(c);
+                        }
+                        if (currentCol != null) columnDropdown.setSelectedItem(currentCol);
+                    }
+                });
+                add(tableDropdown);
+                add(new JLabel(" . "));
+            }
+            
+            add(columnDropdown);
+            add(dirDropdown);
+            
+            JButton removeBtn = new JButton("X");
+            removeBtn.addActionListener(e -> {
+                ownerList.remove(this);
+                ownerContainer.remove(this);
+                ownerContainer.revalidate();
+                ownerContainer.repaint();
+            });
+            add(removeBtn);
+        }
+
+        public void updateTables(List<String> tables) {
+            Object selected = tableDropdown.getSelectedItem();
+            tableDropdown.removeAllItems();
+            for (String t : tables) tableDropdown.addItem(t);
+            if (selected != null && tables.contains(selected)) tableDropdown.setSelectedItem(selected);
+        }
+
+        public void updateColumns(List<String> cols) {
+            Object selected = columnDropdown.getSelectedItem();
+            columnDropdown.removeAllItems();
+            for (String col : cols) columnDropdown.addItem(col);
+            if (selected != null && cols.contains(selected)) columnDropdown.setSelectedItem(selected);
+        }
+    }
+
+class WherePanel extends JPanel {
         JComboBox<String> logicDropdown = new JComboBox<>(new String[]{"AND", "OR"});
         JComboBox<String> tableDropdown = new JComboBox<>();
         JComboBox<String> columnDropdown = new JComboBox<>();
