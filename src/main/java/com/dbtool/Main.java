@@ -1160,7 +1160,7 @@ public class Main extends JFrame {
                 String leftFormatted = dbManager.quoteColumnName(leftCol);
                 String rightFormatted = dbManager.quoteColumnName(rightCol);
 
-                sql.append(type).append(" JOIN ").append(dbManager.quoteTableName(table)).append(" ");
+                sql.append(type).append(" ").append(dbManager.quoteTableName(table)).append(" ");
                 sql.append("ON ").append(leftFormatted).append(" = ").append(rightFormatted).append(" ");
             } else {
                 JOptionPane.showMessageDialog(this, "Please make sure both 'Left' and 'Right' columns are selected for the join on table: " + table, "Incomplete Join", JOptionPane.WARNING_MESSAGE);
@@ -1226,7 +1226,7 @@ public class Main extends JFrame {
 
     // Inner class representing a single Join row in the UI
     class JoinPanel extends JPanel {
-        JComboBox<String> joinTypeDropdown = new JComboBox<>(new String[]{"INNER", "LEFT", "RIGHT"});
+        JComboBox<String> joinTypeDropdown = new JComboBox<>(new String[]{"JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN"});
         JComboBox<String> joinTableDropdown = new JComboBox<>();
         JComboBox<String> leftColDropdown = new JComboBox<>();
         JComboBox<String> rightColDropdown = new JComboBox<>();

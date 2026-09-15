@@ -36,7 +36,7 @@ public class DataOpsPanel extends JPanel {
     private final JTextField        updateWhereValFld = new JTextField(16);
 
     // ── UPDATE + JOIN ─────────────────────────────────────────────────
-    private final JComboBox<String> juTypeCb   = new JComboBox<>(new String[]{"INNER JOIN", "LEFT JOIN"});
+    private final JComboBox<String> juTypeCb   = new JComboBox<>(new String[]{"JOIN", "INNER JOIN", "LEFT JOIN"});
     private final JComboBox<String> juOnMainCb = new JComboBox<>();   // target.col
     private final JComboBox<String> juOnJoinCb = new JComboBox<>();   // join.col
     private final JComboBox<String> juWhereTableCb = new JComboBox<>();
