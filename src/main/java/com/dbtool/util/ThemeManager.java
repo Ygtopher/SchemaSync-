@@ -25,11 +25,17 @@ public class ThemeManager {
         try {
             if (isDarkMode) {
                 UIManager.setLookAndFeel(new FlatDarkLaf());
-                if (toggleButton != null) toggleButton.setText("☀️ Light Mode");
+                if (toggleButton != null) toggleButton.setText("💡 Light Mode");
             } else {
                 UIManager.setLookAndFeel(new FlatLightLaf());
                 if (toggleButton != null) toggleButton.setText("🌙 Dark Mode");
             }
+            
+            // Make Scrollbars more visible
+            UIManager.put("ScrollBar.width", 18);
+            UIManager.put("ScrollBar.showButtons", true);
+            UIManager.put("ScrollBar.thumbArc", 4);
+            UIManager.put("ScrollBar.thumbInsets", new java.awt.Insets(2, 2, 2, 2));
             
             for (Window window : Window.getWindows()) {
                 SwingUtilities.updateComponentTreeUI(window);
