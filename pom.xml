@@ -98,6 +98,7 @@
     </repositories>
 
     <build>
+        <finalName>SchemaSync</finalName>
         <plugins>
             <!-- Maven Compiler Plugin -->
             <plugin>
