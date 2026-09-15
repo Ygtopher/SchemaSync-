@@ -64,6 +64,7 @@ public class SshTerminalPanel extends JPanel {
     private JButton connectBtn = new JButton("Connect");
     private JButton disconnectBtn = new JButton("Disconnect");
 
+    private JTextField pathField = new JTextField("/");
     private JTree fileTree;
     private DefaultTreeModel treeModel;
     private DefaultMutableTreeNode rootNode;
@@ -320,7 +321,24 @@ public class SshTerminalPanel extends JPanel {
         JPanel terminalPanel = new JPanel(new BorderLayout());
         terminalPanel.add(terminalArea, BorderLayout.CENTER);
 
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(fileTree), terminalPanel);
+                JPanel treePanel = new JPanel(new BorderLayout());
+        
+        JPanel pathPanel = new JPanel(new BorderLayout());
+        pathField.addActionListener(e -> {
+            String path = pathField.getText();
+            if (path == null || path.trim().isEmpty()) return;
+            rootNode.removeAllChildren();
+            rootNode.setUserObject(new SftpFileNode(path, path, true));
+            treeModel.reload();
+            loadDirectory(rootNode, path);
+        });
+        pathPanel.add(new JLabel(" Path: "), BorderLayout.WEST);
+        pathPanel.add(pathField, BorderLayout.CENTER);
+        
+        treePanel.add(pathPanel, BorderLayout.NORTH);
+        treePanel.add(new JScrollPane(fileTree), BorderLayout.CENTER);
+
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treePanel, terminalPanel);
         splitPane.setDividerLocation(250);
 
         add(topPanel, BorderLayout.NORTH);
@@ -373,6 +391,7 @@ public class SshTerminalPanel extends JPanel {
                 
                 SwingUtilities.invokeLater(() -> {
                     disconnectBtn.setEnabled(true);
+                    pathField.setText("/");
                     rootNode.setUserObject(new SftpFileNode("Root (/)", "/", true));
                     treeModel.nodeChanged(rootNode);
                     loadDirectory(rootNode, "/");
