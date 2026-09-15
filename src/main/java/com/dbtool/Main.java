@@ -871,18 +871,32 @@ public class Main extends JFrame {
             query = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
                     + buildBrowseWhereClause() + orderClause + limitClause;
             lastExecutedBrowseQuery = query;
-            DefaultTableModel model = dbManager.executeQuery(query);
-            browseTable.setModel(model);
+            
+            // Show loading indicator
+            browseTable.setModel(new DefaultTableModel(new Object[][]{{"Loading..."}}, new String[]{"Status"}));
+            
+            final String finalQuery = query;
+            new Thread(() -> {
+                try {
+                    DefaultTableModel model = dbManager.executeQuery(finalQuery);
+                    SwingUtilities.invokeLater(() -> browseTable.setModel(model));
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    SwingUtilities.invokeLater(() -> {
+                        browseTable.setModel(new DefaultTableModel(new Object[][]{{"Error"}}, new String[]{"Status"}));
+                        String debugInfo = "Query: " + finalQuery + "\n";
+                        try {
+                            java.sql.ResultSet rs = dbManager.connection.createStatement().executeQuery("SELECT current_database(), current_schema()");
+                            if (rs.next()) {
+                                debugInfo += "DB: " + rs.getString(1) + ", Schema: " + rs.getString(2) + "\n";
+                            }
+                        } catch (Exception e) {}
+                        JOptionPane.showMessageDialog(Main.this, debugInfo + "Error loading data: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    });
+                }
+            }).start();
         } catch (Exception ex) {
             ex.printStackTrace();
-            String debugInfo = "Query: " + query + "\n";
-            try {
-                java.sql.ResultSet rs = dbManager.connection.createStatement().executeQuery("SELECT current_database(), current_schema()");
-                if (rs.next()) {
-                    debugInfo += "DB: " + rs.getString(1) + ", Schema: " + rs.getString(2) + "\n";
-                }
-            } catch (Exception e) {}
-            JOptionPane.showMessageDialog(this, debugInfo + "Error loading data: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -916,34 +930,45 @@ public class Main extends JFrame {
         String query = "";
         try {
             String whereClause = buildBrowseWhereClause();
-            DefaultTableModel model;
             if (keyword.isEmpty()) {
                 query = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable) + whereClause + orderClause + limitClause;
-                model = dbManager.executeQuery(query);
             } else {
                 // If there's a where clause, we need to build the full query manually
                 if (!whereClause.isEmpty()) {
                     query = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
                             + whereClause + " AND CAST(" + dbManager.quoteTableName(selectedTable) + "::text AS TEXT) ILIKE '%" + keyword.replace("'", "''") + "%'" + orderClause + limitClause;
-                    model = dbManager.executeQuery(query);
                 } else {
                     query = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
                             + " WHERE CAST(" + dbManager.quoteTableName(selectedTable) + "::text AS TEXT) ILIKE '%" + keyword.replace("'", "''") + "%'" + orderClause + limitClause;
-                    model = dbManager.executeQuery(query);
                 }
             }
             lastExecutedBrowseQuery = query;
-            browseTable.setModel(model);
+            
+            // Show loading indicator
+            browseTable.setModel(new DefaultTableModel(new Object[][]{{"Loading..."}}, new String[]{"Status"}));
+            
+            final String finalQuery = query;
+            new Thread(() -> {
+                try {
+                    DefaultTableModel model = dbManager.executeQuery(finalQuery);
+                    SwingUtilities.invokeLater(() -> browseTable.setModel(model));
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    SwingUtilities.invokeLater(() -> {
+                        browseTable.setModel(new DefaultTableModel(new Object[][]{{"Error"}}, new String[]{"Status"}));
+                        String debugInfo = "Query: " + finalQuery + "\n";
+                        try {
+                            java.sql.ResultSet rs = dbManager.connection.createStatement().executeQuery("SELECT current_database(), current_schema()");
+                            if (rs.next()) {
+                                debugInfo += "DB: " + rs.getString(1) + ", Schema: " + rs.getString(2) + "\n";
+                            }
+                        } catch (Exception e) {}
+                        JOptionPane.showMessageDialog(Main.this, debugInfo + "Error searching data: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    });
+                }
+            }).start();
         } catch (Exception ex) {
             ex.printStackTrace();
-            String debugInfo = "Query: " + query + "\n";
-            try {
-                java.sql.ResultSet rs = dbManager.connection.createStatement().executeQuery("SELECT current_database(), current_schema()");
-                if (rs.next()) {
-                    debugInfo += "DB: " + rs.getString(1) + ", Schema: " + rs.getString(2) + "\n";
-                }
-            } catch (Exception e) {}
-            JOptionPane.showMessageDialog(this, debugInfo + "Error searching data: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
