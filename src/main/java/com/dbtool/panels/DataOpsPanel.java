@@ -39,7 +39,8 @@ public class DataOpsPanel extends JPanel {
     private final JComboBox<String> juTypeCb   = new JComboBox<>(new String[]{"INNER JOIN", "LEFT JOIN"});
     private final JComboBox<String> juOnMainCb = new JComboBox<>();   // target.col
     private final JComboBox<String> juOnJoinCb = new JComboBox<>();   // join.col
-    private final JTextField        juWhereFld = new JTextField(22);
+    private final JComboBox<String> juWhereColCb = new JComboBox<>();
+    private final JTextField        juWhereValFld = new JTextField(16);
 
     // ── DELETE ────────────────────────────────────────────────────────
     private final JComboBox<String> deleteColCb = new JComboBox<>();
@@ -154,7 +155,8 @@ public class DataOpsPanel extends JPanel {
         tbJ.add(new JLabel(" ON target.")); tbJ.add(juOnMainCb);
         tbJ.add(new JLabel(" = join."));   tbJ.add(juOnJoinCb);
         tbJ.addSeparator();
-        tbJ.add(new JLabel("WHERE: "));    tbJ.add(juWhereFld);
+        tbJ.add(new JLabel(" WHERE Column: ")); tbJ.add(juWhereColCb);
+        tbJ.add(new JLabel(" = Value: "));      tbJ.add(juWhereValFld);
         cardPanel.add(tbJ, "UPDATE + JOIN");
 
         // DELETE
@@ -339,6 +341,7 @@ public class DataOpsPanel extends JPanel {
         refreshCols(tbl, alterOldColCb);
         refreshCols(tbl, indexColCb);
         refreshCols(tbl, juOnMainCb);
+        refreshCols(tbl, juWhereColCb);
         refreshSetRowCols();
     }
 
@@ -411,7 +414,8 @@ public class DataOpsPanel extends JPanel {
                 String joinTbl = (String) juJoinCb.getSelectedItem();
                 String onMain  = (String) juOnMainCb.getSelectedItem();
                 String onJoin  = (String) juOnJoinCb.getSelectedItem();
-                String where   = juWhereFld.getText().trim();
+                String whereCol = (String) juWhereColCb.getSelectedItem();
+                String whereVal = juWhereValFld.getText().trim();
                 if (joinTbl == null || onMain == null || onJoin == null) {
                     setStatus("Fill in JOIN table and ON columns.", false); return null;
                 }
@@ -430,7 +434,10 @@ public class DataOpsPanel extends JPanel {
                 sql.append("\nFROM ").append(q(joinTbl));
                 sql.append("\nWHERE ").append(q(tbl)).append(".").append(q(onMain))
                    .append(" = ").append(q(joinTbl)).append(".").append(q(onJoin));
-                if (!where.isEmpty()) sql.append("\n  AND ").append(where);
+                if (whereCol != null && !whereVal.isEmpty()) {
+                    sql.append("\n  AND ").append(q(tbl)).append(".").append(q(whereCol))
+                       .append(" = '").append(whereVal.replace("'", "''")).append("'");
+                }
                 return sql.toString();
             }
             case "DELETE": {
