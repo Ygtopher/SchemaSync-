@@ -124,11 +124,7 @@ public class SshTerminalPanel extends JPanel {
         topPanel.add(disconnectBtn);
         disconnectBtn.setEnabled(false);
 
-        JButton themeBtn = new JButton("Light Theme");
-        themeBtn.addActionListener(e -> {
-            // Theme toggling for JediTerm can be done via SettingsProvider if needed
-        });
-        topPanel.add(themeBtn);
+
 
         // Center split pane
         rootNode = new DefaultMutableTreeNode("Not Connected");
@@ -263,7 +259,7 @@ public class SshTerminalPanel extends JPanel {
             }
         });
 
-        terminalArea = new com.jediterm.terminal.ui.JediTermWidget(new com.jediterm.terminal.ui.settings.DefaultSettingsProvider());
+        terminalArea = new com.jediterm.terminal.ui.JediTermWidget(new com.dbtool.panels.terminal.DynamicSettingsProvider());
         
         
         
@@ -318,7 +314,6 @@ public class SshTerminalPanel extends JPanel {
                 com.dbtool.panels.terminal.JSchTtyConnector connector = new com.dbtool.panels.terminal.JSchTtyConnector(shellChannel);
                 terminalArea.setTtyConnector(connector);
                 terminalArea.start();
-
 
                 // Setup SFTP
                 sftpChannel = (ChannelSftp) session.openChannel("sftp");
