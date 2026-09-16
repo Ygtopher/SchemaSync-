@@ -20,6 +20,7 @@ public class SchemaPanel extends JPanel {
     private final JTextField searchField = new JTextField(14);
     private final JTextArea statsArea = new JTextArea(6, 30);
     private Consumer<String> onTableSelected;
+    private DefaultMutableTreeNode masterRoot = null;
 
     public SchemaPanel(DatabaseManager dbManager) {
         this.dbManager = dbManager;
@@ -99,27 +100,31 @@ public class SchemaPanel extends JPanel {
         this.onTableSelected = handler;
     }
 
+
+
     public void refresh() {
         root.removeAllChildren();
         if (dbManager.connection == null) {
+            masterRoot = null;
             treeModel.reload();
             return;
         }
         try {
+            masterRoot = new DefaultMutableTreeNode();
             String dbName = dbManager.connection.getCatalog();
-            root.setUserObject(dbName != null ? dbName : "Database");
+            String rootName = dbName != null ? dbName : "Database";
+            masterRoot.setUserObject(rootName);
+            root.setUserObject(rootName);
+            
             List<String> tables = dbManager.getTableNames();
             for (String tbl : tables) {
                 DefaultMutableTreeNode tableNode = new DefaultMutableTreeNode(tbl);
-                // Add columns as children
                 for (String col : dbManager.getColumnNames(tbl)) {
                     tableNode.add(new DefaultMutableTreeNode("  " + col));
                 }
-                root.add(tableNode);
+                masterRoot.add(tableNode);
             }
-            treeModel.reload();
-            // Expand only the root node (Database name) so tables remain closed
-            tree.expandRow(0);
+            applyFilter();
         } catch (Exception ex) {
             root.setUserObject("Error: " + ex.getMessage());
             treeModel.reload();
@@ -127,17 +132,27 @@ public class SchemaPanel extends JPanel {
     }
 
     private void filterTree() {
+        applyFilter();
+    }
+
+    private void applyFilter() {
+        if (masterRoot == null) return;
+        
         String filter = searchField.getText().toLowerCase().trim();
-        refresh();
-        if (filter.isEmpty()) return;
-        // Remove non-matching table nodes
-        for (int i = root.getChildCount() - 1; i >= 0; i--) {
-            DefaultMutableTreeNode node = (DefaultMutableTreeNode) root.getChildAt(i);
-            String name = node.getUserObject().toString().toLowerCase();
-            if (!name.contains(filter)) root.remove(i);
+        root.removeAllChildren();
+        
+        for (int i = 0; i < masterRoot.getChildCount(); i++) {
+            DefaultMutableTreeNode masterNode = (DefaultMutableTreeNode) masterRoot.getChildAt(i);
+            String name = masterNode.getUserObject().toString().toLowerCase();
+            if (filter.isEmpty() || name.contains(filter)) {
+                DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(masterNode.getUserObject());
+                for (int j = 0; j < masterNode.getChildCount(); j++) {
+                    newNode.add(new DefaultMutableTreeNode(((DefaultMutableTreeNode)masterNode.getChildAt(j)).getUserObject()));
+                }
+                root.add(newNode);
+            }
         }
         treeModel.reload();
-        // Expand root node but keep tables closed unless searching
         tree.expandRow(0);
     }
 
