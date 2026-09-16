@@ -13,6 +13,8 @@ public class DatabaseManager {
     public Connection connection;
     private java.util.Properties learnedJoins = new java.util.Properties();
     private File learnedJoinsFile;
+    private java.util.Map<String, java.util.List<String>> columnCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private java.util.List<String> tableCache = null;
 
     private File getSaveFile(String filename) {
         File docsFolder = FileSystemView.getFileSystemView().getDefaultDirectory();
@@ -40,6 +42,8 @@ public class DatabaseManager {
     }
 
     public void connectPostgres(String dbFilePath, String host, String port, String user, String pass, String dbName) throws Exception {
+        columnCache.clear();
+        tableCache = null;
         // Close existing connection if any
         if (connection != null && !connection.isClosed()) {
             connection.close();
@@ -191,6 +195,7 @@ public class DatabaseManager {
     }
 
     public List<String> getTableNames() {
+        if (tableCache != null) return tableCache;
         List<String> tables = new ArrayList<>();
         if (connection == null) return tables;
 
@@ -215,10 +220,12 @@ public class DatabaseManager {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+        tableCache = tables;
         return tables;
     }
 
     public List<String> getColumnNames(String tableName) {
+        if (columnCache.containsKey(tableName)) return columnCache.get(tableName);
         List<String> columns = new ArrayList<>();
         if (connection == null || tableName == null) return columns;
 
@@ -250,6 +257,7 @@ public class DatabaseManager {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+        columnCache.put(tableName, columns);
         return columns;
     }
 
