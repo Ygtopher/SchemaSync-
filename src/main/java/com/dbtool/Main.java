@@ -912,15 +912,25 @@ public class Main extends JFrame {
     
     private void fetchBrowseData(boolean append) {
         if (isBrowseLoading || lastBrowseBaseQuery == null || lastBrowseBaseQuery.isEmpty()) return;
-        isBrowseLoading = true;
         
         String limitStr = limitField.getText().trim();
-        int chunkLimit = 1000; // default chunk size if not specified
+        Integer userLimit = null;
         if (!limitStr.isEmpty()) {
-            try { chunkLimit = Integer.parseInt(limitStr); } catch (NumberFormatException ignored) {}
+            try { userLimit = Integer.parseInt(limitStr); } catch (NumberFormatException ignored) {}
         }
         
-        String query = lastBrowseBaseQuery + " LIMIT " + chunkLimit + " OFFSET " + browseCurrentOffset;
+        if (userLimit != null && append && browseCurrentOffset >= userLimit) {
+            return;
+        }
+        
+        isBrowseLoading = true;
+        
+        int fetchLimit = 1000;
+        if (userLimit != null) {
+            fetchLimit = Math.min(1000, userLimit - browseCurrentOffset);
+        }
+        
+        String query = lastBrowseBaseQuery + " LIMIT " + fetchLimit + " OFFSET " + browseCurrentOffset;
         
         if (!append) {
             lastExecutedBrowseQuery = query;
@@ -928,7 +938,7 @@ public class Main extends JFrame {
         }
         
         final String finalQuery = query;
-        final int currentLimit = chunkLimit;
+        final int currentLimit = fetchLimit;
         
         new Thread(() -> {
             try {

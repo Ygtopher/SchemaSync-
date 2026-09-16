@@ -149,17 +149,20 @@ public class ExportUtil {
             com.lowagie.text.pdf.PdfPTable pdfTable = new com.lowagie.text.pdf.PdfPTable(m.getColumnCount());
             pdfTable.setWidthPercentage(100);
 
+            float dataFontSize = Math.min(8f, Math.max(3f, 100f / m.getColumnCount()));
+            float headerFontSize = dataFontSize + 1f;
+            
             // Header row
-            com.lowagie.text.Font headerFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 9, java.awt.Color.WHITE);
+            com.lowagie.text.Font headerFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, headerFontSize, java.awt.Color.WHITE);
             for (int c = 0; c < m.getColumnCount(); c++) {
                 com.lowagie.text.pdf.PdfPCell cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase(m.getColumnName(c), headerFont));
                 cell.setBackgroundColor(new java.awt.Color(50, 80, 130));
-                cell.setPadding(5);
+                cell.setPadding(3);
                 pdfTable.addCell(cell);
             }
 
             // Data rows
-            com.lowagie.text.Font dataFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA, 8);
+            com.lowagie.text.Font dataFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA, dataFontSize);
             for (int r = 0; r < m.getRowCount(); r++) {
                 java.awt.Color rowBg = (r % 2 == 0) ? java.awt.Color.WHITE : new java.awt.Color(240, 240, 250);
                 for (int c = 0; c < m.getColumnCount(); c++) {

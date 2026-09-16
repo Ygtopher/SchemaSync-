@@ -307,15 +307,44 @@ public class SshSessionPanel extends JPanel {
             @Override
             public void mousePressed(java.awt.event.MouseEvent e) {
                 if (SwingUtilities.isRightMouseButton(e)) {
-                    try {
-                        java.awt.datatransfer.Clipboard cb = Toolkit.getDefaultToolkit().getSystemClipboard();
-                        String data = (String) cb.getData(java.awt.datatransfer.DataFlavor.stringFlavor);
-                        if (data != null && terminalArea.getTtyConnector() != null) {
-                            terminalArea.getTtyConnector().write(data);
+                    JPopupMenu popup = new JPopupMenu();
+                    
+                    JMenuItem pasteItem = new JMenuItem("Paste");
+                    pasteItem.addActionListener(evt -> {
+                        try {
+                            java.awt.datatransfer.Clipboard cb = Toolkit.getDefaultToolkit().getSystemClipboard();
+                            String data = (String) cb.getData(java.awt.datatransfer.DataFlavor.stringFlavor);
+                            if (data != null && terminalArea.getTtyConnector() != null) {
+                                terminalArea.getTtyConnector().write(data);
+                            }
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
                         }
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
+                    });
+                    popup.add(pasteItem);
+                    
+                    JMenuItem closeFindItem = new JMenuItem("Close Find");
+                    closeFindItem.addActionListener(evt -> {
+                        for (Component c1 : terminalArea.getComponents()) {
+                            if (c1 instanceof javax.swing.JLayeredPane) {
+                                for (Component c2 : ((java.awt.Container)c1).getComponents()) {
+                                    if (c2.getClass().getName().contains("SearchComponent")) {
+                                        java.awt.Container parent = c2.getParent();
+                                        if (parent != null) {
+                                            parent.remove(c2);
+                                            parent.revalidate();
+                                            parent.repaint();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        try { terminalArea.getTerminalPanel().setFindResult(null); } catch (Exception ignored) {}
+                        terminalArea.requestFocusInWindow();
+                    });
+                    popup.add(closeFindItem);
+                    
+                    popup.show(terminalArea.getTerminalPanel(), e.getX(), e.getY());
                 }
             }
         });
