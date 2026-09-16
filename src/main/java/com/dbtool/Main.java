@@ -1518,10 +1518,10 @@ class WherePanel extends JPanel {
 
         @Override
         public void setSelectedItem(Object anObject) {
-            if (isAdjusting) return;
+            boolean wasAdjusting = isAdjusting;
             isAdjusting = true;
             super.setSelectedItem(anObject);
-            isAdjusting = false;
+            isAdjusting = wasAdjusting;
         }
     }
 }
