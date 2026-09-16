@@ -238,20 +238,35 @@ public class DatabaseManager {
 
         try {
             DatabaseMetaData metaData = connection.getMetaData();
-            ResultSet rs = metaData.getColumns(null, schema, tableName, "%");
-            while (rs.next()) {
-                columns.add(rs.getString("COLUMN_NAME"));
+            String escape = metaData.getSearchStringEscape();
+            String escapedTableName = tableName;
+            if (escape != null && !escape.isEmpty()) {
+                escapedTableName = escapedTableName.replace("_" , escape + "_").replace("%" , escape + "%");
             }
-            if (columns.isEmpty()) {
-                rs = metaData.getColumns(null, schema, tableName.toUpperCase(), "%");
-                while (rs.next()) {
+            ResultSet rs = metaData.getColumns(null, schema, escapedTableName, "%");
+            while (rs.next()) {
+                if (tableName.equalsIgnoreCase(rs.getString("TABLE_NAME"))) {
                     columns.add(rs.getString("COLUMN_NAME"));
                 }
             }
             if (columns.isEmpty()) {
-                rs = metaData.getColumns(null, schema, tableName.toLowerCase(), "%");
+                String escapedUpper = tableName.toUpperCase();
+                if (escape != null && !escape.isEmpty()) escapedUpper = escapedUpper.replace("_" , escape + "_").replace("%" , escape + "%");
+                rs = metaData.getColumns(null, schema, escapedUpper, "%");
                 while (rs.next()) {
-                    columns.add(rs.getString("COLUMN_NAME"));
+                    if (tableName.equalsIgnoreCase(rs.getString("TABLE_NAME"))) {
+                        columns.add(rs.getString("COLUMN_NAME"));
+                    }
+                }
+            }
+            if (columns.isEmpty()) {
+                String escapedLower = tableName.toLowerCase();
+                if (escape != null && !escape.isEmpty()) escapedLower = escapedLower.replace("_" , escape + "_").replace("%" , escape + "%");
+                rs = metaData.getColumns(null, schema, escapedLower, "%");
+                while (rs.next()) {
+                    if (tableName.equalsIgnoreCase(rs.getString("TABLE_NAME"))) {
+                        columns.add(rs.getString("COLUMN_NAME"));
+                    }
                 }
             }
         } catch (SQLException e) {
