@@ -396,7 +396,8 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
         add(topPanel, BorderLayout.NORTH);
         add(splitPane, BorderLayout.CENTER);
 
-        JButton toggleTreeBtn = new JButton("☰ Toggle File Browser");
+        JButton toggleTreeBtn = new JButton("☰");
+        toggleTreeBtn.setToolTipText("Toggle File Browser");
         toggleTreeBtn.addActionListener(e -> {
             if (splitPane.getDividerLocation() <= 10) {
                 splitPane.setDividerLocation(250);

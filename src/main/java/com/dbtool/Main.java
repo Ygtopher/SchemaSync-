@@ -121,7 +121,8 @@ public class Main extends JFrame {
         mainSplit.setResizeWeight(0.0);
         add(mainSplit, BorderLayout.CENTER);
 
-        JButton toggleSidebarBtn = new JButton("☰ Toggle Sidebar");
+        JButton toggleSidebarBtn = new JButton("☰");
+        toggleSidebarBtn.setToolTipText("Toggle Sidebar");
         toggleSidebarBtn.addActionListener(e -> {
             if (mainSplit.getDividerLocation() <= 10) {
                 mainSplit.setDividerLocation(230);
