@@ -23,12 +23,12 @@ public class Main extends JFrame {
     private JLabel statusLabel = new JLabel("No database loaded.");
     
     // Browse Tab Components
-    private JComboBox<String> browseTableDropdown = new JComboBox<>();
+    private SearchableComboBox browseTableDropdown = new SearchableComboBox();
     private JButton selectColsButton = new JButton("Columns (All)");
     private List<String> currentSelectedColumns = new ArrayList<>();
     private JTextField limitField = new JTextField(5);
-    private JTextField browseSearchField = new JTextField(20);
-    private JTextField browseTableSearchField = new JTextField(12);
+    
+    
     private JTable browseTable = new JTable();
     private JPanel browseWhereContainer = new JPanel();
     private List<WherePanel> browseWherePanels = new ArrayList<>();
@@ -140,18 +140,13 @@ public class Main extends JFrame {
         JToolBar tbSelect = new JToolBar();
         tbSelect.setFloatable(false);
         tbSelect.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
-        tbSelect.add(new JLabel(" Filter: "));
-        browseTableSearchField.setToolTipText("Filter table list...");
-        browseTableSearchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { filterBrowseTableList(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { filterBrowseTableList(); }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { filterBrowseTableList(); }
-        });
-        browseTableSearchField.setPreferredSize(new Dimension(150, 26));
-        tbSelect.add(browseTableSearchField);
+
         
         tbSelect.add(new JLabel(" |  Table: "));
         browseTableDropdown.addActionListener(e -> {
+            String selected = (String) browseTableDropdown.getSelectedItem();
+            if (selected == null || !dbManager.getTableNames().contains(selected)) return;
+
             currentSelectedColumns.clear();
             selectColsButton.setText("Columns (All)");
             browseWherePanels.clear();
@@ -170,12 +165,7 @@ public class Main extends JFrame {
         selectColsButton.addActionListener(e -> openColumnSelector());
         tbSelect.add(selectColsButton);
         
-        tbSelect.add(new JLabel(" |  Search: "));
-        browseSearchField.setPreferredSize(new Dimension(150, 26));
-        tbSelect.add(browseSearchField);
-        JButton searchBtn = new JButton("Search");
-        searchBtn.addActionListener(e -> performSearch());
-        tbSelect.add(searchBtn);
+
         
         tbSelect.add(new JLabel(" |  Limit: "));
         limitField.setPreferredSize(new Dimension(60, 26));
@@ -299,13 +289,7 @@ public class Main extends JFrame {
         return panel;
     }
 
-    private void filterBrowseTableList() {
-        String filter = browseTableSearchField.getText().toLowerCase().trim();
-        browseTableDropdown.removeAllItems();
-        for (String tbl : loadedTables) {
-            if (filter.isEmpty() || tbl.toLowerCase().contains(filter)) browseTableDropdown.addItem(tbl);
-        }
-    }
+    
 
     private void refreshOrderByDropdown() {
         String tbl = (String) browseTableDropdown.getSelectedItem();
@@ -731,10 +715,9 @@ public class Main extends JFrame {
 
     private void populateTablesUI() {
         loadedTables = dbManager.getTableNames();
-        browseTableDropdown.removeAllItems();
+        browseTableDropdown.setAllItems(loadedTables);
         baseTableDropdown.removeAllItems();
         for (String tbl : loadedTables) {
-            browseTableDropdown.addItem(tbl);
             baseTableDropdown.addItem(tbl);
         }
         joinsContainer.removeAll();
@@ -917,54 +900,7 @@ public class Main extends JFrame {
         fetchBrowseData(false);
     }
 
-    private void performSearch() {
-        String selectedTable = (String) browseTableDropdown.getSelectedItem();
-        String keyword = browseSearchField.getText().trim();
-        if (selectedTable == null) return;
-        
-        String cols = "*";
-        if (!currentSelectedColumns.isEmpty()) {
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < currentSelectedColumns.size(); i++) {
-                sb.append(dbManager.quoteColumnName(currentSelectedColumns.get(i)));
-                if (i < currentSelectedColumns.size() - 1) sb.append(", ");
-            }
-            cols = sb.toString();
-        }
-        
-        String orderClause = "";
-        if (!browseOrderByPanels.isEmpty()) {
-            StringBuilder osb = new StringBuilder(" ORDER BY ");
-            for (int i = 0; i < browseOrderByPanels.size(); i++) {
-                OrderByPanel op = browseOrderByPanels.get(i);
-                String col = (String) op.columnDropdown.getSelectedItem();
-                String dir = (String) op.dirDropdown.getSelectedItem();
-                if (col != null) {
-                    osb.append(dbManager.quoteColumnName(col)).append(" ").append(dir);
-                    if (i < browseOrderByPanels.size() - 1) osb.append(", ");
-                }
-            }
-            orderClause = osb.toString();
-        }
-        
-        String distinctStr = browseDistinctCheckbox.isSelected() ? "DISTINCT " : "";
-        String whereClause = buildBrowseWhereClause();
-        
-        if (keyword.isEmpty()) {
-            lastBrowseBaseQuery = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable) + whereClause + orderClause;
-        } else {
-            if (!whereClause.isEmpty()) {
-                lastBrowseBaseQuery = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
-                        + whereClause + " AND CAST(" + dbManager.quoteTableName(selectedTable) + "::text AS TEXT) ILIKE '%" + keyword.replace("'", "''") + "%'" + orderClause;
-            } else {
-                lastBrowseBaseQuery = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
-                        + " WHERE CAST(" + dbManager.quoteTableName(selectedTable) + "::text AS TEXT) ILIKE '%" + keyword.replace("'", "''") + "%'" + orderClause;
-            }
-        }
-        
-        browseCurrentOffset = 0;
-        fetchBrowseData(false);
-    }
+    
     
     private void fetchBrowseData(boolean append) {
         if (isBrowseLoading || lastBrowseBaseQuery == null || lastBrowseBaseQuery.isEmpty()) return;
@@ -1475,5 +1411,59 @@ class WherePanel extends JPanel {
         SwingUtilities.invokeLater(() -> {
             new Main().setVisible(true);
         });
+    }
+
+    static class SearchableComboBox extends JComboBox<String> {
+        private List<String> allItems = new ArrayList<>();
+        private boolean isAdjusting = false;
+        
+        public SearchableComboBox() {
+            super();
+            setEditable(true);
+            JTextField editor = (JTextField) getEditor().getEditorComponent();
+            editor.addKeyListener(new java.awt.event.KeyAdapter() {
+                public void keyReleased(java.awt.event.KeyEvent e) {
+                    if (e.getKeyCode() == java.awt.event.KeyEvent.VK_UP || 
+                        e.getKeyCode() == java.awt.event.KeyEvent.VK_DOWN || 
+                        e.getKeyCode() == java.awt.event.KeyEvent.VK_ENTER || 
+                        e.getKeyCode() == java.awt.event.KeyEvent.VK_ESCAPE) {
+                        return;
+                    }
+                    SwingUtilities.invokeLater(() -> {
+                        isAdjusting = true;
+                        String text = editor.getText();
+                        removeAllItems();
+                        for (String item : allItems) {
+                            if (item.toLowerCase().contains(text.toLowerCase())) {
+                                addItem(item);
+                            }
+                        }
+                        editor.setText(text);
+                        if (getItemCount() > 0) {
+                            showPopup();
+                        } else {
+                            hidePopup();
+                        }
+                        isAdjusting = false;
+                    });
+                }
+            });
+        }
+        
+        public void setAllItems(List<String> items) {
+            isAdjusting = true;
+            this.allItems = new ArrayList<>(items);
+            removeAllItems();
+            for (String item : allItems) {
+                addItem(item);
+            }
+            isAdjusting = false;
+        }
+
+        @Override
+        public void setSelectedItem(Object anObject) {
+            if (isAdjusting) return;
+            super.setSelectedItem(anObject);
+        }
     }
 }
