@@ -1409,6 +1409,7 @@ class WherePanel extends JPanel {
     }
 
     public static void main(String[] args) {
+        com.dbtool.util.ThemeManager.init(null);
         SwingUtilities.invokeLater(() -> {
             new Main().setVisible(true);
         });
