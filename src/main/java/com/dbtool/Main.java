@@ -156,7 +156,7 @@ public class Main extends JFrame {
             browseWhereContainer.revalidate();
             browseWhereContainer.repaint();
             refreshOrderByDropdown();
-            loadTableData();
+            
         });
         browseTableDropdown.setPreferredSize(new Dimension(200, 26));
         tbSelect.add(browseTableDropdown);
