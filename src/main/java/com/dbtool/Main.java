@@ -117,9 +117,20 @@ public class Main extends JFrame {
         // Main layout: Schema sidebar left, tabs center
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, schemaPanel, tabbedPane);
         mainSplit.setDividerLocation(230);
-        mainSplit.setOneTouchExpandable(true);
+        // mainSplit.setOneTouchExpandable(true);
         mainSplit.setResizeWeight(0.0);
         add(mainSplit, BorderLayout.CENTER);
+
+        JButton toggleSidebarBtn = new JButton("☰ Toggle Sidebar");
+        toggleSidebarBtn.addActionListener(e -> {
+            if (mainSplit.getDividerLocation() <= 10) {
+                mainSplit.setDividerLocation(230);
+            } else {
+                mainSplit.setDividerLocation(0);
+            }
+        });
+        topPanel.add(toggleSidebarBtn, 0); // Add to extreme left
+
     }
 
     private JPanel createBrowsePanel() {

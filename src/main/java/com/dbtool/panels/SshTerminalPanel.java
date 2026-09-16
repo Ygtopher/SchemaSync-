@@ -391,10 +391,21 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treePanel, terminalPanel);
         splitPane.setDividerLocation(250);
-        splitPane.setOneTouchExpandable(true);
+        // splitPane.setOneTouchExpandable(true);
 
         add(topPanel, BorderLayout.NORTH);
         add(splitPane, BorderLayout.CENTER);
+
+        JButton toggleTreeBtn = new JButton("☰ Toggle File Browser");
+        toggleTreeBtn.addActionListener(e -> {
+            if (splitPane.getDividerLocation() <= 10) {
+                splitPane.setDividerLocation(250);
+            } else {
+                splitPane.setDividerLocation(0);
+            }
+        });
+        topPanel.add(toggleTreeBtn, 0);
+
 
         connectBtn.addActionListener(e -> connect());
         disconnectBtn.addActionListener(e -> disconnect());
