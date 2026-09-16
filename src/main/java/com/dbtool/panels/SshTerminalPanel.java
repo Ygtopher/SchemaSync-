@@ -80,7 +80,35 @@ public class SshTerminalPanel extends JPanel {
     
     private OutputStream shellOut;
 
-    public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
+    
+    private void addContextMenu(javax.swing.text.JTextComponent component) {
+        JPopupMenu popup = new JPopupMenu();
+        JMenuItem copy = new JMenuItem("Copy");
+        copy.addActionListener(evt -> component.copy());
+        JMenuItem paste = new JMenuItem("Paste");
+        paste.addActionListener(evt -> component.paste());
+        JMenuItem cut = new JMenuItem("Cut");
+        cut.addActionListener(evt -> component.cut());
+        JMenuItem selectAll = new JMenuItem("Select All");
+        selectAll.addActionListener(evt -> component.selectAll());
+        
+        popup.add(cut);
+        popup.add(copy);
+        popup.add(paste);
+        popup.addSeparator();
+        popup.add(selectAll);
+        
+        component.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mousePressed(java.awt.event.MouseEvent e) { showPopup(e); }
+            public void mouseReleased(java.awt.event.MouseEvent e) { showPopup(e); }
+            private void showPopup(java.awt.event.MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    popup.show(e.getComponent(), e.getX(), e.getY());
+                }
+            }
+        });
+    }
+public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
         this.dbManager = dbManager;
         setLayout(new BorderLayout());
 
@@ -321,12 +349,32 @@ public class SshTerminalPanel extends JPanel {
         
         
         
+        
+        terminalArea.getTerminalPanel().addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    try {
+                        java.awt.datatransfer.Clipboard cb = java.awt.Toolkit.getDefaultToolkit().getSystemClipboard();
+                        String data = (String) cb.getData(java.awt.datatransfer.DataFlavor.stringFlavor);
+                        if (data != null && terminalArea.getTtyConnector() != null) {
+                            // JediTerm processes input normally, we write to the connector
+                            terminalArea.getTtyConnector().write(data);
+                        }
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            }
+        });
+
         JPanel terminalPanel = new JPanel(new BorderLayout());
         terminalPanel.add(terminalArea, BorderLayout.CENTER);
 
                 JPanel treePanel = new JPanel(new BorderLayout());
         
         JPanel pathPanel = new JPanel(new BorderLayout());
+        addContextMenu(pathField);
         pathField.addActionListener(e -> {
             String path = pathField.getText();
             if (path == null || path.trim().isEmpty()) return;

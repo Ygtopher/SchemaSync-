@@ -7,6 +7,17 @@ import com.dbtool.util.ThemeManager;
 
 public class DynamicSettingsProvider extends DefaultSettingsProvider {
 
+    @Override
+    public boolean copyOnSelect() {
+        return true;
+    }
+
+    @Override
+    public boolean pasteOnMiddleMouseClick() {
+        return true;
+    }
+
+
     private Boolean isDark = null;
 
     public void setDark(boolean dark) {
