@@ -113,9 +113,22 @@ public class ExportUtil {
         try (PrintWriter pw = new PrintWriter(new OutputStreamWriter(
                 new FileOutputStream(fc.getSelectedFile()), StandardCharsets.UTF_8))) {
             TableModel m = table.getModel();
+            
+            // Format table name
+            String[] tParts = tableName.split("\\.");
+            StringBuilder quotedTable = new StringBuilder();
+            for (int i = 0; i < tParts.length; i++) {
+                quotedTable.append("\"").append(tParts[i]).append("\"");
+                if (i < tParts.length - 1) quotedTable.append(".");
+            }
+            
             StringBuilder cols = new StringBuilder("(");
             for (int c = 0; c < m.getColumnCount(); c++) {
-                cols.append(m.getColumnName(c));
+                String colName = m.getColumnName(c);
+                if (colName.contains(".")) {
+                    colName = colName.substring(colName.lastIndexOf(".") + 1);
+                }
+                cols.append("\"").append(colName.replace("\"", "\"\"")).append("\"");
                 if (c < m.getColumnCount() - 1) cols.append(", ");
             }
             cols.append(")");
@@ -128,7 +141,7 @@ public class ExportUtil {
                     if (c < m.getColumnCount() - 1) vals.append(", ");
                 }
                 vals.append(")");
-                pw.println("INSERT INTO " + tableName + " " + cols + " VALUES " + vals + ";");
+                pw.println("INSERT INTO " + quotedTable.toString() + " " + cols + " VALUES " + vals + ";");
             }
             JOptionPane.showMessageDialog(parent, "Exported INSERT statements to " + fc.getSelectedFile().getName());
         } catch (Exception ex) {
