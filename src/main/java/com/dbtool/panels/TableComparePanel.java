@@ -115,8 +115,10 @@ public class TableComparePanel extends JPanel {
                 SwingUtilities.invokeLater(() -> {
                     dataTableA.setModel(modelA);
                     dataTableA.setAutoCreateRowSorter(true);
+        dataTableA.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
                     dataTableB.setModel(modelB);
                     dataTableB.setAutoCreateRowSorter(true);
+        dataTableB.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
                     
                     updateKeyDropdown();
                     summaryLabel.setText("Queries executed. Rows: A=" + modelA.getRowCount() + ", B=" + modelB.getRowCount() + ". Select a Key Column to compare.");
@@ -240,6 +242,7 @@ public class TableComparePanel extends JPanel {
             SwingUtilities.invokeLater(() -> {
                 diffTable.setModel(diffModel);
                 diffTable.setAutoCreateRowSorter(true);
+        diffTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
                 summaryLabel.setText("Diff complete. Found " + finalDiffCount + " differences.");
             });
             
