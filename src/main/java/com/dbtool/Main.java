@@ -1206,7 +1206,6 @@ public class Main extends JFrame {
         
         baseTableDropdown.setSelectedItem(state.baseTable);
         joinDistinctCheckbox.setSelected(state.distinct);
-        joinSelectedColumns.addAll(state.selectedColumns);
         joinLimitField.setText(state.limit != null ? state.limit : "");
         
         for (VisualJoinState.JoinState js : state.joins) {
@@ -1237,6 +1236,7 @@ public class Main extends JFrame {
             op.dirDropdown.setSelectedItem(os.direction);
         }
         
+        joinSelectedColumns.addAll(state.selectedColumns);
                 joinSelectColsButton.setText(joinSelectedColumns.isEmpty() ? "Columns (All)" : "Columns (" + joinSelectedColumns.size() + ")");
         joinsContainer.revalidate(); joinsContainer.repaint();
         whereContainer.revalidate(); whereContainer.repaint();
