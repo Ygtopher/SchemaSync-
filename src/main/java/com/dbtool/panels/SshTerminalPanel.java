@@ -399,7 +399,7 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
 
         // --- Notes Panel ---
         java.nio.file.Path[] currentNotesPath = new java.nio.file.Path[] {
-            new javax.swing.JFileChooser().getFileSystemView().getDefaultDirectory().toPath().resolve("SchemaSyncSaves").resolve("ssh_notes.txt")
+            Paths.get(System.getProperty("user.home"), "Documents", "SchemaSyncSaves", "ssh_notes.txt")
         };
         try {
             Files.createDirectories(currentNotesPath[0].getParent());

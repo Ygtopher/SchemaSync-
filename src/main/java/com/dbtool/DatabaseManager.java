@@ -15,7 +15,7 @@ public class DatabaseManager {
     private File learnedJoinsFile;
 
     private File getSaveFile(String filename) {
-        File docsFolder = FileSystemView.getFileSystemView().getDefaultDirectory();
+        File docsFolder = new File(System.getProperty("user.home"), "Documents");
         File savesFolder = new File(docsFolder, "SchemaSyncSaves");
         if (!savesFolder.exists()) {
             savesFolder.mkdirs();
