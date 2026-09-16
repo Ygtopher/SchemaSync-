@@ -15,7 +15,7 @@ public class DatabaseManager {
     private File learnedJoinsFile;
 
     private File getSaveFile(String filename) {
-        File docsFolder = new File(System.getProperty("user.home"), "Documents");
+        File docsFolder = FileSystemView.getFileSystemView().getDefaultDirectory();
         File savesFolder = new File(docsFolder, "SchemaSyncSaves");
         if (!savesFolder.exists()) {
             savesFolder.mkdirs();
@@ -24,12 +24,14 @@ public class DatabaseManager {
     }
 
     public DatabaseManager() {
-        learnedJoinsFile = getSaveFile("learned_joins.properties");
-        if (learnedJoinsFile.exists()) {
-            try (FileInputStream in = new FileInputStream(learnedJoinsFile)) {
-                learnedJoins.load(in);
-            } catch (Exception e) {}
-        }
+        new Thread(() -> {
+            learnedJoinsFile = getSaveFile("learned_joins.properties");
+            if (learnedJoinsFile.exists()) {
+                try (FileInputStream in = new FileInputStream(learnedJoinsFile)) {
+                    learnedJoins.load(in);
+                } catch (Exception e) {}
+            }
+        }).start();
     }
 
     public void connect(String dbFilePath) throws Exception {

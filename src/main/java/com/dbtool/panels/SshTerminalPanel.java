@@ -398,15 +398,19 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
 
 
         // --- Notes Panel ---
-        java.nio.file.Path[] currentNotesPath = new java.nio.file.Path[] {
-            Paths.get(System.getProperty("user.home"), "Documents", "SchemaSyncSaves", "ssh_notes.txt")
-        };
-        try {
-            Files.createDirectories(currentNotesPath[0].getParent());
-            if (Files.exists(currentNotesPath[0])) {
-                notesArea.setText(new String(Files.readAllBytes(currentNotesPath[0]), "UTF-8"));
-            }
-        } catch(Exception ex) {}
+        java.nio.file.Path[] currentNotesPath = new java.nio.file.Path[1];
+        
+        new Thread(() -> {
+            currentNotesPath[0] = new javax.swing.JFileChooser().getFileSystemView().getDefaultDirectory().toPath().resolve("SchemaSyncSaves").resolve("ssh_notes.txt");
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                try {
+                    Files.createDirectories(currentNotesPath[0].getParent());
+                    if (Files.exists(currentNotesPath[0])) {
+                        notesArea.setText(new String(Files.readAllBytes(currentNotesPath[0]), "UTF-8"));
+                    }
+                } catch(Exception ex) {}
+            });
+        }).start();
         
         javax.swing.undo.UndoManager undoManager = new javax.swing.undo.UndoManager();
         notesArea.getDocument().addUndoableEditListener(e -> undoManager.addEdit(e.getEdit()));
@@ -444,6 +448,7 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
                     options[0]);
                     
             if (choice == 0) { // Current File
+                if (currentNotesPath[0] == null) { JOptionPane.showMessageDialog(SshTerminalPanel.this, "Still loading default path, please wait a second..."); return; }
                 try { 
                     Files.createDirectories(currentNotesPath[0].getParent());
                     Files.write(currentNotesPath[0], notesArea.getText().getBytes("UTF-8")); 
@@ -452,6 +457,7 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
                     JOptionPane.showMessageDialog(SshTerminalPanel.this, "Error saving file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                 }
             } else if (choice == 1) { // New File
+                if (currentNotesPath[0] == null) { JOptionPane.showMessageDialog(SshTerminalPanel.this, "Still loading default path, please wait a second..."); return; }
                 JFileChooser chooser = new JFileChooser();
                 chooser.setCurrentDirectory(currentNotesPath[0].getParent().toFile());
                 if (chooser.showSaveDialog(SshTerminalPanel.this) == JFileChooser.APPROVE_OPTION) {
@@ -471,6 +477,7 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
         loadNotesBtn.setFont(smallFont);
         loadNotesBtn.setToolTipText("Reload from current file");
         loadNotesBtn.addActionListener(e -> {
+            if (currentNotesPath[0] == null) { JOptionPane.showMessageDialog(SshTerminalPanel.this, "Still loading default path, please wait a second..."); return; }
             try { if (Files.exists(currentNotesPath[0])) notesArea.setText(new String(Files.readAllBytes(currentNotesPath[0]), "UTF-8")); } catch(Exception ex) {}
         });
         
@@ -479,6 +486,7 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
         importBtn.setFont(smallFont);
         importBtn.setToolTipText("Load a text file into notes");
         importBtn.addActionListener(e -> {
+            if (currentNotesPath[0] == null) { JOptionPane.showMessageDialog(SshTerminalPanel.this, "Still loading default path, please wait a second..."); return; }
             JFileChooser chooser = new JFileChooser();
             chooser.setCurrentDirectory(currentNotesPath[0].getParent().toFile());
             if (chooser.showOpenDialog(SshTerminalPanel.this) == JFileChooser.APPROVE_OPTION) {
