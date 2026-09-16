@@ -67,6 +67,9 @@ public class Main extends JFrame {
     // Cache for currently loaded tables
     private List<String> loadedTables = new ArrayList<>();
 
+    private JButton loadDbButton = new JButton("Connect & Upload (.accdb, .sql, .sql.gz)");
+    private JButton connectExistingBtn = new JButton("Connect to Existing DB");
+    private JButton disconnectDbButton = new JButton("Disconnect DB");
     public Main() {
         setTitle("SchemaSync");
         setSize(1280, 800);
@@ -87,13 +90,15 @@ public class Main extends JFrame {
 
         // Top Panel
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton loadDbButton = new JButton("Connect & Upload (.accdb, .sql, .sql.gz)");
         loadDbButton.addActionListener(e -> loadDatabase());
         topPanel.add(loadDbButton);
         
-        JButton connectExistingBtn = new JButton("Connect to Existing DB");
         connectExistingBtn.addActionListener(e -> connectExistingDatabase());
         topPanel.add(connectExistingBtn);
+
+        disconnectDbButton.addActionListener(e -> disconnectDatabase());
+        disconnectDbButton.setVisible(false);
+        topPanel.add(disconnectDbButton);
 
         JButton themeBtn = new JButton("🌙 Dark Mode");
         themeBtn.addActionListener(e -> com.dbtool.util.ThemeManager.toggleTheme(themeBtn));
@@ -732,7 +737,39 @@ public class Main extends JFrame {
         }
     }
 
+
+    private void disconnectDatabase() {
+        if (dbManager.connection != null) {
+            try { dbManager.connection.close(); } catch (Exception e) {}
+            dbManager.connection = null;
+        }
+        loadedTables.clear();
+        browseTableDropdown.setAllItems(loadedTables);
+        baseTableDropdown.setAllItems(loadedTables);
+        joinsContainer.removeAll();
+        joinPanels.clear();
+        joinsContainer.revalidate();
+        joinsContainer.repaint();
+        schemaPanel.refresh();
+        tableComparePanel.refreshTables();
+        if (dataOpsPanel != null) dataOpsPanel.refreshTables();
+        
+        statusLabel.setText("Disconnected");
+        statusLabel.setForeground(java.awt.Color.BLACK);
+        
+        loadDbButton.setEnabled(true);
+        loadDbButton.setVisible(true);
+        connectExistingBtn.setEnabled(true);
+        connectExistingBtn.setVisible(true);
+        disconnectDbButton.setVisible(false);
+    }
     private void populateTablesUI() {
+
+        loadDbButton.setEnabled(false);
+        loadDbButton.setVisible(false);
+        connectExistingBtn.setEnabled(false);
+        connectExistingBtn.setVisible(false);
+        disconnectDbButton.setVisible(true);
         loadedTables = dbManager.getTableNames();
         browseTableDropdown.setAllItems(loadedTables);
         baseTableDropdown.setAllItems(loadedTables);
