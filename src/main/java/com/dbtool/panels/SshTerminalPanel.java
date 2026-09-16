@@ -398,9 +398,11 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
 
 
         // --- Notes Panel ---
+        java.nio.file.Path notesPath = Paths.get("SchemaSyncSaves", "ssh_notes.txt");
         try {
-            if (Files.exists(Paths.get("ssh_notes.txt"))) {
-                notesArea.setText(new String(Files.readAllBytes(Paths.get("ssh_notes.txt")), "UTF-8"));
+            Files.createDirectories(notesPath.getParent());
+            if (Files.exists(notesPath)) {
+                notesArea.setText(new String(Files.readAllBytes(notesPath), "UTF-8"));
             }
         } catch(Exception ex) {}
         
@@ -420,17 +422,32 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
         });
 
         JPanel notesToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 2));
+        
+        Insets smallMargin = new Insets(1, 4, 1, 4);
+        Font smallFont = new Font("Segoe UI", Font.PLAIN, 11);
+        
         JButton saveNotesBtn = new JButton("Save");
-        saveNotesBtn.setToolTipText("Save to default ssh_notes.txt");
+        saveNotesBtn.setMargin(smallMargin);
+        saveNotesBtn.setFont(smallFont);
+        saveNotesBtn.setToolTipText("Save to default SchemaSyncSaves/ssh_notes.txt");
         saveNotesBtn.addActionListener(e -> {
-            try { Files.write(Paths.get("ssh_notes.txt"), notesArea.getText().getBytes("UTF-8")); } catch(Exception ex) {}
+            try { 
+                Files.createDirectories(notesPath.getParent());
+                Files.write(notesPath, notesArea.getText().getBytes("UTF-8")); 
+            } catch(Exception ex) {}
         });
+        
         JButton loadNotesBtn = new JButton("Reload");
-        loadNotesBtn.setToolTipText("Reload from default ssh_notes.txt");
+        loadNotesBtn.setMargin(smallMargin);
+        loadNotesBtn.setFont(smallFont);
+        loadNotesBtn.setToolTipText("Reload from default SchemaSyncSaves/ssh_notes.txt");
         loadNotesBtn.addActionListener(e -> {
-            try { if (Files.exists(Paths.get("ssh_notes.txt"))) notesArea.setText(new String(Files.readAllBytes(Paths.get("ssh_notes.txt")), "UTF-8")); } catch(Exception ex) {}
+            try { if (Files.exists(notesPath)) notesArea.setText(new String(Files.readAllBytes(notesPath), "UTF-8")); } catch(Exception ex) {}
         });
+        
         JButton importBtn = new JButton("Import");
+        importBtn.setMargin(smallMargin);
+        importBtn.setFont(smallFont);
         importBtn.setToolTipText("Load a text file into notes");
         importBtn.addActionListener(e -> {
             JFileChooser chooser = new JFileChooser();
@@ -442,7 +459,10 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
                 }
             }
         });
+        
         JButton exportBtn = new JButton("Export");
+        exportBtn.setMargin(smallMargin);
+        exportBtn.setFont(smallFont);
         exportBtn.setToolTipText("Save notes to a specific file");
         exportBtn.addActionListener(e -> {
             JFileChooser chooser = new JFileChooser();
@@ -454,7 +474,10 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
                 }
             }
         });
-        notesToolbar.add(new JLabel("Snippets:"));
+        
+        JLabel snippetLbl = new JLabel("Snippets:");
+        snippetLbl.setFont(smallFont);
+        notesToolbar.add(snippetLbl);
         notesToolbar.add(saveNotesBtn);
         notesToolbar.add(loadNotesBtn);
         notesToolbar.add(importBtn);
