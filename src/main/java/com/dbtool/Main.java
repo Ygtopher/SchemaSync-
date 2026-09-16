@@ -145,7 +145,7 @@ public class Main extends JFrame {
         tbSelect.add(new JLabel(" |  Table: "));
         browseTableDropdown.addActionListener(e -> {
             String selected = (String) browseTableDropdown.getSelectedItem();
-            if (selected == null || !dbManager.getTableNames().contains(selected)) return;
+            if (selected == null || !loadedTables.contains(selected)) return;
 
             currentSelectedColumns.clear();
             selectColsButton.setText("Columns (All)");
@@ -1262,9 +1262,7 @@ public class Main extends JFrame {
         public JoinPanel() {
             setLayout(new FlowLayout(FlowLayout.LEFT));
             
-            for (String tbl : loadedTables) {
-                joinTableDropdown.addItem(tbl);
-            }
+            joinTableDropdown.setAllItems(loadedTables);
             
             joinTableDropdown.addActionListener(e -> {
                 String t = (String) joinTableDropdown.getSelectedItem();
@@ -1277,9 +1275,14 @@ public class Main extends JFrame {
             leftTableDropdown.addActionListener(e -> {
                 String t = (String) leftTableDropdown.getSelectedItem();
                 if (t != null) {
-                    Object currentCol = leftColDropdown.getSelectedItem();
-                    leftColDropdown.setAllItems(dbManager.getColumnNames(t));
-                    if (currentCol != null && dbManager.getColumnNames(t).contains(currentCol)) leftColDropdown.setSelectedItem(currentCol);
+                    new Thread(() -> {
+                        java.util.List<String> cols = dbManager.getColumnNames(t);
+                        SwingUtilities.invokeLater(() -> {
+                            Object currentCol = leftColDropdown.getSelectedItem();
+                            leftColDropdown.setAllItems(cols);
+                            if (currentCol != null && cols.contains(currentCol)) leftColDropdown.setSelectedItem(currentCol);
+                        });
+                    }).start();
                 }
             });
 
@@ -1331,9 +1334,14 @@ public class Main extends JFrame {
                 tableDropdown.addActionListener(e -> {
                     String t = (String) tableDropdown.getSelectedItem();
                     if (t != null) {
-                        Object currentCol = columnDropdown.getSelectedItem();
-                        columnDropdown.setAllItems(dbManager.getColumnNames(t));
-                        if (currentCol != null && dbManager.getColumnNames(t).contains(currentCol)) columnDropdown.setSelectedItem(currentCol);
+                        new Thread(() -> {
+                            java.util.List<String> cols = dbManager.getColumnNames(t);
+                            SwingUtilities.invokeLater(() -> {
+                                Object currentCol = columnDropdown.getSelectedItem();
+                                columnDropdown.setAllItems(cols);
+                                if (currentCol != null && cols.contains(currentCol)) columnDropdown.setSelectedItem(currentCol);
+                            });
+                        }).start();
                     }
                 });
                 add(tableDropdown);
@@ -1383,9 +1391,14 @@ class WherePanel extends JPanel {
             tableDropdown.addActionListener(e -> {
                 String t = (String) tableDropdown.getSelectedItem();
                 if (t != null) {
-                    Object currentCol = columnDropdown.getSelectedItem();
-                    columnDropdown.setAllItems(dbManager.getColumnNames(t));
-                    if (currentCol != null && dbManager.getColumnNames(t).contains(currentCol)) columnDropdown.setSelectedItem(currentCol);
+                    new Thread(() -> {
+                        java.util.List<String> cols = dbManager.getColumnNames(t);
+                        SwingUtilities.invokeLater(() -> {
+                            Object currentCol = columnDropdown.getSelectedItem();
+                            columnDropdown.setAllItems(cols);
+                            if (currentCol != null && cols.contains(currentCol)) columnDropdown.setSelectedItem(currentCol);
+                        });
+                    }).start();
                 }
             });
             
