@@ -44,6 +44,7 @@ public class SqlEditorPanel extends JPanel {
         JButton clearBtn = new JButton("Clear");
         JButton saveQueryBtn = new JButton("Save Query");
         JButton loadQueryBtn = new JButton("Load Query");
+        JButton loadSqlFileBtn = new JButton("📂 Load SQL File");
         JButton exportCsvBtn = new JButton("Export CSV");
         JButton exportXlsxBtn = new JButton("Export XLSX");
         JButton exportPdfBtn = new JButton("Export PDF");
@@ -82,6 +83,7 @@ public class SqlEditorPanel extends JPanel {
         toolbar.add(saveQueryBtn);
         toolbar.add(savedQueriesDropdown);
         toolbar.add(loadQueryBtn);
+        toolbar.add(loadSqlFileBtn);
         toolbar.add(new JSeparator(SwingConstants.VERTICAL));
         toolbar.add(exportCsvBtn);
         toolbar.add(exportPdfBtn);
@@ -116,13 +118,24 @@ public class SqlEditorPanel extends JPanel {
         add(mainSplit, BorderLayout.CENTER);
 
         // Actions
-        runBtn.addActionListener(e -> executeQuery(editor.getText().trim(), false));
+        runBtn.addActionListener(e -> executeQuery(getCurrentSql(), false));
         explainBtn.addActionListener(e -> {
-            String sql = editor.getText().trim();
+            String sql = getCurrentSql();
             if (!sql.isEmpty()) executeQuery("EXPLAIN ANALYZE " + sql, true);
         });
         clearBtn.addActionListener(e -> editor.setText(""));
         saveQueryBtn.addActionListener(e -> saveCurrentQuery());
+        loadSqlFileBtn.addActionListener(e -> {
+            javax.swing.JFileChooser fc = new javax.swing.JFileChooser();
+            if (fc.showOpenDialog(this) == javax.swing.JFileChooser.APPROVE_OPTION) {
+                try {
+                    String content = new String(java.nio.file.Files.readAllBytes(fc.getSelectedFile().toPath()), java.nio.charset.StandardCharsets.UTF_8);
+                    editor.setText(content);
+                } catch (Exception ex) {
+                    javax.swing.JOptionPane.showMessageDialog(this, "Failed to read file: " + ex.getMessage(), "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
         loadQueryBtn.addActionListener(e -> {
             String sel = (String) savedQueriesDropdown.getSelectedItem();
             if (sel != null) {
@@ -189,6 +202,44 @@ public class SqlEditorPanel extends JPanel {
         refreshSavedQueries();
     }
 
+    private String getCurrentSql() {
+        String selected = editor.getSelectedText();
+        if (selected != null && !selected.trim().isEmpty()) {
+            return selected.trim();
+        }
+        String text = editor.getText();
+        if (text == null || text.trim().isEmpty()) return "";
+        int caret = editor.getCaretPosition();
+        if (caret > text.length()) caret = text.length();
+        int start = 0;
+        for (int i = caret - 1; i >= 0; i--) {
+            if (text.charAt(i) == ';') {
+                start = i + 1;
+                break;
+            }
+        }
+        int end = text.length();
+        for (int i = caret; i < text.length(); i++) {
+            if (text.charAt(i) == ';') {
+                end = i;
+                break;
+            }
+        }
+        String sql = text.substring(start, end).trim();
+        if (sql.isEmpty() && caret > 0 && text.charAt(caret - 1) == ';') {
+            int newEnd = caret - 1;
+            int newStart = 0;
+            for (int i = newEnd - 1; i >= 0; i--) {
+                if (text.charAt(i) == ';') {
+                    newStart = i + 1;
+                    break;
+                }
+            }
+            sql = text.substring(newStart, newEnd).trim();
+        }
+        return sql.isEmpty() ? text.trim() : sql;
+    }
+
     private void executeQuery(String sql, boolean isExplain) {
         if (sql.isEmpty()) return;
         if (dbManager.connection == null) {
@@ -216,42 +267,58 @@ public class SqlEditorPanel extends JPanel {
                     java.sql.Statement stmt = dbManager.connection.createStatement();
                     boolean hasResultSet = stmt.execute(sql);
                     long elapsed = System.currentTimeMillis() - start;
+                    int resultCount = 1;
+                    int totalRows = 0;
                     
-                    if (hasResultSet) {
-                        try (java.sql.ResultSet rs = stmt.getResultSet()) {
-                            java.sql.ResultSetMetaData metaData = rs.getMetaData();
-                            java.util.Vector<String> columnNames = new java.util.Vector<>();
-                            int columnCount = metaData.getColumnCount();
-                            String[] columnTypes = new String[columnCount];
-                            for (int column = 1; column <= columnCount; column++) {
-                                columnNames.add(metaData.getColumnLabel(column));
-                                columnTypes[column - 1] = metaData.getColumnTypeName(column);
-                            }
-                            java.util.Vector<java.util.Vector<Object>> data = new java.util.Vector<>();
-                            while (rs.next()) {
-                                java.util.Vector<Object> vector = new java.util.Vector<>();
-                                for (int columnIndex = 1; columnIndex <= columnCount; columnIndex++) {
-                                    vector.add(rs.getObject(columnIndex));
+                    while (true) {
+                        if (hasResultSet) {
+                            try (java.sql.ResultSet rs = stmt.getResultSet()) {
+                                java.sql.ResultSetMetaData metaData = rs.getMetaData();
+                                java.util.Vector<String> columnNames = new java.util.Vector<>();
+                                int columnCount = metaData.getColumnCount();
+                                String[] columnTypes = new String[columnCount];
+                                for (int column = 1; column <= columnCount; column++) {
+                                    columnNames.add(metaData.getColumnLabel(column));
+                                    columnTypes[column - 1] = metaData.getColumnTypeName(column);
                                 }
-                                data.add(vector);
+                                java.util.Vector<java.util.Vector<Object>> data = new java.util.Vector<>();
+                                while (rs.next()) {
+                                    java.util.Vector<Object> vector = new java.util.Vector<>();
+                                    for (int columnIndex = 1; columnIndex <= columnCount; columnIndex++) {
+                                        vector.add(rs.getObject(columnIndex));
+                                    }
+                                    data.add(vector);
+                                }
+                                totalRows += data.size();
+                                com.dbtool.util.TypedTableModel model = new com.dbtool.util.TypedTableModel(data, columnNames, columnTypes);
+                                String tabTitle = "Result " + resultCount + " (" + model.getRowCount() + " rows)";
+                                SwingUtilities.invokeLater(() -> {
+                                    JTable table = new JTable(model);
+                                    table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+                                    table.setAutoCreateRowSorter(true);
+                                    com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(table);
+                                    addResultTab(tabTitle, new JScrollPane(table));
+                                });
                             }
-                            com.dbtool.util.TypedTableModel model = new com.dbtool.util.TypedTableModel(data, columnNames, columnTypes);
+                        } else {
+                            int affected = stmt.getUpdateCount();
+                            if (affected == -1) {
+                                break;
+                            }
+                            String tabTitle = "DML " + resultCount;
                             SwingUtilities.invokeLater(() -> {
-                                JTable table = new JTable(model);
-                                table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-                                table.setAutoCreateRowSorter(true);
-                                com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(table);
-                                addResultTab("Result (" + model.getRowCount() + " rows)", new JScrollPane(table));
-                                statusLabel.setText(model.getRowCount() + " rows in " + elapsed + "ms");
+                                addResultTab(tabTitle, createTextTab(affected + " rows affected."));
                             });
                         }
-                    } else {
-                        int affected = stmt.getUpdateCount();
-                        SwingUtilities.invokeLater(() -> {
-                            statusLabel.setText(affected + " rows affected in " + elapsed + "ms");
-                            addResultTab("DML Result", createTextTab(affected + " rows affected."));
-                        });
+                        resultCount++;
+                        hasResultSet = stmt.getMoreResults();
                     }
+                    
+                    final int finalTotal = totalRows;
+                    final int finalResultCount = resultCount;
+                    SwingUtilities.invokeLater(() -> {
+                        statusLabel.setText("Executed " + (finalResultCount - 1) + " statements in " + elapsed + "ms");
+                    });
                     QueryHistory.add(sql);
                     SwingUtilities.invokeLater(this::refreshHistory);
                 }
