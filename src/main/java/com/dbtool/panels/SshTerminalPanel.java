@@ -79,6 +79,7 @@ public class SshTerminalPanel extends JPanel {
     private Session session;
     private ChannelShell shellChannel;
     private ChannelSftp sftpChannel;
+    private JTextArea notesArea = new JTextArea();
     
     private OutputStream shellOut;
 
