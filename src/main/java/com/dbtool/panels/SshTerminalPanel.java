@@ -404,18 +404,61 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
             }
         } catch(Exception ex) {}
         
+        javax.swing.undo.UndoManager undoManager = new javax.swing.undo.UndoManager();
+        notesArea.getDocument().addUndoableEditListener(e -> undoManager.addEdit(e.getEdit()));
+        notesArea.getInputMap().put(KeyStroke.getKeyStroke("control Z"), "Undo");
+        notesArea.getActionMap().put("Undo", new javax.swing.AbstractAction() {
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                if (undoManager.canUndo()) undoManager.undo();
+            }
+        });
+        notesArea.getInputMap().put(KeyStroke.getKeyStroke("control Y"), "Redo");
+        notesArea.getActionMap().put("Redo", new javax.swing.AbstractAction() {
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                if (undoManager.canRedo()) undoManager.redo();
+            }
+        });
+
         JPanel notesToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 2));
-        notesToolbar.add(new JLabel("Snippets:"));
         JButton saveNotesBtn = new JButton("Save");
+        saveNotesBtn.setToolTipText("Save to default ssh_notes.txt");
         saveNotesBtn.addActionListener(e -> {
             try { Files.write(Paths.get("ssh_notes.txt"), notesArea.getText().getBytes("UTF-8")); } catch(Exception ex) {}
         });
         JButton loadNotesBtn = new JButton("Reload");
+        loadNotesBtn.setToolTipText("Reload from default ssh_notes.txt");
         loadNotesBtn.addActionListener(e -> {
             try { if (Files.exists(Paths.get("ssh_notes.txt"))) notesArea.setText(new String(Files.readAllBytes(Paths.get("ssh_notes.txt")), "UTF-8")); } catch(Exception ex) {}
         });
+        JButton importBtn = new JButton("Import");
+        importBtn.setToolTipText("Load a text file into notes");
+        importBtn.addActionListener(e -> {
+            JFileChooser chooser = new JFileChooser();
+            if (chooser.showOpenDialog(SshTerminalPanel.this) == JFileChooser.APPROVE_OPTION) {
+                try {
+                    notesArea.setText(new String(Files.readAllBytes(chooser.getSelectedFile().toPath()), "UTF-8"));
+                } catch(Exception ex) {
+                    JOptionPane.showMessageDialog(SshTerminalPanel.this, "Error reading file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+        JButton exportBtn = new JButton("Export");
+        exportBtn.setToolTipText("Save notes to a specific file");
+        exportBtn.addActionListener(e -> {
+            JFileChooser chooser = new JFileChooser();
+            if (chooser.showSaveDialog(SshTerminalPanel.this) == JFileChooser.APPROVE_OPTION) {
+                try {
+                    Files.write(chooser.getSelectedFile().toPath(), notesArea.getText().getBytes("UTF-8"));
+                } catch(Exception ex) {
+                    JOptionPane.showMessageDialog(SshTerminalPanel.this, "Error saving file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+        notesToolbar.add(new JLabel("Snippets:"));
         notesToolbar.add(saveNotesBtn);
         notesToolbar.add(loadNotesBtn);
+        notesToolbar.add(importBtn);
+        notesToolbar.add(exportBtn);
 
         JPanel notesPanel = new JPanel(new BorderLayout());
         notesPanel.add(notesToolbar, BorderLayout.NORTH);
