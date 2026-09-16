@@ -1457,6 +1457,8 @@ class WherePanel extends JPanel {
             for (String item : allItems) {
                 addItem(item);
             }
+            setSelectedIndex(-1);
+            ((JTextField) getEditor().getEditorComponent()).setText("");
             isAdjusting = false;
         }
 
