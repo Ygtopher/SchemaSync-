@@ -32,7 +32,8 @@ public class DynamicSettingsProvider extends DefaultSettingsProvider {
     @Override
     public TextStyle getDefaultStyle() {
         if (isDark()) {
-            return new TextStyle(TerminalColor.WHITE, TerminalColor.rgb(30, 30, 30));
+            // Use standard black background instead of custom rgb to prevent text background rendering bugs in JediTerm
+            return new TextStyle(TerminalColor.WHITE, TerminalColor.BLACK);
         } else {
             return new TextStyle(TerminalColor.BLACK, TerminalColor.WHITE);
         }
