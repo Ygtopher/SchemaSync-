@@ -44,10 +44,10 @@ public class ThemeManager {
             UIManager.put("ScrollBar.thumbArc", 4);
             UIManager.put("ScrollBar.thumbInsets", new java.awt.Insets(2, 2, 2, 2));
             
-            UIManager.put("SplitPane.dividerSize", 12);
+            UIManager.put("SplitPane.dividerSize", 18);
             UIManager.put("SplitPane.centerOneTouchButtons", true);
-            UIManager.put("SplitPane.oneTouchButtonSize", 10);
-            UIManager.put("SplitPane.oneTouchButtonOffset", 2);
+            UIManager.put("SplitPane.oneTouchButtonSize", 20);
+            UIManager.put("SplitPane.oneTouchButtonOffset", 5);
             
             for (Window window : Window.getWindows()) {
                 SwingUtilities.updateComponentTreeUI(window);
