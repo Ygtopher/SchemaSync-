@@ -69,8 +69,11 @@ public class TableComparePanel extends JPanel {
         
         JButton exportBtn = new JButton("📥 Export Diff CSV");
         exportBtn.addActionListener(e -> ExportUtil.exportCsv(diffTable, this));
+        JButton exportPdfBtn = new JButton("📥 Export Diff PDF");
+        exportPdfBtn.addActionListener(e -> ExportUtil.exportPdf(diffTable, this));
         tbRun.add(new JLabel(" | "));
         tbRun.add(exportBtn);
+        tbRun.add(exportPdfBtn);
 
         topPanel.add(tbRun, BorderLayout.SOUTH);
 

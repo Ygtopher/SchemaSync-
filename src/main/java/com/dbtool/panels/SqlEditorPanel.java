@@ -46,6 +46,7 @@ public class SqlEditorPanel extends JPanel {
         JButton loadQueryBtn = new JButton("Load Query");
         JButton exportCsvBtn = new JButton("Export CSV");
         JButton exportXlsxBtn = new JButton("Export XLSX");
+        JButton exportPdfBtn = new JButton("Export PDF");
         
         JCheckBox autoCommitCheck = new JCheckBox("Auto-Commit", true);
         JButton commitBtn = new JButton("Commit");
@@ -83,6 +84,7 @@ public class SqlEditorPanel extends JPanel {
         toolbar.add(loadQueryBtn);
         toolbar.add(new JSeparator(SwingConstants.VERTICAL));
         toolbar.add(exportCsvBtn);
+        toolbar.add(exportPdfBtn);
         toolbar.add(exportXlsxBtn);
 
         // Editor + toolbar top section
@@ -177,6 +179,10 @@ public class SqlEditorPanel extends JPanel {
         exportXlsxBtn.addActionListener(e -> {
             JTable t = getActiveResultTable();
             if (t != null) ExportUtil.exportExcel(t, this);
+        });
+        exportPdfBtn.addActionListener(e -> {
+            JTable t = getActiveResultTable();
+            if (t != null) ExportUtil.exportPdf(t, this);
         });
 
         refreshHistory();

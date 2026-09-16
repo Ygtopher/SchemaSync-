@@ -224,12 +224,14 @@ public class Main extends JFrame {
         tbActions.addSeparator();
 
         JButton exportCsvBtn = new JButton("📄 CSV");
+        JButton exportPdfBtn = new JButton("📄 PDF");
         JButton exportXlsxBtn = new JButton("📥 Excel");
         JButton exportInsertBtn = new JButton("📥 SQL Inserts");
         JButton copyBtn = new JButton("📋 Copy Data");
         JButton copySqlBtn = new JButton("📋 Copy SQL");
         exportCsvBtn.addActionListener(e -> ExportUtil.exportCsv(browseTable, this));
         exportXlsxBtn.addActionListener(e -> ExportUtil.exportExcel(browseTable, this));
+        exportPdfBtn.addActionListener(e -> ExportUtil.exportPdf(browseTable, this));
         exportInsertBtn.addActionListener(e -> {
             String tbl = (String) browseTableDropdown.getSelectedItem();
             if (tbl != null) ExportUtil.exportSqlInserts(browseTable, tbl, this);
@@ -245,6 +247,7 @@ public class Main extends JFrame {
             }
         });
         tbActions.add(exportCsvBtn);
+        tbActions.add(exportPdfBtn);
         tbActions.add(exportXlsxBtn);
         tbActions.add(exportInsertBtn);
         tbActions.addSeparator();
@@ -496,12 +499,14 @@ public class Main extends JFrame {
         tbActions.setFloatable(false);
         tbActions.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
         JButton exportCsvBtn = new JButton("📥 CSV");
+        JButton exportPdfBtn = new JButton("📥 PDF");
         JButton exportXlsxBtn = new JButton("📥 Excel");
         JButton exportInsertBtn = new JButton("📥 SQL Inserts");
         JButton copyDataBtn = new JButton("📋 Copy Data");
         JButton copySqlBtn = new JButton("📋 Copy SQL");
         
         exportCsvBtn.addActionListener(e -> ExportUtil.exportCsv(joinResultTable, this));
+        exportPdfBtn.addActionListener(e -> ExportUtil.exportPdf(joinResultTable, this));
         exportXlsxBtn.addActionListener(e -> ExportUtil.exportExcel(joinResultTable, this));
         exportInsertBtn.addActionListener(e -> {
             String tbl = (String) baseTableDropdown.getSelectedItem();
@@ -519,6 +524,7 @@ public class Main extends JFrame {
         });
         
         tbActions.add(exportCsvBtn);
+        tbActions.add(exportPdfBtn);
         tbActions.add(exportXlsxBtn);
         tbActions.add(exportInsertBtn);
         tbActions.addSeparator();

@@ -136,6 +136,49 @@ public class ExportUtil {
         }
     }
 
+    public static void exportPdf(JTable table, java.awt.Component parent) {
+        JFileChooser fc = new JFileChooser();
+        fc.setSelectedFile(new File("export.pdf"));
+        if (fc.showSaveDialog(parent) != JFileChooser.APPROVE_OPTION) return;
+        try {
+            com.lowagie.text.Document document = new com.lowagie.text.Document(com.lowagie.text.PageSize.A4.rotate());
+            com.lowagie.text.pdf.PdfWriter.getInstance(document, new java.io.FileOutputStream(fc.getSelectedFile()));
+            document.open();
+
+            TableModel m = table.getModel();
+            com.lowagie.text.pdf.PdfPTable pdfTable = new com.lowagie.text.pdf.PdfPTable(m.getColumnCount());
+            pdfTable.setWidthPercentage(100);
+
+            // Header row
+            com.lowagie.text.Font headerFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 9, java.awt.Color.WHITE);
+            for (int c = 0; c < m.getColumnCount(); c++) {
+                com.lowagie.text.pdf.PdfPCell cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase(m.getColumnName(c), headerFont));
+                cell.setBackgroundColor(new java.awt.Color(50, 80, 130));
+                cell.setPadding(5);
+                pdfTable.addCell(cell);
+            }
+
+            // Data rows
+            com.lowagie.text.Font dataFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA, 8);
+            for (int r = 0; r < m.getRowCount(); r++) {
+                java.awt.Color rowBg = (r % 2 == 0) ? java.awt.Color.WHITE : new java.awt.Color(240, 240, 250);
+                for (int c = 0; c < m.getColumnCount(); c++) {
+                    Object val = m.getValueAt(r, c);
+                    com.lowagie.text.pdf.PdfPCell cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase(val == null ? "" : val.toString(), dataFont));
+                    cell.setBackgroundColor(rowBg);
+                    cell.setPadding(4);
+                    pdfTable.addCell(cell);
+                }
+            }
+
+            document.add(pdfTable);
+            document.close();
+            JOptionPane.showMessageDialog(parent, "Exported to " + fc.getSelectedFile().getName());
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(parent, "Export failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
     private static String escapeCsv(String s) {
         if (s.contains(",") || s.contains("\"") || s.contains("\n")) {
             return "\"" + s.replace("\"", "\"\"") + "\"";
