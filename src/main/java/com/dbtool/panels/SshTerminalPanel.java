@@ -391,6 +391,7 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treePanel, terminalPanel);
         splitPane.setDividerLocation(250);
+        splitPane.setOneTouchExpandable(true);
 
         add(topPanel, BorderLayout.NORTH);
         add(splitPane, BorderLayout.CENTER);
