@@ -216,8 +216,10 @@ public class SqlEditorPanel extends JPanel {
                             java.sql.ResultSetMetaData metaData = rs.getMetaData();
                             java.util.Vector<String> columnNames = new java.util.Vector<>();
                             int columnCount = metaData.getColumnCount();
+                            String[] columnTypes = new String[columnCount];
                             for (int column = 1; column <= columnCount; column++) {
                                 columnNames.add(metaData.getColumnLabel(column));
+                                columnTypes[column - 1] = metaData.getColumnTypeName(column);
                             }
                             java.util.Vector<java.util.Vector<Object>> data = new java.util.Vector<>();
                             while (rs.next()) {
@@ -227,11 +229,12 @@ public class SqlEditorPanel extends JPanel {
                                 }
                                 data.add(vector);
                             }
-                            DefaultTableModel model = new DefaultTableModel(data, columnNames);
+                            com.dbtool.util.TypedTableModel model = new com.dbtool.util.TypedTableModel(data, columnNames, columnTypes);
                             SwingUtilities.invokeLater(() -> {
                                 JTable table = new JTable(model);
                                 table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
                                 table.setAutoCreateRowSorter(true);
+                                com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(table);
                                 addResultTab("Result (" + model.getRowCount() + " rows)", new JScrollPane(table));
                                 statusLabel.setText(model.getRowCount() + " rows in " + elapsed + "ms");
                             });

@@ -253,6 +253,7 @@ public class Main extends JFrame {
 
         // Enable sorting on browseTable
         browseTable.setAutoCreateRowSorter(true);
+        com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(browseTable);
         browseTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
 
         browseWhereContainer.setLayout(new BoxLayout(browseWhereContainer, BoxLayout.Y_AXIS));

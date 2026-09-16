@@ -82,6 +82,8 @@ public class TableComparePanel extends JPanel {
                 new JScrollPane(dataTableB));
         splitResults.setResizeWeight(0.5);
         
+        com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(dataTableA);
+        com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(dataTableB);
         resultTabs.addTab("Side-by-Side Results", splitResults);
         resultTabs.addTab("Data Diff", new JScrollPane(diffTable));
 

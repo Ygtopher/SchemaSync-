@@ -442,17 +442,15 @@ public class DatabaseManager {
         }
     }
 
-    private DefaultTableModel buildTableModel(ResultSet rs) throws SQLException {
+    private com.dbtool.util.TypedTableModel buildTableModel(ResultSet rs) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
-
-        // names of columns
         Vector<String> columnNames = new Vector<>();
         int columnCount = metaData.getColumnCount();
+        String[] columnTypes = new String[columnCount];
         for (int column = 1; column <= columnCount; column++) {
-            columnNames.add(metaData.getColumnLabel(column));
+            columnNames.add(metaData.getColumnName(column));
+            columnTypes[column - 1] = metaData.getColumnTypeName(column);
         }
-
-        // data of the table
         Vector<Vector<Object>> data = new Vector<>();
         while (rs.next()) {
             Vector<Object> vector = new Vector<>();
@@ -461,8 +459,7 @@ public class DatabaseManager {
             }
             data.add(vector);
         }
-
-        return new DefaultTableModel(data, columnNames);
+        return new com.dbtool.util.TypedTableModel(data, columnNames, columnTypes);
     }
     public void saveConnectionProfile(String profileName, String host, String port, String user, String pass, String dbName) {
         java.util.Properties props = new java.util.Properties();
