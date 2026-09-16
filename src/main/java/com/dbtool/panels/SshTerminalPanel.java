@@ -3,6 +3,8 @@ package com.dbtool.panels;
 import com.jcraft.jsch.*;
 
 import javax.swing.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import java.awt.*;
@@ -393,8 +395,46 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
         splitPane.setDividerLocation(250);
         // splitPane.setOneTouchExpandable(true);
 
+
+        // --- Notes Panel ---
+        try {
+            if (Files.exists(Paths.get("ssh_notes.txt"))) {
+                notesArea.setText(new String(Files.readAllBytes(Paths.get("ssh_notes.txt")), "UTF-8"));
+            }
+        } catch(Exception ex) {}
+        
+        notesArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            private void save() {
+                try {
+                    Files.write(Paths.get("ssh_notes.txt"), notesArea.getText().getBytes("UTF-8"));
+                } catch(Exception ex) {}
+            }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { save(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { save(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { save(); }
+        });
+
+        JPanel notesPanel = new JPanel(new BorderLayout());
+        notesPanel.add(new JLabel(" Snippets & Notes"), BorderLayout.NORTH);
+        notesPanel.add(new JScrollPane(notesArea), BorderLayout.CENTER);
+
+        JSplitPane outerSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, notesPanel, splitPane);
+        outerSplitPane.setDividerLocation(0); // Minimized by default
+        
         add(topPanel, BorderLayout.NORTH);
-        add(splitPane, BorderLayout.CENTER);
+        add(outerSplitPane, BorderLayout.CENTER);
+
+        JButton toggleNotesBtn = new JButton("📝");
+        toggleNotesBtn.setToolTipText("Toggle Notes");
+        toggleNotesBtn.addActionListener(e -> {
+            if (outerSplitPane.getDividerLocation() <= 10) {
+                outerSplitPane.setDividerLocation(200);
+            } else {
+                outerSplitPane.setDividerLocation(0);
+            }
+        });
+        topPanel.add(toggleNotesBtn, 0);
+
 
         JButton toggleTreeBtn = new JButton("☰");
         toggleTreeBtn.setToolTipText("Toggle File Browser");
