@@ -404,23 +404,28 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
             }
         } catch(Exception ex) {}
         
-        notesArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            private void save() {
-                try {
-                    Files.write(Paths.get("ssh_notes.txt"), notesArea.getText().getBytes("UTF-8"));
-                } catch(Exception ex) {}
-            }
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { save(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { save(); }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { save(); }
+        JPanel notesToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 2));
+        notesToolbar.add(new JLabel("Snippets:"));
+        JButton saveNotesBtn = new JButton("Save");
+        saveNotesBtn.addActionListener(e -> {
+            try { Files.write(Paths.get("ssh_notes.txt"), notesArea.getText().getBytes("UTF-8")); } catch(Exception ex) {}
         });
+        JButton loadNotesBtn = new JButton("Reload");
+        loadNotesBtn.addActionListener(e -> {
+            try { if (Files.exists(Paths.get("ssh_notes.txt"))) notesArea.setText(new String(Files.readAllBytes(Paths.get("ssh_notes.txt")), "UTF-8")); } catch(Exception ex) {}
+        });
+        notesToolbar.add(saveNotesBtn);
+        notesToolbar.add(loadNotesBtn);
 
         JPanel notesPanel = new JPanel(new BorderLayout());
-        notesPanel.add(new JLabel(" Snippets & Notes"), BorderLayout.NORTH);
+        notesPanel.add(notesToolbar, BorderLayout.NORTH);
         notesPanel.add(new JScrollPane(notesArea), BorderLayout.CENTER);
+        notesPanel.setPreferredSize(new Dimension(250, 0));
+        notesPanel.setVisible(false);
 
-        JSplitPane outerSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, notesPanel, splitPane);
-        outerSplitPane.setDividerLocation(0); // Minimized by default
+        JSplitPane outerSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, splitPane, notesPanel);
+        outerSplitPane.setResizeWeight(1.0);
+        outerSplitPane.setBorder(null);
         
         add(topPanel, BorderLayout.NORTH);
         add(outerSplitPane, BorderLayout.CENTER);
@@ -428,13 +433,13 @@ public SshTerminalPanel(com.dbtool.DatabaseManager dbManager) {
         JButton toggleNotesBtn = new JButton("📝");
         toggleNotesBtn.setToolTipText("Toggle Notes");
         toggleNotesBtn.addActionListener(e -> {
-            if (outerSplitPane.getDividerLocation() <= 10) {
-                outerSplitPane.setDividerLocation(200);
-            } else {
-                outerSplitPane.setDividerLocation(0);
+            notesPanel.setVisible(!notesPanel.isVisible());
+            if (notesPanel.isVisible()) {
+                outerSplitPane.setDividerLocation(outerSplitPane.getWidth() - 250);
             }
         });
-        topPanel.add(toggleNotesBtn, 0);
+        // Add to the right side of top panel
+        topPanel.add(toggleNotesBtn);
 
 
         JButton toggleTreeBtn = new JButton("☰");
