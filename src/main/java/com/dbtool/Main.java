@@ -41,7 +41,7 @@ public class Main extends JFrame {
     private JCheckBox browseDistinctCheckbox = new JCheckBox("Distinct");
     
     // Join Tab Components
-    private JComboBox<String> baseTableDropdown = new JComboBox<>();
+    private SearchableComboBox baseTableDropdown = new SearchableComboBox();
     private JPanel joinsContainer = new JPanel();
     private List<JoinPanel> joinPanels = new ArrayList<>();
     private JTable joinResultTable = new JTable();
@@ -994,6 +994,9 @@ public class Main extends JFrame {
             if (tbl != null && col != null) {
                 sb.append(dbManager.quoteColumnName(tbl + "." + col)).append(" ").append(op).append(" ");
                 if (!op.contains("NULL")) {
+                    if ((op.equalsIgnoreCase("LIKE") || op.equalsIgnoreCase("ILIKE")) && !val.contains("%")) {
+                        val = "%" + val + "%";
+                    }
                     sb.append("'").append(val.replace("'", "''")).append("' ");
                 }
             }
@@ -1056,55 +1059,67 @@ public class Main extends JFrame {
     }
 
     private void updateJoinDropdowns() {
-        // Collect all available tables from the base table and previous joins to populate the "Left" side of the ON clause
-        List<String> availableLeftTables = new ArrayList<>();
-        
-        String baseTable = (String) baseTableDropdown.getSelectedItem();
-        if (baseTable != null) {
-            availableLeftTables.add(baseTable);
-        }
+        new Thread(() -> {
+            // Collect all available tables from the base table and previous joins to populate the "Left" side of the ON clause
+            List<String> availableLeftTables = new ArrayList<>();
+            
+            String baseTable = (String) baseTableDropdown.getSelectedItem();
+            if (baseTable != null) {
+                availableLeftTables.add(baseTable);
+            }
 
-        for (JoinPanel jp : joinPanels) {
-            String joinTable = (String) jp.joinTableDropdown.getSelectedItem();
-            if (joinTable != null) {
-                List<String> rightCols = new ArrayList<>(dbManager.getColumnNames(joinTable));
-                
-                Object currentLeftTable = jp.leftTableDropdown.getSelectedItem();
-                Object currentLeftCol = jp.leftColDropdown.getSelectedItem();
-                Object currentRightCol = jp.rightColDropdown.getSelectedItem();
-                boolean hadSelection = (currentLeftTable != null && currentLeftCol != null && currentRightCol != null);
-                
-                jp.updateRightColumns(rightCols);
-                jp.updateLeftTables(new ArrayList<>(availableLeftTables));
-                
-                if (!hadSelection || jp.leftColDropdown.getSelectedItem() == null) {
-                    boolean found = false;
-                    for (String leftTable : availableLeftTables) {
-                        String[] match = dbManager.getLearnedJoin(leftTable, joinTable);
-                        if (match == null) match = dbManager.getForeignKeyMatch(leftTable, joinTable);
-                        if (match == null) match = dbManager.getHeuristicMatch(leftTable, joinTable);
-                        if (match != null) {
-                            String leftMatch = match[0];
-                            if (leftMatch.startsWith(leftTable + ".")) leftMatch = leftMatch.substring(leftTable.length() + 1);
-                            
-                            String rightMatch = match[1];
-                            if (rightMatch.startsWith(joinTable + ".")) rightMatch = rightMatch.substring(joinTable.length() + 1);
-                            
-                            jp.leftTableDropdown.setSelectedItem(leftTable);
-                            jp.leftColDropdown.setSelectedItem(leftMatch);
-                            jp.rightColDropdown.setSelectedItem(rightMatch);
-                            found = true;
-                            break;
+            for (JoinPanel jp : joinPanels) {
+                String joinTable = (String) jp.joinTableDropdown.getSelectedItem();
+                if (joinTable != null) {
+                    List<String> rightCols = new ArrayList<>(dbManager.getColumnNames(joinTable));
+                    
+                    Object currentLeftTable = jp.leftTableDropdown.getSelectedItem();
+                    Object currentLeftCol = jp.leftColDropdown.getSelectedItem();
+                    Object currentRightCol = jp.rightColDropdown.getSelectedItem();
+                    boolean hadSelection = (currentLeftTable != null && currentLeftCol != null && currentRightCol != null);
+                    
+                    List<String> finalAvailableLeftTables = new ArrayList<>(availableLeftTables);
+                    SwingUtilities.invokeLater(() -> {
+                        jp.updateRightColumns(rightCols);
+                        jp.updateLeftTables(finalAvailableLeftTables);
+                    });
+                    
+                    if (!hadSelection || jp.leftColDropdown.getSelectedItem() == null) {
+                        boolean found = false;
+                        for (String leftTable : availableLeftTables) {
+                            String[] match = dbManager.getLearnedJoin(leftTable, joinTable);
+                            if (match == null) match = dbManager.getForeignKeyMatch(leftTable, joinTable);
+                            if (match == null) match = dbManager.getHeuristicMatch(leftTable, joinTable);
+                            if (match != null) {
+                                String leftMatch = match[0];
+                                if (leftMatch.startsWith(leftTable + ".")) leftMatch = leftMatch.substring(leftTable.length() + 1);
+                                
+                                String rightMatch = match[1];
+                                if (rightMatch.startsWith(joinTable + ".")) rightMatch = rightMatch.substring(joinTable.length() + 1);
+                                
+                                final String finalLeftMatch = leftMatch;
+                                final String finalRightMatch = rightMatch;
+                                
+                                SwingUtilities.invokeLater(() -> {
+                                    jp.leftTableDropdown.setSelectedItem(leftTable);
+                                    jp.leftColDropdown.setSelectedItem(finalLeftMatch);
+                                    jp.rightColDropdown.setSelectedItem(finalRightMatch);
+                                });
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found && !availableLeftTables.isEmpty()) {
+                            SwingUtilities.invokeLater(() -> {
+                                jp.leftTableDropdown.setSelectedItem(finalAvailableLeftTables.get(0));
+                            });
                         }
                     }
-                    if (!found && !availableLeftTables.isEmpty()) {
-                        jp.leftTableDropdown.setSelectedItem(availableLeftTables.get(0));
-                    }
+                    
+                    availableLeftTables.add(joinTable);
                 }
-                
-                availableLeftTables.add(joinTable);
             }
-        }
+        }).start();
     }
 
     private void updateWhereDropdowns() {
@@ -1182,6 +1197,9 @@ public class Main extends JFrame {
                 if (tbl != null && col != null) {
                     sql.append(dbManager.quoteColumnName(tbl + "." + col)).append(" ").append(op).append(" ");
                     if (!op.contains("NULL")) {
+                        if ((op.equalsIgnoreCase("LIKE") || op.equalsIgnoreCase("ILIKE")) && !val.contains("%")) {
+                            val = "%" + val + "%";
+                        }
                         sql.append("'").append(val.replace("'", "''")).append("' ");
                     }
                 }
@@ -1238,11 +1256,11 @@ public class Main extends JFrame {
     // Inner class representing a single Join row in the UI
     class JoinPanel extends JPanel {
         JComboBox<String> joinTypeDropdown = new JComboBox<>(new String[]{"JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN"});
-        JComboBox<String> joinTableDropdown = new JComboBox<>();
-        JComboBox<String> leftTableDropdown = new JComboBox<>();
-        JComboBox<String> leftColDropdown = new JComboBox<>();
+        SearchableComboBox joinTableDropdown = new SearchableComboBox();
+        SearchableComboBox leftTableDropdown = new SearchableComboBox();
+        SearchableComboBox leftColDropdown = new SearchableComboBox();
         JLabel rightTableLabel = new JLabel("");
-        JComboBox<String> rightColDropdown = new JComboBox<>();
+        SearchableComboBox rightColDropdown = new SearchableComboBox();
 
         public JoinPanel() {
             setLayout(new FlowLayout(FlowLayout.LEFT));
@@ -1263,11 +1281,8 @@ public class Main extends JFrame {
                 String t = (String) leftTableDropdown.getSelectedItem();
                 if (t != null) {
                     Object currentCol = leftColDropdown.getSelectedItem();
-                    leftColDropdown.removeAllItems();
-                    for (String c : dbManager.getColumnNames(t)) {
-                        leftColDropdown.addItem(c);
-                    }
-                    if (currentCol != null) leftColDropdown.setSelectedItem(currentCol);
+                    leftColDropdown.setAllItems(dbManager.getColumnNames(t));
+                    if (currentCol != null && dbManager.getColumnNames(t).contains(currentCol)) leftColDropdown.setSelectedItem(currentCol);
                 }
             });
 
@@ -1296,22 +1311,20 @@ public class Main extends JFrame {
 
         public void updateLeftTables(List<String> tables) {
             Object selected = leftTableDropdown.getSelectedItem();
-            leftTableDropdown.removeAllItems();
-            for (String t : tables) leftTableDropdown.addItem(t);
+            leftTableDropdown.setAllItems(tables);
             if (selected != null && tables.contains(selected)) leftTableDropdown.setSelectedItem(selected);
         }
 
         public void updateRightColumns(List<String> cols) {
             Object selected = rightColDropdown.getSelectedItem();
-            rightColDropdown.removeAllItems();
-            for (String col : cols) rightColDropdown.addItem(col);
+            rightColDropdown.setAllItems(cols);
             if (selected != null && cols.contains(selected)) rightColDropdown.setSelectedItem(selected);
         }
     }
 
         class OrderByPanel extends JPanel {
-        JComboBox<String> tableDropdown = new JComboBox<>();
-        JComboBox<String> columnDropdown = new JComboBox<>();
+        SearchableComboBox tableDropdown = new SearchableComboBox();
+        SearchableComboBox columnDropdown = new SearchableComboBox();
         JComboBox<String> dirDropdown = new JComboBox<>(new String[]{"ASC", "DESC"});
 
         public OrderByPanel(boolean showTable, List<OrderByPanel> ownerList, JPanel ownerContainer) {
@@ -1322,11 +1335,8 @@ public class Main extends JFrame {
                     String t = (String) tableDropdown.getSelectedItem();
                     if (t != null) {
                         Object currentCol = columnDropdown.getSelectedItem();
-                        columnDropdown.removeAllItems();
-                        for (String c : dbManager.getColumnNames(t)) {
-                            columnDropdown.addItem(c);
-                        }
-                        if (currentCol != null) columnDropdown.setSelectedItem(currentCol);
+                        columnDropdown.setAllItems(dbManager.getColumnNames(t));
+                        if (currentCol != null && dbManager.getColumnNames(t).contains(currentCol)) columnDropdown.setSelectedItem(currentCol);
                     }
                 });
                 add(tableDropdown);
@@ -1348,23 +1358,21 @@ public class Main extends JFrame {
 
         public void updateTables(List<String> tables) {
             Object selected = tableDropdown.getSelectedItem();
-            tableDropdown.removeAllItems();
-            for (String t : tables) tableDropdown.addItem(t);
+            tableDropdown.setAllItems(tables);
             if (selected != null && tables.contains(selected)) tableDropdown.setSelectedItem(selected);
         }
 
         public void updateColumns(List<String> cols) {
             Object selected = columnDropdown.getSelectedItem();
-            columnDropdown.removeAllItems();
-            for (String col : cols) columnDropdown.addItem(col);
+            columnDropdown.setAllItems(cols);
             if (selected != null && cols.contains(selected)) columnDropdown.setSelectedItem(selected);
         }
     }
 
 class WherePanel extends JPanel {
         JComboBox<String> logicDropdown = new JComboBox<>(new String[]{"AND", "OR"});
-        JComboBox<String> tableDropdown = new JComboBox<>();
-        JComboBox<String> columnDropdown = new JComboBox<>();
+        SearchableComboBox tableDropdown = new SearchableComboBox();
+        SearchableComboBox columnDropdown = new SearchableComboBox();
         JComboBox<String> operatorDropdown = new JComboBox<>(new String[]{"=", "!=", ">", "<", ">=", "<=", "LIKE", "ILIKE", "IS NULL", "IS NOT NULL"});
         JTextField valueField = new JTextField(15);
 
@@ -1379,11 +1387,8 @@ class WherePanel extends JPanel {
                 String t = (String) tableDropdown.getSelectedItem();
                 if (t != null) {
                     Object currentCol = columnDropdown.getSelectedItem();
-                    columnDropdown.removeAllItems();
-                    for (String c : dbManager.getColumnNames(t)) {
-                        columnDropdown.addItem(c);
-                    }
-                    if (currentCol != null) columnDropdown.setSelectedItem(currentCol);
+                    columnDropdown.setAllItems(dbManager.getColumnNames(t));
+                    if (currentCol != null && dbManager.getColumnNames(t).contains(currentCol)) columnDropdown.setSelectedItem(currentCol);
                 }
             });
             
@@ -1419,8 +1424,7 @@ class WherePanel extends JPanel {
 
         public void updateTables(List<String> tables) {
             Object selected = tableDropdown.getSelectedItem();
-            tableDropdown.removeAllItems();
-            for (String t : tables) tableDropdown.addItem(t);
+            tableDropdown.setAllItems(tables);
             if (selected != null && tables.contains(selected)) tableDropdown.setSelectedItem(selected);
         }
     }
@@ -1440,25 +1444,30 @@ class WherePanel extends JPanel {
             super();
             setEditable(true);
             JTextField editor = (JTextField) getEditor().getEditorComponent();
-            editor.addKeyListener(new java.awt.event.KeyAdapter() {
-                public void keyReleased(java.awt.event.KeyEvent e) {
-                    if (e.getKeyCode() == java.awt.event.KeyEvent.VK_UP || 
-                        e.getKeyCode() == java.awt.event.KeyEvent.VK_DOWN || 
-                        e.getKeyCode() == java.awt.event.KeyEvent.VK_ENTER || 
-                        e.getKeyCode() == java.awt.event.KeyEvent.VK_ESCAPE) {
-                        return;
-                    }
+            
+            editor.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+                public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
+                public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
+                public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
+                
+                private void update() {
+                    if (isAdjusting) return;
                     SwingUtilities.invokeLater(() -> {
                         isAdjusting = true;
                         String text = editor.getText();
-                        removeAllItems();
+                        int caret = editor.getCaretPosition();
+                        
+                        DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
                         for (String item : allItems) {
                             if (item.toLowerCase().contains(text.toLowerCase())) {
-                                addItem(item);
+                                model.addElement(item);
                             }
                         }
+                        setModel(model);
                         editor.setText(text);
-                        if (getItemCount() > 0) {
+                        editor.setCaretPosition(Math.min(caret, text.length()));
+                        
+                        if (model.getSize() > 0 && editor.hasFocus()) {
                             showPopup();
                         } else {
                             hidePopup();
@@ -1467,15 +1476,41 @@ class WherePanel extends JPanel {
                     });
                 }
             });
+
+            this.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
+                @Override
+                public void popupMenuWillBecomeVisible(javax.swing.event.PopupMenuEvent e) {
+                    if (isAdjusting) return;
+                    SwingUtilities.invokeLater(() -> {
+                        isAdjusting = true;
+                        String text = editor.getText();
+                        int caret = editor.getCaretPosition();
+                        
+                        if (allItems.contains(text) || text.isEmpty()) {
+                            DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
+                            for (String item : allItems) {
+                                model.addElement(item);
+                            }
+                            setModel(model);
+                            editor.setText(text);
+                            editor.setCaretPosition(Math.min(caret, text.length()));
+                        }
+                        isAdjusting = false;
+                    });
+                }
+                @Override public void popupMenuWillBecomeInvisible(javax.swing.event.PopupMenuEvent e) {}
+                @Override public void popupMenuCanceled(javax.swing.event.PopupMenuEvent e) {}
+            });
         }
         
         public void setAllItems(List<String> items) {
             isAdjusting = true;
             this.allItems = new ArrayList<>(items);
-            removeAllItems();
+            DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
             for (String item : allItems) {
-                addItem(item);
+                model.addElement(item);
             }
+            setModel(model);
             setSelectedIndex(-1);
             ((JTextField) getEditor().getEditorComponent()).setText("");
             isAdjusting = false;
@@ -1484,7 +1519,9 @@ class WherePanel extends JPanel {
         @Override
         public void setSelectedItem(Object anObject) {
             if (isAdjusting) return;
+            isAdjusting = true;
             super.setSelectedItem(anObject);
+            isAdjusting = false;
         }
     }
 }
