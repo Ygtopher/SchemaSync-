@@ -742,6 +742,7 @@ public class Main extends JFrame {
         if (dbManager.connection != null) {
             try { dbManager.connection.close(); } catch (Exception e) {}
             dbManager.connection = null;
+            dbManager.clearCache();
         }
         loadedTables.clear();
         browseTableDropdown.setAllItems(loadedTables);

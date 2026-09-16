@@ -36,6 +36,11 @@ public class DatabaseManager {
         }).start();
     }
 
+
+    public void clearCache() {
+        columnCache.clear();
+        tableCache = null;
+    }
     public void connect(String dbFilePath) throws Exception {
         // Fallback for old method without credentials
         connectPostgres(dbFilePath, "localhost", "5432", "postgres", "postgres", "analyzer_db");
@@ -91,6 +96,7 @@ public class DatabaseManager {
     }
 
     public void connectExistingPostgres(String host, String port, String dbName, String user, String pass) throws Exception {
+        clearCache();
         String targetUrl = "jdbc:postgresql://" + host + ":" + port + "/" + dbName;
         connection = DriverManager.getConnection(targetUrl, user, pass);
     }
