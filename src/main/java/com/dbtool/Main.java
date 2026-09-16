@@ -1473,6 +1473,7 @@ class WherePanel extends JPanel {
                                 model.addElement(item);
                             }
                         }
+                        model.setSelectedItem(text);
                         setModel(model);
                         editor.setText(text);
                         editor.setCaretPosition(Math.min(caret, text.length()));
