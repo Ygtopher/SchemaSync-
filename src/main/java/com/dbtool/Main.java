@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.dbtool.model.VisualJoinState;
+import com.dbtool.util.VisualJoinProjectManager;
 
 public class Main extends JFrame {
 
@@ -483,6 +485,15 @@ public class Main extends JFrame {
         joinLimitField.setPreferredSize(new Dimension(60, 26));
         tbRun.add(joinLimitField);
         
+        tbRun.add(new JLabel(" | "));
+
+        tbRun.add(new JSeparator(SwingConstants.VERTICAL));
+        JButton saveJoinBtn = new JButton("💾 Save Project");
+        JButton loadJoinBtn = new JButton("📂 Load Project");
+        saveJoinBtn.addActionListener(e -> saveVisualJoinProject());
+        loadJoinBtn.addActionListener(e -> loadVisualJoinProject());
+        tbRun.add(saveJoinBtn);
+        tbRun.add(loadJoinBtn);
         tbRun.add(new JLabel(" | "));
         JButton addJoinOrderBtn = new JButton("+ Add Order By");
         addJoinOrderBtn.addActionListener(e -> addJoinOrderByRow());
@@ -1141,6 +1152,96 @@ public class Main extends JFrame {
         }
     }
 
+
+    private void saveVisualJoinProject() {
+        VisualJoinState state = new VisualJoinState();
+        state.baseTable = (String) baseTableDropdown.getSelectedItem();
+        state.distinct = joinDistinctCheckbox.isSelected();
+        state.selectedColumns.addAll(joinSelectedColumns);
+        state.limit = joinLimitField.getText();
+        
+        for (JoinPanel jp : joinPanels) {
+            VisualJoinState.JoinState js = new VisualJoinState.JoinState();
+            js.type = (String) jp.joinTypeDropdown.getSelectedItem();
+            js.table = (String) jp.joinTableDropdown.getSelectedItem();
+            js.leftTable = (String) jp.leftTableDropdown.getSelectedItem();
+            js.leftCol = (String) jp.leftColDropdown.getSelectedItem();
+            js.rightCol = (String) jp.rightColDropdown.getSelectedItem();
+            state.joins.add(js);
+        }
+        
+        for (WherePanel wp : wherePanels) {
+            VisualJoinState.WhereState ws = new VisualJoinState.WhereState();
+            ws.logic = (String) wp.logicDropdown.getSelectedItem();
+            ws.table = (String) wp.tableDropdown.getSelectedItem();
+            ws.column = (String) wp.columnDropdown.getSelectedItem();
+            ws.operator = (String) wp.operatorDropdown.getSelectedItem();
+            ws.value = wp.valueField.getText();
+            state.wheres.add(ws);
+        }
+        
+        for (OrderByPanel op : joinOrderByPanels) {
+            VisualJoinState.OrderByState os = new VisualJoinState.OrderByState();
+            os.table = (String) op.tableDropdown.getSelectedItem();
+            os.column = (String) op.columnDropdown.getSelectedItem();
+            os.direction = (String) op.dirDropdown.getSelectedItem();
+            state.orderBys.add(os);
+        }
+        
+        VisualJoinProjectManager.saveProject(state, this);
+    }
+    
+    private void loadVisualJoinProject() {
+        VisualJoinState state = VisualJoinProjectManager.loadProject(this);
+        if (state == null) return;
+        
+        // Reset current UI
+        joinPanels.clear();
+        joinsContainer.removeAll();
+        wherePanels.clear();
+        whereContainer.removeAll();
+        joinOrderByPanels.clear();
+        joinOrderByContainer.removeAll();
+        joinSelectedColumns.clear();
+        
+        baseTableDropdown.setSelectedItem(state.baseTable);
+        joinDistinctCheckbox.setSelected(state.distinct);
+        joinSelectedColumns.addAll(state.selectedColumns);
+        joinLimitField.setText(state.limit != null ? state.limit : "");
+        
+        for (VisualJoinState.JoinState js : state.joins) {
+            addJoinRow();
+            JoinPanel jp = joinPanels.get(joinPanels.size() - 1);
+            jp.joinTypeDropdown.setSelectedItem(js.type);
+            jp.joinTableDropdown.setSelectedItem(js.table);
+            jp.leftTableDropdown.setSelectedItem(js.leftTable);
+            jp.leftColDropdown.setSelectedItem(js.leftCol);
+            jp.rightColDropdown.setSelectedItem(js.rightCol);
+        }
+        
+        for (VisualJoinState.WhereState ws : state.wheres) {
+            addWhereRow();
+            WherePanel wp = wherePanels.get(wherePanels.size() - 1);
+            wp.logicDropdown.setSelectedItem(ws.logic);
+            wp.tableDropdown.setSelectedItem(ws.table);
+            wp.columnDropdown.setSelectedItem(ws.column);
+            wp.operatorDropdown.setSelectedItem(ws.operator);
+            wp.valueField.setText(ws.value);
+        }
+        
+        for (VisualJoinState.OrderByState os : state.orderBys) {
+            addJoinOrderByRow();
+            OrderByPanel op = joinOrderByPanels.get(joinOrderByPanels.size() - 1);
+            op.tableDropdown.setSelectedItem(os.table);
+            op.columnDropdown.setSelectedItem(os.column);
+            op.dirDropdown.setSelectedItem(os.direction);
+        }
+        
+                joinSelectColsButton.setText(joinSelectedColumns.isEmpty() ? "Columns (All)" : "Columns (" + joinSelectedColumns.size() + ")");
+        joinsContainer.revalidate(); joinsContainer.repaint();
+        whereContainer.revalidate(); whereContainer.repaint();
+        joinOrderByContainer.revalidate(); joinOrderByContainer.repaint();
+    }
     private void executeVisualJoin() {
         String baseTable = (String) baseTableDropdown.getSelectedItem();
         if (baseTable == null) return;
