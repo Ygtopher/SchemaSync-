@@ -724,10 +724,7 @@ public class Main extends JFrame {
     private void populateTablesUI() {
         loadedTables = dbManager.getTableNames();
         browseTableDropdown.setAllItems(loadedTables);
-        baseTableDropdown.removeAllItems();
-        for (String tbl : loadedTables) {
-            baseTableDropdown.addItem(tbl);
-        }
+        baseTableDropdown.setAllItems(loadedTables);
         joinsContainer.removeAll();
         joinPanels.clear();
         joinsContainer.revalidate();
@@ -1481,12 +1478,13 @@ class WherePanel extends JPanel {
                 @Override
                 public void popupMenuWillBecomeVisible(javax.swing.event.PopupMenuEvent e) {
                     if (isAdjusting) return;
-                    SwingUtilities.invokeLater(() -> {
-                        isAdjusting = true;
-                        String text = editor.getText();
-                        int caret = editor.getCaretPosition();
-                        
-                        if (allItems.contains(text) || text.isEmpty()) {
+                    
+                    isAdjusting = true;
+                    String text = editor.getText();
+                    int caret = editor.getCaretPosition();
+                    
+                    if (allItems.contains(text) || text.isEmpty()) {
+                        if (getModel().getSize() != allItems.size()) {
                             DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
                             for (String item : allItems) {
                                 model.addElement(item);
@@ -1494,9 +1492,10 @@ class WherePanel extends JPanel {
                             setModel(model);
                             editor.setText(text);
                             editor.setCaretPosition(Math.min(caret, text.length()));
+                            SwingUtilities.invokeLater(() -> showPopup());
                         }
-                        isAdjusting = false;
-                    });
+                    }
+                    isAdjusting = false;
                 }
                 @Override public void popupMenuWillBecomeInvisible(javax.swing.event.PopupMenuEvent e) {}
                 @Override public void popupMenuCanceled(javax.swing.event.PopupMenuEvent e) {}
