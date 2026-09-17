@@ -13,12 +13,21 @@ public class VisualJoinState {
     public String limit;
     public String offset;
 
+
+    public static class JoinConditionState {
+        public String operator;
+        public String leftTable;
+        public String leftCol;
+        public String rightCol;
+    }
+
     public static class JoinState {
         public String type;
         public String table;
         public String leftTable;
         public String leftCol;
         public String rightCol;
+        public List<JoinConditionState> conditions = new ArrayList<>();
     }
 
     public static class WhereState {

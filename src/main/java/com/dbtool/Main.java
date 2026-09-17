@@ -1119,9 +1119,10 @@ public class Main extends JFrame {
                 if (joinTable != null) {
                     List<String> rightCols = new ArrayList<>(dbManager.getColumnNames(joinTable));
                     
-                    Object currentLeftTable = jp.leftTableDropdown.getSelectedItem();
-                    Object currentLeftCol = jp.leftColDropdown.getSelectedItem();
-                    Object currentRightCol = jp.rightColDropdown.getSelectedItem();
+                    JoinConditionPanel firstCp = jp.conditionPanels.isEmpty() ? null : jp.conditionPanels.get(0);
+                    Object currentLeftTable = firstCp != null ? firstCp.leftTableDropdown.getSelectedItem() : null;
+                    Object currentLeftCol = firstCp != null ? firstCp.leftColDropdown.getSelectedItem() : null;
+                    Object currentRightCol = firstCp != null ? firstCp.rightColDropdown.getSelectedItem() : null;
                     boolean hadSelection = (currentLeftTable != null && currentLeftCol != null && currentRightCol != null);
                     
                     List<String> finalAvailableLeftTables = new ArrayList<>(availableLeftTables);
@@ -1130,7 +1131,7 @@ public class Main extends JFrame {
                         jp.updateLeftTables(finalAvailableLeftTables);
                     });
                     
-                    if (!hadSelection || jp.leftColDropdown.getSelectedItem() == null) {
+                    if (firstCp != null && (!hadSelection || firstCp.leftColDropdown.getSelectedItem() == null)) {
                         boolean found = false;
                         for (String leftTable : availableLeftTables) {
                             String[] match = dbManager.getLearnedJoin(leftTable, joinTable);
@@ -1147,9 +1148,9 @@ public class Main extends JFrame {
                                 final String finalRightMatch = rightMatch;
                                 
                                 SwingUtilities.invokeLater(() -> {
-                                    jp.leftTableDropdown.setSelectedItem(leftTable);
-                                    jp.leftColDropdown.setSelectedItem(finalLeftMatch);
-                                    jp.rightColDropdown.setSelectedItem(finalRightMatch);
+                                    firstCp.leftTableDropdown.setSelectedItem(leftTable);
+                                    firstCp.leftColDropdown.setSelectedItem(finalLeftMatch);
+                                    firstCp.rightColDropdown.setSelectedItem(finalRightMatch);
                                 });
                                 found = true;
                                 break;
@@ -1157,7 +1158,7 @@ public class Main extends JFrame {
                         }
                         if (!found && !availableLeftTables.isEmpty()) {
                             SwingUtilities.invokeLater(() -> {
-                                jp.leftTableDropdown.setSelectedItem(finalAvailableLeftTables.get(0));
+                                firstCp.leftTableDropdown.setSelectedItem(finalAvailableLeftTables.get(0));
                             });
                         }
                     }
@@ -1202,9 +1203,14 @@ public class Main extends JFrame {
             VisualJoinState.JoinState js = new VisualJoinState.JoinState();
             js.type = (String) jp.joinTypeDropdown.getSelectedItem();
             js.table = (String) jp.joinTableDropdown.getSelectedItem();
-            js.leftTable = (String) jp.leftTableDropdown.getSelectedItem();
-            js.leftCol = (String) jp.leftColDropdown.getSelectedItem();
-            js.rightCol = (String) jp.rightColDropdown.getSelectedItem();
+            for (JoinConditionPanel cp : jp.conditionPanels) {
+                VisualJoinState.JoinConditionState cs = new VisualJoinState.JoinConditionState();
+                cs.operator = cp.operator;
+                cs.leftTable = (String) cp.leftTableDropdown.getSelectedItem();
+                cs.leftCol = (String) cp.leftColDropdown.getSelectedItem();
+                cs.rightCol = (String) cp.rightColDropdown.getSelectedItem();
+                js.conditions.add(cs);
+            }
             state.joins.add(js);
         }
         
@@ -1251,9 +1257,23 @@ public class Main extends JFrame {
             JoinPanel jp = joinPanels.get(joinPanels.size() - 1);
             jp.joinTypeDropdown.setSelectedItem(js.type);
             jp.joinTableDropdown.setSelectedItem(js.table);
-            jp.leftTableDropdown.setSelectedItem(js.leftTable);
-            jp.leftColDropdown.setSelectedItem(js.leftCol);
-            jp.rightColDropdown.setSelectedItem(js.rightCol);
+            
+            jp.conditionPanels.clear();
+            jp.conditionsContainer.removeAll();
+            
+            if (js.conditions != null && !js.conditions.isEmpty()) {
+                for (VisualJoinState.JoinConditionState cs : js.conditions) {
+                    JoinConditionPanel cp = jp.addNewCondition(cs.operator);
+                    cp.leftTableDropdown.setSelectedItem(cs.leftTable);
+                    cp.leftColDropdown.setSelectedItem(cs.leftCol);
+                    cp.rightColDropdown.setSelectedItem(cs.rightCol);
+                }
+            } else {
+                JoinConditionPanel cp = jp.addNewCondition("ON");
+                cp.leftTableDropdown.setSelectedItem(js.leftTable);
+                cp.leftColDropdown.setSelectedItem(js.leftCol);
+                cp.rightColDropdown.setSelectedItem(js.rightCol);
+            }
         }
         
         for (VisualJoinState.WhereState ws : state.wheres) {
@@ -1302,19 +1322,26 @@ public class Main extends JFrame {
         for (JoinPanel jp : joinPanels) {
             String type = (String) jp.joinTypeDropdown.getSelectedItem();
             String table = (String) jp.joinTableDropdown.getSelectedItem();
-            String leftTable = (String) jp.leftTableDropdown.getSelectedItem();
-            String leftCol = (String) jp.leftColDropdown.getSelectedItem();
-            String rightCol = (String) jp.rightColDropdown.getSelectedItem();
             
-            if (table != null && leftTable != null && leftCol != null && rightCol != null) {
-                String leftFormatted = dbManager.quoteColumnName(leftTable + "." + leftCol);
-                String rightFormatted = dbManager.quoteColumnName(table + "." + rightCol);
-
-                sql.append(" ").append(type).append(" ").append(dbManager.quoteTableName(table)).append(" ");
-                sql.append("ON ").append(leftFormatted).append(" = ").append(rightFormatted).append(" ");
-            } else {
-                JOptionPane.showMessageDialog(this, "Please make sure both 'Left' and 'Right' columns are selected for the join on table: " + table, "Incomplete Join", JOptionPane.WARNING_MESSAGE);
-                return;
+            if (table == null || table.isEmpty()) continue;
+            
+            sql.append(" ").append(type).append(" ").append(dbManager.quoteTableName(table)).append(" ");
+            
+            for (int i = 0; i < jp.conditionPanels.size(); i++) {
+                JoinConditionPanel cp = jp.conditionPanels.get(i);
+                String leftTable = (String) cp.leftTableDropdown.getSelectedItem();
+                String leftCol = (String) cp.leftColDropdown.getSelectedItem();
+                String rightCol = (String) cp.rightColDropdown.getSelectedItem();
+                
+                if (leftTable != null && leftCol != null && rightCol != null) {
+                    String leftFormatted = dbManager.quoteColumnName(leftTable + "." + leftCol);
+                    String rightFormatted = dbManager.quoteColumnName(table + "." + rightCol);
+                    
+                    sql.append(cp.operator).append(" ").append(leftFormatted).append(" = ").append(rightFormatted).append(" ");
+                } else {
+                    JOptionPane.showMessageDialog(this, "Please make sure both 'Left' and 'Right' columns are selected for the join condition on table: " + table, "Incomplete Join", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
             }
         }
         if (!wherePanels.isEmpty()) {
@@ -1374,12 +1401,14 @@ public class Main extends JFrame {
             // If execution succeeded, learn the joins!
             for (JoinPanel jp : joinPanels) {
                 String table = (String) jp.joinTableDropdown.getSelectedItem();
-                String leftTable = (String) jp.leftTableDropdown.getSelectedItem();
-                String leftCol = (String) jp.leftColDropdown.getSelectedItem();
-                String rightCol = (String) jp.rightColDropdown.getSelectedItem();
-                
-                if (table != null && leftTable != null && leftCol != null && rightCol != null) {
-                    dbManager.learnJoin(leftTable, leftTable + "." + leftCol, table, table + "." + rightCol);
+                for (JoinConditionPanel cp : jp.conditionPanels) {
+                    String leftTable = (String) cp.leftTableDropdown.getSelectedItem();
+                    String leftCol = (String) cp.leftColDropdown.getSelectedItem();
+                    String rightCol = (String) cp.rightColDropdown.getSelectedItem();
+                    
+                    if (table != null && leftTable != null && leftCol != null && rightCol != null) {
+                        dbManager.learnJoin(leftTable, leftTable + "." + leftCol, table, table + "." + rightCol);
+                    }
                 }
             }
             
@@ -1390,27 +1419,18 @@ public class Main extends JFrame {
     }
 
     // Inner class representing a single Join row in the UI
-    class JoinPanel extends JPanel {
-        JComboBox<String> joinTypeDropdown = new JComboBox<>(new String[]{"JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN"});
-        SearchableComboBox joinTableDropdown = new SearchableComboBox();
+    class JoinConditionPanel extends JPanel {
+        String operator;
         SearchableComboBox leftTableDropdown = new SearchableComboBox();
         SearchableComboBox leftColDropdown = new SearchableComboBox();
         JLabel rightTableLabel = new JLabel("");
         SearchableComboBox rightColDropdown = new SearchableComboBox();
-
-        public JoinPanel() {
-            setLayout(new FlowLayout(FlowLayout.LEFT));
+        
+        public JoinConditionPanel(String operator, boolean isFirst, JoinPanel parent) {
+            this.operator = operator;
+            setLayout(new FlowLayout(FlowLayout.LEFT, 2, 0));
+            add(new JLabel(" " + operator + " "));
             
-            joinTableDropdown.setAllItems(loadedTables);
-            
-            joinTableDropdown.addActionListener(e -> {
-                String t = (String) joinTableDropdown.getSelectedItem();
-                if (t != null) rightTableLabel.setText(t + " . ");
-                joinSelectedColumns.clear();
-                joinSelectColsButton.setText("Columns (All)");
-                updateJoinDropdowns();
-            });
-
             leftTableDropdown.addActionListener(e -> {
                 String t = (String) leftTableDropdown.getSelectedItem();
                 if (t != null) {
@@ -1425,9 +1445,6 @@ public class Main extends JFrame {
                 }
             });
 
-            add(joinTypeDropdown);
-            add(joinTableDropdown);
-            add(new JLabel(" ON "));
             add(leftTableDropdown);
             add(new JLabel(" . "));
             add(leftColDropdown);
@@ -1435,7 +1452,54 @@ public class Main extends JFrame {
             add(rightTableLabel);
             add(rightColDropdown);
             
-            JButton removeBtn = new JButton("X");
+            if (isFirst) {
+                JButton addConditionBtn = new JButton("+ AND");
+                addConditionBtn.addActionListener(e -> parent.addNewCondition("AND"));
+                add(addConditionBtn);
+            } else {
+                JButton removeConditionBtn = new JButton("- Remove AND");
+                removeConditionBtn.addActionListener(e -> parent.removeCondition(this));
+                add(removeConditionBtn);
+            }
+        }
+
+        public void updateLeftTables(java.util.List<String> tables) {
+            Object selected = leftTableDropdown.getSelectedItem();
+            leftTableDropdown.setAllItems(tables);
+            if (selected != null && tables.contains(selected)) leftTableDropdown.setSelectedItem(selected);
+        }
+
+        public void updateRightColumns(java.util.List<String> cols, String rightTable) {
+            rightTableLabel.setText(rightTable + " . ");
+            Object selected = rightColDropdown.getSelectedItem();
+            rightColDropdown.setAllItems(cols);
+            if (selected != null && cols.contains(selected)) rightColDropdown.setSelectedItem(selected);
+        }
+    }
+
+    class JoinPanel extends JPanel {
+        JComboBox<String> joinTypeDropdown = new JComboBox<>(new String[]{"JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN"});
+        SearchableComboBox joinTableDropdown = new SearchableComboBox();
+        
+        JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel conditionsContainer = new JPanel();
+        java.util.List<JoinConditionPanel> conditionPanels = new ArrayList<>();
+
+        public JoinPanel() {
+            setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+            conditionsContainer.setLayout(new BoxLayout(conditionsContainer, BoxLayout.Y_AXIS));
+            
+            joinTableDropdown.setAllItems(loadedTables);
+            joinTableDropdown.addActionListener(e -> {
+                joinSelectedColumns.clear();
+                joinSelectColsButton.setText("Columns (All)");
+                updateJoinDropdowns();
+            });
+
+            headerPanel.add(joinTypeDropdown);
+            headerPanel.add(joinTableDropdown);
+            
+            JButton removeBtn = new JButton("X Remove Join");
             removeBtn.addActionListener(e -> {
                 joinPanels.remove(this);
                 joinsContainer.remove(this);
@@ -1445,21 +1509,47 @@ public class Main extends JFrame {
                 joinSelectColsButton.setText("Columns (All)");
                 updateJoinDropdowns();
             });
-            add(removeBtn);
+            headerPanel.add(removeBtn);
+
+            add(headerPanel);
+            add(conditionsContainer);
+
+            addNewCondition("ON");
         }
 
-        public void updateLeftTables(List<String> tables) {
-            Object selected = leftTableDropdown.getSelectedItem();
-            leftTableDropdown.setAllItems(tables);
-            if (selected != null && tables.contains(selected)) leftTableDropdown.setSelectedItem(selected);
+        public JoinConditionPanel addNewCondition(String op) {
+            JoinConditionPanel cp = new JoinConditionPanel(op, conditionPanels.isEmpty(), this);
+            conditionPanels.add(cp);
+            conditionsContainer.add(cp);
+            revalidate();
+            repaint();
+            if (conditionPanels.size() > 1) updateJoinDropdowns();
+            return cp;
         }
 
-        public void updateRightColumns(List<String> cols) {
-            Object selected = rightColDropdown.getSelectedItem();
-            rightColDropdown.setAllItems(cols);
-            if (selected != null && cols.contains(selected)) rightColDropdown.setSelectedItem(selected);
+        public void removeCondition(JoinConditionPanel cp) {
+            conditionPanels.remove(cp);
+            conditionsContainer.remove(cp);
+            revalidate();
+            repaint();
+            updateJoinDropdowns();
+        }
+
+        public void updateLeftTables(java.util.List<String> tables) {
+            for (JoinConditionPanel cp : conditionPanels) {
+                cp.updateLeftTables(tables);
+            }
+        }
+
+        public void updateRightColumns(java.util.List<String> cols) {
+            String t = (String) joinTableDropdown.getSelectedItem();
+            if (t == null) t = "";
+            for (JoinConditionPanel cp : conditionPanels) {
+                cp.updateRightColumns(cols, t);
+            }
         }
     }
+
 
         class OrderByPanel extends JPanel {
         SearchableComboBox tableDropdown = new SearchableComboBox();
