@@ -1606,21 +1606,26 @@ class WherePanel extends JPanel {
                         String text = editor.getText();
                         int caret = editor.getCaretPosition();
                         
-                        DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
+                        DefaultComboBoxModel<String> model = (DefaultComboBoxModel<String>) getModel();
+                        model.removeAllElements();
                         for (String item : allItems) {
                             if (item.toLowerCase().contains(text.toLowerCase())) {
                                 model.addElement(item);
                             }
                         }
+                        
                         model.setSelectedItem(text);
-                        setModel(model);
                         editor.setText(text);
                         editor.setCaretPosition(Math.min(caret, text.length()));
                         
-                        if (model.getSize() > 0 && editor.hasFocus()) {
-                            showPopup();
+                        if (model.getSize() > 0 && (editor.hasFocus() || SearchableComboBox.this.hasFocus())) {
+                            if (!isPopupVisible()) {
+                                showPopup();
+                            }
                         } else {
-                            hidePopup();
+                            if (isPopupVisible()) {
+                                hidePopup();
+                            }
                         }
                         isAdjusting = false;
                     });
@@ -1638,14 +1643,13 @@ class WherePanel extends JPanel {
                     
                     if (allItems.contains(text) || text.isEmpty()) {
                         if (getModel().getSize() != allItems.size()) {
-                            DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
+                            DefaultComboBoxModel<String> model = (DefaultComboBoxModel<String>) getModel();
+                            model.removeAllElements();
                             for (String item : allItems) {
                                 model.addElement(item);
                             }
-                            setModel(model);
                             editor.setText(text);
                             editor.setCaretPosition(Math.min(caret, text.length()));
-                            SwingUtilities.invokeLater(() -> showPopup());
                         }
                     }
                     isAdjusting = false;
@@ -1677,3 +1681,5 @@ class WherePanel extends JPanel {
         }
     }
 }
+
+
