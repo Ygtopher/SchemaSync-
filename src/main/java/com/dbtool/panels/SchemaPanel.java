@@ -18,6 +18,7 @@ public class SchemaPanel extends JPanel {
     private final DefaultMutableTreeNode root = new DefaultMutableTreeNode("Database");
     private final JTree tree;
     private final JTextField searchField = new JTextField(14);
+    private final JTextField colSearchField = new JTextField(14);
     private final JTextArea statsArea = new JTextArea(6, 30);
     private Consumer<String> onTableSelected;
     private DefaultMutableTreeNode masterRoot = null;
@@ -32,21 +33,33 @@ public class SchemaPanel extends JPanel {
         tree.setRootVisible(true);
         tree.setShowsRootHandles(true);
 
-        // Search bar
-        JPanel searchPanel = new JPanel(new BorderLayout());
-        searchPanel.add(new JLabel("🔍 "), BorderLayout.WEST);
-        searchPanel.add(searchField, BorderLayout.CENTER);
+        // Table Search bar
+        JPanel tableSearchPanel = new JPanel(new BorderLayout());
+        tableSearchPanel.add(new JLabel("🔍 Tbl: "), BorderLayout.WEST);
+        tableSearchPanel.add(searchField, BorderLayout.CENTER);
         JButton refreshBtn = new JButton("↺");
         refreshBtn.setToolTipText("Refresh schema");
         refreshBtn.addActionListener(e -> refresh());
-        searchPanel.add(refreshBtn, BorderLayout.EAST);
+        tableSearchPanel.add(refreshBtn, BorderLayout.EAST);
+
+        // Column Search bar
+        JPanel colSearchPanel = new JPanel(new BorderLayout());
+        colSearchPanel.add(new JLabel("🔍 Col: "), BorderLayout.WEST);
+        colSearchPanel.add(colSearchField, BorderLayout.CENTER);
+
+        JPanel searchContainer = new JPanel();
+        searchContainer.setLayout(new BoxLayout(searchContainer, BoxLayout.Y_AXIS));
+        searchContainer.add(tableSearchPanel);
+        searchContainer.add(colSearchPanel);
 
         // Filter tree on type
-        searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+        javax.swing.event.DocumentListener filterListener = new javax.swing.event.DocumentListener() {
             public void insertUpdate(javax.swing.event.DocumentEvent e) { filterTree(); }
             public void removeUpdate(javax.swing.event.DocumentEvent e) { filterTree(); }
             public void changedUpdate(javax.swing.event.DocumentEvent e) { filterTree(); }
-        });
+        };
+        searchField.getDocument().addDocumentListener(filterListener);
+        colSearchField.getDocument().addDocumentListener(filterListener);
 
         // Stats area (bottom)
         statsArea.setEditable(false);
@@ -58,7 +71,7 @@ public class SchemaPanel extends JPanel {
                 new JScrollPane(tree), statsScroll);
         split.setResizeWeight(0.7);
 
-        add(searchPanel, BorderLayout.NORTH);
+        add(searchContainer, BorderLayout.NORTH);
         add(split, BorderLayout.CENTER);
 
         // Double-click → load table in Browse
@@ -138,22 +151,46 @@ public class SchemaPanel extends JPanel {
     private void applyFilter() {
         if (masterRoot == null) return;
         
-        String filter = searchField.getText().toLowerCase().trim();
+        String tableFilter = searchField.getText().toLowerCase().trim();
+        String colFilter = colSearchField.getText().toLowerCase().trim();
         root.removeAllChildren();
         
         for (int i = 0; i < masterRoot.getChildCount(); i++) {
             DefaultMutableTreeNode masterNode = (DefaultMutableTreeNode) masterRoot.getChildAt(i);
-            String name = masterNode.getUserObject().toString().toLowerCase();
-            if (filter.isEmpty() || name.contains(filter)) {
+            String tableName = masterNode.getUserObject().toString().toLowerCase();
+            
+            // Check table name match
+            boolean tableMatch = tableFilter.isEmpty() || tableName.contains(tableFilter);
+            
+            if (tableMatch) {
                 DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(masterNode.getUserObject());
+                boolean hasMatchingCol = false;
                 for (int j = 0; j < masterNode.getChildCount(); j++) {
-                    newNode.add(new DefaultMutableTreeNode(((DefaultMutableTreeNode)masterNode.getChildAt(j)).getUserObject()));
+                    DefaultMutableTreeNode masterColNode = (DefaultMutableTreeNode) masterNode.getChildAt(j);
+                    String colName = masterColNode.getUserObject().toString().toLowerCase();
+                    
+                    if (colFilter.isEmpty() || colName.contains(colFilter)) {
+                        newNode.add(new DefaultMutableTreeNode(masterColNode.getUserObject()));
+                        hasMatchingCol = true;
+                    }
                 }
+                
+                // If we are filtering by column, ONLY include this table if it has a matching column
+                if (!colFilter.isEmpty() && !hasMatchingCol) {
+                    continue; // Skip this table since it has no matching columns
+                }
+                
                 root.add(newNode);
             }
         }
         treeModel.reload();
         tree.expandRow(0);
+        
+        if (!colFilter.isEmpty()) {
+            for (int i = 0; i < tree.getRowCount(); i++) {
+                tree.expandRow(i);
+            }
+        }
     }
 
     private void showTableStats(String tableName) {
