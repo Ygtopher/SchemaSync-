@@ -254,6 +254,100 @@ public class TableComparePanel extends JPanel {
         diffTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         diffTable.setShowGrid(true);
         diffTable.setGridColor(java.awt.Color.LIGHT_GRAY);
+
+        JPopupMenu dataTableAPopup = new JPopupMenu();
+        JMenuItem dataTableACopy = new JMenuItem("Copy");
+        dataTableACopy.addActionListener(e -> {
+            int row = dataTableA.getSelectedRow();
+            int col = dataTableA.getSelectedColumn();
+            if (row >= 0 && col >= 0) {
+                Object val = dataTableA.getValueAt(row, col);
+                if (val != null) {
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(val.toString()), null);
+                }
+            }
+        });
+        dataTableAPopup.add(dataTableACopy);
+        dataTableA.setComponentPopupMenu(dataTableAPopup);
+        
+        dataTableA.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                if (javax.swing.SwingUtilities.isRightMouseButton(e)) {
+                    int row = dataTableA.rowAtPoint(e.getPoint());
+                    int col = dataTableA.columnAtPoint(e.getPoint());
+                    if (row >= 0 && col >= 0) {
+                        if (!dataTableA.isRowSelected(row) || !dataTableA.isColumnSelected(col)) {
+                            dataTableA.changeSelection(row, col, false, false);
+                        }
+                    }
+                }
+            }
+        });
+
+        JPopupMenu dataTableBPopup = new JPopupMenu();
+        JMenuItem dataTableBCopy = new JMenuItem("Copy");
+        dataTableBCopy.addActionListener(e -> {
+            int row = dataTableB.getSelectedRow();
+            int col = dataTableB.getSelectedColumn();
+            if (row >= 0 && col >= 0) {
+                Object val = dataTableB.getValueAt(row, col);
+                if (val != null) {
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(val.toString()), null);
+                }
+            }
+        });
+        dataTableBPopup.add(dataTableBCopy);
+        dataTableB.setComponentPopupMenu(dataTableBPopup);
+        
+        dataTableB.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                if (javax.swing.SwingUtilities.isRightMouseButton(e)) {
+                    int row = dataTableB.rowAtPoint(e.getPoint());
+                    int col = dataTableB.columnAtPoint(e.getPoint());
+                    if (row >= 0 && col >= 0) {
+                        if (!dataTableB.isRowSelected(row) || !dataTableB.isColumnSelected(col)) {
+                            dataTableB.changeSelection(row, col, false, false);
+                        }
+                    }
+                }
+            }
+        });
+
+        JPopupMenu diffTablePopup = new JPopupMenu();
+        JMenuItem diffTableCopy = new JMenuItem("Copy");
+        diffTableCopy.addActionListener(e -> {
+            int row = diffTable.getSelectedRow();
+            int col = diffTable.getSelectedColumn();
+            if (row >= 0 && col >= 0) {
+                Object val = diffTable.getValueAt(row, col);
+                if (val != null) {
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(val.toString()), null);
+                }
+            }
+        });
+        diffTablePopup.add(diffTableCopy);
+        diffTable.setComponentPopupMenu(diffTablePopup);
+        
+        diffTable.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                if (javax.swing.SwingUtilities.isRightMouseButton(e)) {
+                    int row = diffTable.rowAtPoint(e.getPoint());
+                    int col = diffTable.columnAtPoint(e.getPoint());
+                    if (row >= 0 && col >= 0) {
+                        if (!diffTable.isRowSelected(row) || !diffTable.isColumnSelected(col)) {
+                            diffTable.changeSelection(row, col, false, false);
+                        }
+                    }
+                }
+            }
+        });
+
                 summaryLabel.setText("Diff complete. Found " + finalDiffCount + " differences.");
             });
             

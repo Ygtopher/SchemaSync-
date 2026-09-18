@@ -1228,6 +1228,37 @@ public class Main extends JFrame {
             this.tableNameSupplier = tableNameSupplier;
             this.setShowGrid(true);
             this.setGridColor(java.awt.Color.LIGHT_GRAY);
+            
+            JPopupMenu popupMenu = new JPopupMenu();
+            JMenuItem copyItem = new JMenuItem("Copy");
+            copyItem.addActionListener(e -> {
+                int row = this.getSelectedRow();
+                int col = this.getSelectedColumn();
+                if (row >= 0 && col >= 0) {
+                    Object val = this.getValueAt(row, col);
+                    if (val != null) {
+                        java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                            new java.awt.datatransfer.StringSelection(val.toString()), null);
+                    }
+                }
+            });
+            popupMenu.add(copyItem);
+            this.setComponentPopupMenu(popupMenu);
+            
+            this.addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mousePressed(java.awt.event.MouseEvent e) {
+                    if (javax.swing.SwingUtilities.isRightMouseButton(e)) {
+                        int row = rowAtPoint(e.getPoint());
+                        int col = columnAtPoint(e.getPoint());
+                        if (row >= 0 && col >= 0) {
+                            if (!isRowSelected(row) || !isColumnSelected(col)) {
+                                changeSelection(row, col, false, false);
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         @Override
