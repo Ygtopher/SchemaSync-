@@ -1,7 +1,7 @@
 package com.dbtool.util;
 
-import com.formdev.flatlaf.FlatDarkLaf;
-import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.themes.FlatMacDarkLaf;
+import com.formdev.flatlaf.themes.FlatMacLightLaf;
 import javax.swing.*;
 import java.awt.Color;
 import java.awt.Window;
@@ -25,17 +25,17 @@ public class ThemeManager {
     private static void applyTheme(JButton toggleButton) {
         try {
             if (isDarkMode) {
-                UIManager.setLookAndFeel(new FlatDarkLaf());
+                UIManager.setLookAndFeel(new FlatMacDarkLaf());
                 UIManager.put("ScrollBar.thumb", new Color(180, 180, 180)); // Soft white/light gray
                 UIManager.put("ScrollBar.hoverThumb", new Color(220, 220, 220));
                 UIManager.put("ScrollBar.pressedThumb", new Color(255, 255, 255));
-                if (toggleButton != null) toggleButton.setText("💡 Light Mode");
+                if (toggleButton != null) toggleButton.setText("\u2600\uFE0F Light Mode"); // Sun emoji
             } else {
-                UIManager.setLookAndFeel(new FlatLightLaf());
+                UIManager.setLookAndFeel(new FlatMacLightLaf());
                 UIManager.put("ScrollBar.thumb", new Color(100, 100, 100)); // Soft dark gray instead of pure black
                 UIManager.put("ScrollBar.hoverThumb", new Color(60, 60, 60));
                 UIManager.put("ScrollBar.pressedThumb", new Color(20, 20, 20));
-                if (toggleButton != null) toggleButton.setText("🌙 Dark Mode");
+                if (toggleButton != null) toggleButton.setText("\uD83C\uDF19 Dark Mode"); // Crescent moon emoji
             }
             
             // Make Scrollbars more visible
@@ -48,6 +48,11 @@ public class ThemeManager {
             UIManager.put("SplitPane.centerOneTouchButtons", true);
             UIManager.put("SplitPane.oneTouchButtonSize", 20);
             UIManager.put("SplitPane.oneTouchButtonOffset", 5);
+            
+            // Enhance table grid visibility on Mac themes
+            UIManager.put("Table.showHorizontalLines", true);
+            UIManager.put("Table.showVerticalLines", true);
+            UIManager.put("Table.gridColor", isDarkMode ? new Color(70, 70, 70) : new Color(210, 210, 210));
             
             for (Window window : Window.getWindows()) {
                 SwingUtilities.updateComponentTreeUI(window);
