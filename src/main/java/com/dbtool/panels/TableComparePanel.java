@@ -121,9 +121,13 @@ public class TableComparePanel extends JPanel {
                     dataTableA.setModel(modelA);
                     dataTableA.setAutoCreateRowSorter(true);
         dataTableA.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        dataTableA.setShowGrid(true);
+        dataTableA.setGridColor(java.awt.Color.LIGHT_GRAY);
                     dataTableB.setModel(modelB);
                     dataTableB.setAutoCreateRowSorter(true);
         dataTableB.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        dataTableB.setShowGrid(true);
+        dataTableB.setGridColor(java.awt.Color.LIGHT_GRAY);
                     
                     updateKeyDropdown();
                     summaryLabel.setText("Queries executed. Rows: A=" + modelA.getRowCount() + ", B=" + modelB.getRowCount() + ". Select a Key Column to compare.");
@@ -248,6 +252,8 @@ public class TableComparePanel extends JPanel {
                 diffTable.setModel(diffModel);
                 diffTable.setAutoCreateRowSorter(true);
         diffTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        diffTable.setShowGrid(true);
+        diffTable.setGridColor(java.awt.Color.LIGHT_GRAY);
                 summaryLabel.setText("Diff complete. Found " + finalDiffCount + " differences.");
             });
             

@@ -1226,6 +1226,8 @@ public class Main extends JFrame {
         public UpdatableTable(java.util.function.Supplier<String> tableNameSupplier) {
             super();
             this.tableNameSupplier = tableNameSupplier;
+            this.setShowGrid(true);
+            this.setGridColor(java.awt.Color.LIGHT_GRAY);
         }
 
         @Override
