@@ -1227,7 +1227,6 @@ public class Main extends JFrame {
             super();
             this.tableNameSupplier = tableNameSupplier;
             this.setShowGrid(true);
-            this.setGridColor(java.awt.Color.LIGHT_GRAY);
             
             JPopupMenu popupMenu = new JPopupMenu();
             JMenuItem copyItem = new JMenuItem("Copy");

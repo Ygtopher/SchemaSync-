@@ -52,7 +52,7 @@ public class ThemeManager {
             // Enhance table grid visibility on Mac themes
             UIManager.put("Table.showHorizontalLines", true);
             UIManager.put("Table.showVerticalLines", true);
-            UIManager.put("Table.gridColor", isDarkMode ? new Color(70, 70, 70) : new Color(210, 210, 210));
+            UIManager.put("Table.gridColor", isDarkMode ? new Color(55, 55, 55) : new Color(235, 235, 235));
             
             for (Window window : Window.getWindows()) {
                 SwingUtilities.updateComponentTreeUI(window);
