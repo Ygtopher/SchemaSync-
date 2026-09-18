@@ -1528,6 +1528,11 @@ public class Main extends JFrame {
 
 
     private void populateTablesUI() {
+        loadDbButton.setEnabled(false);
+        loadDbButton.setVisible(false);
+        connectExistingBtn.setEnabled(false);
+        connectExistingBtn.setVisible(false);
+        disconnectDbButton.setVisible(true);
         loadedTables = dbManager.getTableNames();
         if (browseTabContainer != null) {
             for (BrowseTab tab : browseTabContainer.getTabs()) {
