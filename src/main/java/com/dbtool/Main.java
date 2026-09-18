@@ -21,6 +21,90 @@ import com.dbtool.util.VisualJoinProjectManager;
 
 public class Main extends JFrame {
 
+        class UpdatableTable extends JTable {
+        private java.util.function.Supplier<String> tableNameSupplier;
+
+        public UpdatableTable(java.util.function.Supplier<String> tableNameSupplier) {
+            super();
+            this.tableNameSupplier = tableNameSupplier;
+        }
+
+        @Override
+        public void setValueAt(Object aValue, int row, int column) {
+            Object oldValue = getValueAt(row, column);
+            if (oldValue != null && oldValue.equals(aValue)) {
+                super.setValueAt(aValue, row, column);
+                return;
+            }
+            if (oldValue == null && aValue == null) {
+                return;
+            }
+            
+            String tableName = tableNameSupplier != null ? tableNameSupplier.get() : null;
+            if (tableName == null || tableName.trim().isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Cannot update inline: Base table not selected.", "Update Failed", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            
+            String colName = getColumnName(column);
+            String actualTable = tableName;
+            String actualCol = colName;
+            if (colName.contains(".")) {
+                String[] parts = colName.split("\\.");
+                if (parts.length == 2) {
+                    actualTable = parts[0];
+                    actualCol = parts[1];
+                }
+            }
+            
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "Are you sure you want to update column '" + actualCol + "'\nin table '" + actualTable + "'\nfrom '" + oldValue + "' to '" + aValue + "'?",
+                    "Confirm Update", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                    
+            if (confirm == JOptionPane.YES_OPTION) {
+                StringBuilder sql = new StringBuilder("UPDATE " + dbManager.quoteTableName(actualTable) + " SET ");
+                sql.append(dbManager.quoteColumnName(actualCol)).append(" = ? WHERE ");
+                
+                List<Object> params = new ArrayList<>();
+                params.add(aValue);
+                
+                boolean first = true;
+                for (int c = 0; c < getColumnCount(); c++) {
+                    String currentHeader = getColumnName(c);
+                    String curTable = tableName;
+                    String curCol = currentHeader;
+                    if (currentHeader.contains(".")) {
+                        String[] parts = currentHeader.split("\\.");
+                        if (parts.length == 2) {
+                            curTable = parts[0];
+                            curCol = parts[1];
+                        }
+                    }
+                    if (!curTable.equals(actualTable)) continue;
+                    
+                    if (!first) sql.append(" AND ");
+                    first = false;
+                    
+                    Object val = (c == column) ? oldValue : getValueAt(row, c);
+                    sql.append(dbManager.quoteColumnName(curCol));
+                    if (val == null) {
+                        sql.append(" IS NULL");
+                    } else {
+                        sql.append(" = ?");
+                        params.add(val);
+                    }
+                }
+                
+                try {
+                    dbManager.executeUpdate(sql.toString(), params);
+                    super.setValueAt(aValue, row, column);
+                } catch (SQLException e) {
+                    JOptionPane.showMessageDialog(Main.this, "Update failed:\n" + e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }
+    }
+
     private DatabaseManager dbManager = new DatabaseManager();
     private JLabel statusLabel = new JLabel("No database loaded.");
     
@@ -31,7 +115,7 @@ public class Main extends JFrame {
     private JTextField limitField = new JTextField(5);
     
     
-    private JTable browseTable = new JTable();
+    private JTable browseTable = new UpdatableTable(() -> (String) browseTableDropdown.getSelectedItem());
     private JPanel browseWhereContainer = new JPanel();
     private List<WherePanel> browseWherePanels = new ArrayList<>();
     private JPanel browseOrderByContainer = new JPanel();
@@ -46,7 +130,7 @@ public class Main extends JFrame {
     private SearchableComboBox baseTableDropdown = new SearchableComboBox();
     private JPanel joinsContainer = new JPanel();
     private List<JoinPanel> joinPanels = new ArrayList<>();
-    private JTable joinResultTable = new JTable();
+    private JTable joinResultTable = new UpdatableTable(() -> (String) baseTableDropdown.getSelectedItem());
     private JButton joinSelectColsButton = new JButton("Columns (All)");
     private List<String> joinSelectedColumns = new ArrayList<>();
     private JTextField joinLimitField = new JTextField(5);

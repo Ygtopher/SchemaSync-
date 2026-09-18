@@ -428,6 +428,16 @@ public class DatabaseManager {
         return sb.toString();
     }
 
+        public void executeUpdate(String query, List<Object> params) throws SQLException {
+        if (connection == null) throw new SQLException("Not connected to a database.");
+        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
+            for (int i = 0; i < params.size(); i++) {
+                pstmt.setObject(i + 1, params.get(i));
+            }
+            pstmt.executeUpdate();
+        }
+    }
+
     public DefaultTableModel executeQuery(String query) throws SQLException {
         if (connection == null) throw new SQLException("Not connected to a database.");
 
