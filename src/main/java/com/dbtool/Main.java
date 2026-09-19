@@ -1580,130 +1580,47 @@ public class Main extends JFrame {
     }
 
     private void connectExistingDatabase() {
-        java.util.Properties savedConnections = dbManager.getSavedConnections();
-        JComboBox<String> profileDropdown = new JComboBox<>();
-        profileDropdown.setEditable(true);
-        JTextField editor = (JTextField) profileDropdown.getEditor().getEditorComponent();
-
-        profileDropdown.addItem("-- New Connection --");
-        for (String key : savedConnections.stringPropertyNames()) {
-            profileDropdown.addItem(key);
+        com.dbtool.panels.ConnectionManagerDialog dialog = new com.dbtool.panels.ConnectionManagerDialog(this, dbManager);
+        dialog.setVisible(true);
+        if (!dialog.isApproved()) {
+            return;
         }
 
-        editor.addKeyListener(new java.awt.event.KeyAdapter() {
-            public void keyReleased(java.awt.event.KeyEvent e) {
-                char ch = e.getKeyChar();
-                if (Character.isLetterOrDigit(ch) || Character.isSpaceChar(ch) || e.getKeyCode() == java.awt.event.KeyEvent.VK_BACK_SPACE) {
-                    String filter = editor.getText();
-                    String filterLower = filter.toLowerCase();
-                    profileDropdown.hidePopup();
-                    profileDropdown.removeAllItems();
-                    profileDropdown.addItem("-- New Connection --");
-                    for (String key : savedConnections.stringPropertyNames()) {
-                        if (key.toLowerCase().contains(filterLower)) {
-                            profileDropdown.addItem(key);
-                        }
-                    }
-                    editor.setText(filter);
-                    profileDropdown.showPopup();
-                }
-            }
-        });
-
-        JTextField hostField = new JTextField("localhost");
-        JTextField portField = new JTextField("5432");
-        JTextField userField = new JTextField("postgres");
-        JPasswordField passField = new JPasswordField("postgres");
-        JToggleButton showPassBtn = new JToggleButton("👁");
-        showPassBtn.setMargin(new java.awt.Insets(0, 4, 0, 4));
-        showPassBtn.setFocusable(false);
-        showPassBtn.addActionListener(e -> {
-            if (showPassBtn.isSelected()) {
-                passField.setEchoChar((char) 0);
-            } else {
-                passField.setEchoChar('•');
-            }
-        });
-        JPanel passPanel = new JPanel(new BorderLayout());
-        passPanel.add(passField, BorderLayout.CENTER);
-        passPanel.add(showPassBtn, BorderLayout.EAST);
-
-        JTextField dbNameField = new JTextField("fisa");
-        JCheckBox saveProfileCheck = new JCheckBox("Save this connection profile", true);
-        
-        profileDropdown.addActionListener(e -> {
-            String selected = (String) profileDropdown.getSelectedItem();
-            if (selected != null && !selected.equals("-- New Connection --")) {
-                String val = savedConnections.getProperty(selected);
-                if (val != null) {
-                    String[] parts = val.split(";");
-                    if (parts.length >= 5) {
-                        hostField.setText(parts[0]);
-                        portField.setText(parts[1]);
-                        userField.setText(parts[2]);
-                        try {
-                            String decodedPass = new String(java.util.Base64.getDecoder().decode(parts[3]));
-                            passField.setText(decodedPass);
-                        } catch (Exception ex) {}
-                        dbNameField.setText(parts[4]);
-                    }
-                }
-            }
-        });
-
-        Object[] message = {
-            "Search / Select Profile:", profileDropdown,
-            " ",
-            "PostgreSQL Host:", hostField,
-            "PostgreSQL Port:", portField,
-            "PostgreSQL Username:", userField,
-            "PostgreSQL Password:", passPanel,
-            "Database Name:", dbNameField,
-            " ",
-            saveProfileCheck
-        };
-
-        int option = JOptionPane.showConfirmDialog(this, message, "Connect to Existing Database", JOptionPane.OK_CANCEL_OPTION);
-        if (option != JOptionPane.OK_OPTION) {
-            return; // User canceled
-        }
-        
-        final String finalHost = hostField.getText();
-        final String finalPort = portField.getText();
-        final String finalUser = userField.getText();
-        final String finalPass = new String(passField.getPassword());
-        final String finalDbName = dbNameField.getText();
-        
-        if (saveProfileCheck.isSelected()) {
-            String profileName = finalUser + "@" + finalHost + ":" + finalPort + "/" + finalDbName;
-            dbManager.saveConnectionProfile(profileName, finalHost, finalPort, finalUser, finalPass, finalDbName);
-        }
+        final String finalHost = dialog.getHost();
+        final String finalPort = dialog.getPort();
+        final String finalUser = dialog.getUser();
+        final String finalPass = dialog.getPass();
+        final String finalDbName = dialog.getDbName();
         
         statusLabel.setText("Connecting to " + finalDbName + "...");
-        statusLabel.setForeground(Color.BLUE);
+        statusLabel.setForeground(java.awt.Color.BLUE);
         
         new Thread(() -> {
             try {
                 dbManager.connectExistingPostgres(finalHost, finalPort, finalDbName, finalUser, finalPass);
                 
-                SwingUtilities.invokeLater(() -> {
+                javax.swing.SwingUtilities.invokeLater(() -> {
                     try {
                         statusLabel.setText("Connected: " + finalDbName);
-                        statusLabel.setForeground(new Color(0, 150, 0));
+                        statusLabel.setForeground(new java.awt.Color(0, 150, 0));
                         populateTablesUI();
+                        
+                        connectExistingBtn.setVisible(false);
+                        loadDbButton.setVisible(false);
+                        disconnectDbButton.setVisible(true);
                     } catch (Exception ex) {
                         ex.printStackTrace();
                         statusLabel.setText("Failed to load tables.");
-                        statusLabel.setForeground(Color.RED);
-                        JOptionPane.showMessageDialog(Main.this, "Failed to load tables:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                        statusLabel.setForeground(java.awt.Color.RED);
+                        javax.swing.JOptionPane.showMessageDialog(Main.this, "Failed to load tables:\n" + ex.getMessage(), "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
                     }
                 });
             } catch (Exception ex) {
                 ex.printStackTrace();
-                SwingUtilities.invokeLater(() -> {
-                    statusLabel.setText("Failed to connect.");
-                    statusLabel.setForeground(Color.RED);
-                    JOptionPane.showMessageDialog(Main.this, "Connection failed:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    statusLabel.setText("Connection Failed.");
+                    statusLabel.setForeground(java.awt.Color.RED);
+                    javax.swing.JOptionPane.showMessageDialog(Main.this, "Failed to connect:\n" + ex.getMessage(), "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
                 });
             }
         }).start();

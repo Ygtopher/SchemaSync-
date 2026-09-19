@@ -520,6 +520,20 @@ public class DatabaseManager {
         }
     }
     
+    
+    public void deleteConnectionProfile(String profileName) {
+        java.util.Properties props = getSavedConnections();
+        if (props.containsKey(profileName)) {
+            props.remove(profileName);
+            java.io.File propFile = getSaveFile("saved_connections.properties");
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(propFile)) {
+                props.store(out, "Saved Connection Profiles");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     public java.util.Properties getSavedConnections() {
         java.util.Properties props = new java.util.Properties();
         java.io.File propFile = getSaveFile("saved_connections.properties");
