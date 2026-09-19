@@ -1423,14 +1423,13 @@ public class Main extends JFrame {
         }
         
         class MultiLineCellEditor extends javax.swing.AbstractCellEditor implements javax.swing.table.TableCellEditor {
-            private JButton button;
+            private JLabel label;
             private String currentValue;
             private String columnName;
             
             public MultiLineCellEditor(String columnName) {
                 this.columnName = columnName;
-                button = new JButton("Edit...");
-                button.addActionListener(e -> openEditorDialog());
+                label = new JLabel(" Editing...");
             }
             
             private void openEditorDialog() {
@@ -1478,7 +1477,8 @@ public class Main extends JFrame {
             @Override
             public java.awt.Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
                 currentValue = value != null ? value.toString() : "";
-                return button;
+                SwingUtilities.invokeLater(this::openEditorDialog);
+                return label;
             }
         }
 
