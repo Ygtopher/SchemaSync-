@@ -1229,6 +1229,20 @@ public class Main extends JFrame {
             this.setShowGrid(true);
             
             JPopupMenu popupMenu = new JPopupMenu();
+            JMenuItem editItem = new JMenuItem("Edit Cell");
+            editItem.addActionListener(e -> {
+                int row = this.getSelectedRow();
+                int col = this.getSelectedColumn();
+                if (row >= 0 && col >= 0) {
+                    this.editCellAt(row, col, null);
+                    java.awt.Component editor = this.getEditorComponent();
+                    if (editor != null) {
+                        editor.requestFocus();
+                    }
+                }
+            });
+            popupMenu.add(editItem);
+            
             JMenuItem copyItem = new JMenuItem("Copy Cell");
             copyItem.addActionListener(e -> {
                 int row = this.getSelectedRow();
@@ -1468,6 +1482,14 @@ public class Main extends JFrame {
             }
         }
 
+        @Override
+        public boolean editCellAt(int row, int column, java.util.EventObject e) {
+            if (e instanceof java.awt.event.MouseEvent) {
+                return false;
+            }
+            return super.editCellAt(row, column, e);
+        }
+        
         @Override
         public void setValueAt(Object aValue, int row, int column) {
             Object oldValue = getValueAt(row, column);
