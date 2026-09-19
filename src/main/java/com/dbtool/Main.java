@@ -1415,7 +1415,11 @@ public class Main extends JFrame {
         tabbedPane.addTab("SSH / Server", sshTerminalPanel);
 
         // Main layout: Schema sidebar left, tabs center
-        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, schemaPanel, tabbedPane);
+        com.dbtool.panels.QueryLogPanel queryLogPanel = new com.dbtool.panels.QueryLogPanel();
+        JSplitPane centerSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tabbedPane, queryLogPanel);
+        centerSplit.setDividerLocation(600);
+        centerSplit.setResizeWeight(0.8);
+        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, schemaPanel, centerSplit);
         mainSplit.setDividerLocation(230);
         // mainSplit.setOneTouchExpandable(true);
         mainSplit.setResizeWeight(0.0);

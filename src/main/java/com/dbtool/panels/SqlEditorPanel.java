@@ -314,15 +314,19 @@ public class SqlEditorPanel extends JPanel {
                         hasResultSet = stmt.getMoreResults();
                     }
                     
+
                     final int finalTotal = totalRows;
                     final int finalResultCount = resultCount;
                     SwingUtilities.invokeLater(() -> {
                         statusLabel.setText("Executed " + (finalResultCount - 1) + " statements in " + elapsed + "ms");
                     });
                     QueryHistory.add(sql);
+                    com.dbtool.util.QueryLogger.log(sql, elapsed, true);
                     SwingUtilities.invokeLater(this::refreshHistory);
+
                 }
             } catch (Exception ex) {
+                com.dbtool.util.QueryLogger.log(sql, System.currentTimeMillis() - start, false);
                 SwingUtilities.invokeLater(() -> {
                     statusLabel.setText("Error: " + ex.getMessage());
                     addResultTab("Error", createTextTab("Error: " + ex.getMessage()));

@@ -428,29 +428,32 @@ public class DatabaseManager {
         return sb.toString();
     }
 
-        public void executeUpdate(String query, List<Object> params) throws SQLException {
-        if (connection == null) throw new SQLException("Not connected to a database.");
-        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
+            public void executeUpdate(String query, java.util.List<Object> params) throws java.sql.SQLException {
+        if (connection == null) throw new java.sql.SQLException("Not connected to a database.");
+        long start = System.currentTimeMillis();
+        boolean success = false;
+        try (java.sql.PreparedStatement pstmt = connection.prepareStatement(query)) {
             for (int i = 0; i < params.size(); i++) {
                 pstmt.setObject(i + 1, params.get(i));
             }
             pstmt.executeUpdate();
+            success = true;
+        } finally {
+            com.dbtool.util.QueryLogger.log(query, System.currentTimeMillis() - start, success);
         }
     }
 
-    public DefaultTableModel executeQuery(String query) throws SQLException {
-        if (connection == null) throw new SQLException("Not connected to a database.");
-
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT current_schema(), current_database()")) {
-             if (rs.next()) {
-                 System.out.println("Connection DB: " + rs.getString(2) + ", Schema: " + rs.getString(1));
-             }
-        }
-        System.out.println("Executing Query: [" + query + "]");
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery(query)) {
-            return buildTableModel(rs);
+        public DefaultTableModel executeQuery(String query) throws java.sql.SQLException {
+        if (connection == null) throw new java.sql.SQLException("Not connected to a database.");
+        long start = System.currentTimeMillis();
+        boolean success = false;
+        try (java.sql.Statement stmt = connection.createStatement();
+             java.sql.ResultSet rs = stmt.executeQuery(query)) {
+             DefaultTableModel model = buildTableModel(rs);
+             success = true;
+             return model;
+        } finally {
+            com.dbtool.util.QueryLogger.log(query, System.currentTimeMillis() - start, success);
         }
     }
 
