@@ -443,7 +443,32 @@ public class DatabaseManager {
         }
     }
 
-        public DefaultTableModel executeQuery(String query) throws java.sql.SQLException {
+            public java.util.Map<String, String[]> getForeignKeys(String table) {
+        java.util.Map<String, String[]> fkMap = new java.util.HashMap<>();
+        if (connection == null || table == null) return fkMap;
+        try {
+            java.sql.DatabaseMetaData metaData = connection.getMetaData();
+            String schema = null;
+            String name = table;
+            if (table.contains(".")) {
+                schema = table.split("\\.")[0];
+                name = table.split("\\.")[1];
+            }
+            try (java.sql.ResultSet rs = metaData.getImportedKeys(null, schema, name)) {
+                while (rs.next()) {
+                    String fkCol = rs.getString("FKCOLUMN_NAME");
+                    String pkTable = rs.getString("PKTABLE_NAME");
+                    String pkCol = rs.getString("PKCOLUMN_NAME");
+                    fkMap.put(fkCol, new String[]{pkTable, pkCol});
+                }
+            }
+        } catch (java.sql.SQLException e) {
+            e.printStackTrace();
+        }
+        return fkMap;
+    }
+
+    public DefaultTableModel executeQuery(String query) throws java.sql.SQLException {
         if (connection == null) throw new java.sql.SQLException("Not connected to a database.");
         long start = System.currentTimeMillis();
         boolean success = false;

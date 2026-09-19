@@ -1229,7 +1229,7 @@ public class Main extends JFrame {
             this.setShowGrid(true);
             
             JPopupMenu popupMenu = new JPopupMenu();
-            JMenuItem copyItem = new JMenuItem("Copy");
+            JMenuItem copyItem = new JMenuItem("Copy Cell");
             copyItem.addActionListener(e -> {
                 int row = this.getSelectedRow();
                 int col = this.getSelectedColumn();
@@ -1242,6 +1242,99 @@ public class Main extends JFrame {
                 }
             });
             popupMenu.add(copyItem);
+            
+            JMenuItem copyInsertItem = new JMenuItem("Copy Row as SQL INSERT");
+            copyInsertItem.addActionListener(e -> {
+                int[] rows = this.getSelectedRows();
+                if (rows.length == 0 || tableNameSupplier == null) return;
+                String tableName = tableNameSupplier.get();
+                if (tableName == null) return;
+                
+                StringBuilder sb = new StringBuilder();
+                for (int row : rows) {
+                    StringBuilder sql = new StringBuilder("INSERT INTO " + dbManager.quoteTableName(tableName) + " (");
+                    StringBuilder vals = new StringBuilder("VALUES (");
+                    for (int c = 0; c < getColumnCount(); c++) {
+                        String colName = getColumnName(c);
+                        if (colName.contains(".")) {
+                            String[] p = colName.split("\\.");
+                            if (p.length == 2 && !p[0].equals(tableName)) continue;
+                            colName = p.length == 2 ? p[1] : colName;
+                        }
+                        sql.append(dbManager.quoteColumnName(colName)).append(c < getColumnCount() - 1 ? ", " : "");
+                        Object val = getValueAt(row, c);
+                        if (val == null) {
+                            vals.append("NULL");
+                        } else {
+                            vals.append("'").append(val.toString().replace("'", "''")).append("'");
+                        }
+                        vals.append(c < getColumnCount() - 1 ? ", " : "");
+                    }
+                    if (sql.toString().endsWith(", ")) sql.setLength(sql.length() - 2);
+                    if (vals.toString().endsWith(", ")) vals.setLength(vals.length() - 2);
+                    sql.append(") ").append(vals).append(");\n");
+                    sb.append(sql);
+                }
+                java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                    new java.awt.datatransfer.StringSelection(sb.toString()), null);
+            });
+            popupMenu.add(copyInsertItem);
+            
+            JMenuItem exportCsvItem = new JMenuItem("Export Selected to CSV");
+            exportCsvItem.addActionListener(e -> {
+                int[] rows = this.getSelectedRows();
+                if (rows.length == 0) return;
+                StringBuilder sb = new StringBuilder();
+                for (int c = 0; c < getColumnCount(); c++) {
+                    sb.append("\"").append(getColumnName(c)).append("\"").append(c < getColumnCount() - 1 ? "," : "");
+                }
+                sb.append("\n");
+                for (int row : rows) {
+                    for (int c = 0; c < getColumnCount(); c++) {
+                        Object val = getValueAt(row, c);
+                        String s = val == null ? "" : val.toString().replace("\"", "\"\"");
+                        sb.append("\"").append(s).append("\"").append(c < getColumnCount() - 1 ? "," : "");
+                    }
+                    sb.append("\n");
+                }
+                java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                    new java.awt.datatransfer.StringSelection(sb.toString()), null);
+                JOptionPane.showMessageDialog(this, "CSV copied to clipboard!");
+            });
+            popupMenu.add(exportCsvItem);
+            
+            JMenuItem exportJsonItem = new JMenuItem("Export Selected to JSON");
+            exportJsonItem.addActionListener(e -> {
+                int[] rows = this.getSelectedRows();
+                if (rows.length == 0) return;
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    com.fasterxml.jackson.databind.node.ArrayNode arrayNode = mapper.createArrayNode();
+                    for (int row : rows) {
+                        com.fasterxml.jackson.databind.node.ObjectNode node = mapper.createObjectNode();
+                        for (int c = 0; c < getColumnCount(); c++) {
+                            Object val = getValueAt(row, c);
+                            if (val == null) {
+                                node.putNull(getColumnName(c));
+                            } else if (val instanceof Number) {
+                                node.put(getColumnName(c), ((Number)val).doubleValue());
+                            } else if (val instanceof Boolean) {
+                                node.put(getColumnName(c), (Boolean)val);
+                            } else {
+                                node.put(getColumnName(c), val.toString());
+                            }
+                        }
+                        arrayNode.add(node);
+                    }
+                    String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(arrayNode);
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(json), null);
+                    JOptionPane.showMessageDialog(this, "JSON copied to clipboard!");
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            });
+            popupMenu.add(exportJsonItem);
             this.setComponentPopupMenu(popupMenu);
             
             this.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -1258,6 +1351,121 @@ public class Main extends JFrame {
                     }
                 }
             });
+        }
+
+        @Override
+        public javax.swing.table.TableCellEditor getCellEditor(int row, int column) {
+            String tableName = tableNameSupplier != null ? tableNameSupplier.get() : null;
+            String colName = getColumnName(column);
+            
+            String actualTable = tableName;
+            String actualCol = colName;
+            if (colName.contains(".")) {
+                String[] parts = colName.split("\\.");
+                if (parts.length == 2) {
+                    actualTable = parts[0];
+                    actualCol = parts[1];
+                }
+            }
+            
+            // 1. Check for Foreign Key
+            if (actualTable != null && !actualTable.isEmpty()) {
+                java.util.Map<String, String[]> fks = dbManager.getForeignKeys(actualTable);
+                if (fks.containsKey(actualCol)) {
+                    String[] pkInfo = fks.get(actualCol);
+                    String pkTable = pkInfo[0];
+                    String pkCol = pkInfo[1];
+                    try {
+                        javax.swing.table.DefaultTableModel rs = dbManager.executeQuery("SELECT DISTINCT " + dbManager.quoteColumnName(pkCol) + " FROM " + dbManager.quoteTableName(pkTable) + " LIMIT 500");
+                        java.util.Vector<String> options = new java.util.Vector<>();
+                        for (int i = 0; i < rs.getRowCount(); i++) {
+                            Object val = rs.getValueAt(i, 0);
+                            if (val != null) options.add(val.toString());
+                        }
+                        if (!options.isEmpty()) {
+                            JComboBox<String> combo = new JComboBox<>(options);
+                            combo.setEditable(true);
+                            return new DefaultCellEditor(combo);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+            
+            // 2. Check for Rich Text / JSON editor
+            if (getModel() instanceof com.dbtool.util.TypedTableModel) {
+                String type = ((com.dbtool.util.TypedTableModel) getModel()).getColumnType(column);
+                if (type != null) {
+                    type = type.toUpperCase();
+                    if (type.contains("TEXT") || type.contains("JSON") || type.contains("CHAR") || type.contains("CLOB")) {
+                        // Return a button that opens a dialog
+                        return new MultiLineCellEditor(actualCol);
+                    }
+                }
+            }
+            
+            return super.getCellEditor(row, column);
+        }
+        
+        class MultiLineCellEditor extends javax.swing.AbstractCellEditor implements javax.swing.table.TableCellEditor {
+            private JButton button;
+            private String currentValue;
+            private String columnName;
+            
+            public MultiLineCellEditor(String columnName) {
+                this.columnName = columnName;
+                button = new JButton("Edit...");
+                button.addActionListener(e -> openEditorDialog());
+            }
+            
+            private void openEditorDialog() {
+                JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(UpdatableTable.this), "Edit " + columnName, JDialog.ModalityType.APPLICATION_MODAL);
+                dialog.setSize(600, 400);
+                dialog.setLocationRelativeTo(UpdatableTable.this);
+                
+                org.fife.ui.rsyntaxtextarea.RSyntaxTextArea textArea = new org.fife.ui.rsyntaxtextarea.RSyntaxTextArea();
+                textArea.setText(currentValue);
+                if (columnName.toLowerCase().contains("json")) {
+                    textArea.setSyntaxEditingStyle(org.fife.ui.rsyntaxtextarea.SyntaxConstants.SYNTAX_STYLE_JSON);
+                } else {
+                    textArea.setSyntaxEditingStyle(org.fife.ui.rsyntaxtextarea.SyntaxConstants.SYNTAX_STYLE_SQL);
+                }
+                
+                JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+                JButton saveBtn = new JButton("Save");
+                JButton cancelBtn = new JButton("Cancel");
+                
+                saveBtn.addActionListener(evt -> {
+                    currentValue = textArea.getText();
+                    stopCellEditing();
+                    dialog.dispose();
+                });
+                
+                cancelBtn.addActionListener(evt -> {
+                    cancelCellEditing();
+                    dialog.dispose();
+                });
+                
+                bottom.add(cancelBtn);
+                bottom.add(saveBtn);
+                
+                dialog.setLayout(new BorderLayout());
+                dialog.add(new org.fife.ui.rtextarea.RTextScrollPane(textArea), BorderLayout.CENTER);
+                dialog.add(bottom, BorderLayout.SOUTH);
+                dialog.setVisible(true);
+            }
+            
+            @Override
+            public Object getCellEditorValue() {
+                return currentValue;
+            }
+            
+            @Override
+            public java.awt.Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
+                currentValue = value != null ? value.toString() : "";
+                return button;
+            }
         }
 
         @Override
