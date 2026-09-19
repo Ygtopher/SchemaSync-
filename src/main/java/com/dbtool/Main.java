@@ -1435,7 +1435,7 @@ public class Main extends JFrame {
             private void openEditorDialog() {
                 JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(UpdatableTable.this), "Edit " + columnName, JDialog.ModalityType.APPLICATION_MODAL);
                 dialog.setSize(600, 400);
-                dialog.setLocationRelativeTo(UpdatableTable.this);
+                dialog.setLocationRelativeTo(SwingUtilities.getWindowAncestor(UpdatableTable.this));
                 
                 org.fife.ui.rsyntaxtextarea.RSyntaxTextArea textArea = new org.fife.ui.rsyntaxtextarea.RSyntaxTextArea();
                 textArea.setText(currentValue);
