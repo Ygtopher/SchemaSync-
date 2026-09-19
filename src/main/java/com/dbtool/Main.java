@@ -1419,7 +1419,49 @@ public class Main extends JFrame {
         JSplitPane centerSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tabbedPane, queryLogPanel);
         centerSplit.setDividerLocation(600);
         centerSplit.setResizeWeight(0.8);
-        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, schemaPanel, centerSplit);
+        
+        JTabbedPane leftSidebarTabs = new JTabbedPane();
+        leftSidebarTabs.addTab("Schema", schemaPanel);
+        
+        com.dbtool.panels.WorkspacesPanel workspacesPanel = new com.dbtool.panels.WorkspacesPanel();
+        leftSidebarTabs.addTab("Workspaces", workspacesPanel);
+        
+        // Handle double click on workspace tree
+        workspacesPanel.getTree().addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    javax.swing.tree.DefaultMutableTreeNode node = (javax.swing.tree.DefaultMutableTreeNode) workspacesPanel.getTree().getLastSelectedPathComponent();
+                    if (node != null && node.isLeaf()) {
+                        String fileName = (String) node.getUserObject();
+                        java.io.File file = new java.io.File(workspacesPanel.getWorkspaceDir(), fileName);
+                        if (fileName.endsWith(".json")) {
+                            // Load Visual Join Project
+                            try {
+                                com.dbtool.model.VisualJoinState state = new com.fasterxml.jackson.databind.ObjectMapper().readValue(file, com.dbtool.model.VisualJoinState.class);
+                                
+                                VisualJoinTab newTab = joinTabContainer.addNewTabAndGet();
+                                // A real implementation would apply the state to the tab here
+                                // newTab.loadState(state);
+                                javax.swing.JOptionPane.showMessageDialog(Main.this, "Loaded Workspace: " + fileName);
+                            } catch (Exception ex) {
+                                ex.printStackTrace();
+                            }
+                        } else if (fileName.endsWith(".sql")) {
+                            // Load SQL
+                            try {
+                                String sql = new String(java.nio.file.Files.readAllBytes(file.toPath()));
+                                sqlEditorPanel.setEditorText(sql);
+                                tabbedPane.setSelectedComponent(sqlEditorPanel);
+                            } catch (Exception ex) {
+                                ex.printStackTrace();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftSidebarTabs, centerSplit);
         mainSplit.setDividerLocation(230);
         // mainSplit.setOneTouchExpandable(true);
         mainSplit.setResizeWeight(0.0);

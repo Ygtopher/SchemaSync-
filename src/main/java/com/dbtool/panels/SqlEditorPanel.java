@@ -374,6 +374,10 @@ public class SqlEditorPanel extends JPanel {
         for (String q : QueryHistory.load()) historyModel.addElement(q);
     }
 
+    public void setEditorText(String text) {
+        editor.setText(text);
+    }
+    
     public void refreshSavedQueries() {
         savedQueriesDropdown.removeAllItems();
         for (String name : SavedQueries.load().keySet()) savedQueriesDropdown.addItem(name);
