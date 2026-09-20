@@ -15,6 +15,18 @@
     </properties>
 
     <dependencies>
+        <!-- JSqlParser for SQL to Visual Builder -->
+        <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+            <version>4.6</version>
+        </dependency>
+        <!-- JGraphX for ER Diagrams -->
+        <dependency>
+            <groupId>com.github.vlsi.mxgraph</groupId>
+            <artifactId>jgraphx</artifactId>
+            <version>4.2.2</version>
+        </dependency>
         <!-- UCanAccess for MS Access JDBC -->
         <dependency>
             <groupId>net.sf.ucanaccess</groupId>

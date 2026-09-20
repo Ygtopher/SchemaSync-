@@ -80,15 +80,21 @@ public class TableComparePanel extends JPanel {
         // Results tabs
         JTabbedPane resultTabs = new JTabbedPane();
         
-        JSplitPane splitResults = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-                new JScrollPane(dataTableA),
-                new JScrollPane(dataTableB));
+        JScrollPane scrollA = new JScrollPane(dataTableA);
+        JScrollPane scrollB = new JScrollPane(dataTableB);
+        JScrollPane scrollDiff = new JScrollPane(diffTable);
+        
+        com.dbtool.util.TableRowUtilities.addRowNumbers(dataTableA, scrollA);
+        com.dbtool.util.TableRowUtilities.addRowNumbers(dataTableB, scrollB);
+        com.dbtool.util.TableRowUtilities.addRowNumbers(diffTable, scrollDiff);
+        
+        JSplitPane splitResults = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scrollA, scrollB);
         splitResults.setResizeWeight(0.5);
         
         com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(dataTableA);
         com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(dataTableB);
         resultTabs.addTab("Side-by-Side Results", splitResults);
-        resultTabs.addTab("Data Diff", new JScrollPane(diffTable));
+        resultTabs.addTab("Data Diff", scrollDiff);
 
         add(topPanel, BorderLayout.NORTH);
         add(resultTabs, BorderLayout.CENTER);

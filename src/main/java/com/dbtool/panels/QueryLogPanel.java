@@ -16,6 +16,22 @@ public class QueryLogPanel extends JPanel {
     public QueryLogPanel() {
         setLayout(new BorderLayout());
         
+        JPanel header = new JPanel(new BorderLayout());
+        JLabel title = new JLabel(" Global Query Log");
+        title.setFont(title.getFont().deriveFont(java.awt.Font.BOLD));
+        JButton closeBtn = new JButton("_"); // Minimize mark
+        closeBtn.setToolTipText("Minimize Query Log");
+        closeBtn.setMargin(new java.awt.Insets(0, 4, 0, 4));
+        closeBtn.addActionListener(e -> {
+            if (getParent() instanceof JSplitPane) {
+                JSplitPane split = (JSplitPane) getParent();
+                split.setDividerLocation(split.getHeight() - 30); // Collapse to bottom
+            }
+        });
+        header.add(title, BorderLayout.WEST);
+        header.add(closeBtn, BorderLayout.EAST);
+        add(header, BorderLayout.NORTH);
+        
         String[] columns = {"Time", "Status", "Duration (ms)", "Query"};
         model = new DefaultTableModel(columns, 0) {
             @Override

@@ -7,6 +7,16 @@ import com.dbtool.util.ThemeManager;
 import com.jcraft.jsch.*;
 import com.jediterm.terminal.ui.JediTermWidget;
 
+import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
+import org.fife.ui.rtextarea.RTextScrollPane;
+import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
+import javax.swing.table.DefaultTableModel;
+
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
@@ -56,6 +66,14 @@ public class SshSessionPanel extends JPanel {
     private ChannelShell shellChannel;
     private ChannelSftp sftpChannel;
     private JTextArea notesArea = new JTextArea();
+
+    private Timer metricsTimer;
+    private JLabel cpuLabel = new JLabel("CPU: --%");
+    private JLabel memLabel = new JLabel("Memory: -- / --");
+    private JTable dockerTable;
+    private DefaultTableModel dockerModel;
+    private JTabbedPane rightTabbedPane = new JTabbedPane();
+
 
     public SshSessionPanel(DatabaseManager dbManager, SshTerminalPanel parentManager, String initialTitle) {
         this.dbManager = dbManager;
@@ -193,6 +211,20 @@ public class SshSessionPanel extends JPanel {
 
         fileTree.addMouseListener(new java.awt.event.MouseAdapter() {
             private void showPopup(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2 && e.getButton() == java.awt.event.MouseEvent.BUTTON1) {
+                    int row = fileTree.getClosestRowForLocation(e.getX(), e.getY());
+                    if (row != -1) {
+                        fileTree.setSelectionRow(row);
+                        DefaultMutableTreeNode node = (DefaultMutableTreeNode) fileTree.getLastSelectedPathComponent();
+                        if (node != null && node.getUserObject() instanceof SftpFileNode) {
+                            SftpFileNode fileNode = (SftpFileNode) node.getUserObject();
+                            if (!fileNode.isDir) {
+                                openSftpTextEditor(fileNode);
+                            }
+                        }
+                    }
+                    return;
+                }
                 if (!e.isPopupTrigger()) return;
                 int row = fileTree.getClosestRowForLocation(e.getX(), e.getY());
                 if (row == -1) return;
@@ -507,17 +539,17 @@ public class SshSessionPanel extends JPanel {
         JPanel notesPanel = new JPanel(new BorderLayout());
         notesPanel.add(notesToolbar, BorderLayout.NORTH);
         notesPanel.add(new JScrollPane(notesArea), BorderLayout.CENTER);
-        notesPanel.setPreferredSize(new Dimension(240, 0));
-        notesPanel.setVisible(false);
+        rightTabbedPane.setPreferredSize(new Dimension(280, 0));
+        rightTabbedPane.setVisible(false);
 
-        JSplitPane outerSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, splitPane, notesPanel);
+        JSplitPane outerSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, splitPane, rightTabbedPane);
         outerSplitPane.setResizeWeight(1.0);
         outerSplitPane.setBorder(null);
 
         toggleNotesBtn.addActionListener(e -> {
-            notesPanel.setVisible(!notesPanel.isVisible());
-            if (notesPanel.isVisible()) {
-                outerSplitPane.setDividerLocation(outerSplitPane.getWidth() - 240);
+            rightTabbedPane.setVisible(!rightTabbedPane.isVisible());
+            if (rightTabbedPane.isVisible()) {
+                outerSplitPane.setDividerLocation(outerSplitPane.getWidth() - 280);
             }
         });
 
@@ -744,6 +776,130 @@ public class SshSessionPanel extends JPanel {
                 }
             }).start();
         }
+    }
+
+    
+    private void startMetricsTimer() {
+        if (metricsTimer != null) metricsTimer.cancel();
+        metricsTimer = new Timer(true);
+        metricsTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                if (session == null || !session.isConnected()) return;
+                try {
+                    String memOutput = execCommand("free -m | grep Mem | awk '{print $3\\\"/\\\"$2\\\" MB\\\"}'");
+                    String cpuOutput = execCommand("top -bn1 | grep 'Cpu(s)' | awk '{print $2 + $4\\\"%\\\"}'");
+                    if (cpuOutput.isEmpty()) cpuOutput = execCommand("vmstat 1 2 | tail -1 | awk '{print 100 - $15\\\"%\\\"}'"); // fallback
+                    
+                    final String finalMem = memOutput.trim();
+                    final String finalCpu = cpuOutput.trim();
+                    
+                    SwingUtilities.invokeLater(() -> {
+                        if (!finalMem.isEmpty()) memLabel.setText("Memory: " + finalMem);
+                        if (!finalCpu.isEmpty()) cpuLabel.setText("CPU: " + finalCpu);
+                    });
+                } catch (Exception e) {}
+            }
+        }, 2000, 5000);
+    }
+
+    private void fetchDockerContainers() {
+        if (session == null || !session.isConnected()) return;
+        new Thread(() -> {
+            try {
+                String out = execCommand("docker ps --format '{{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}'");
+                SwingUtilities.invokeLater(() -> {
+                    dockerModel.setRowCount(0);
+                    if (out.trim().isEmpty()) return;
+                    for (String line : out.trim().split("\n")) {
+                        String[] parts = line.split("\t");
+                        if (parts.length >= 4) {
+                            dockerModel.addRow(new Object[]{parts[0], parts[1], parts[2], parts[3]});
+                        }
+                    }
+                });
+            } catch (Exception e) {}
+        }).start();
+    }
+    
+    private void restartSelectedContainer() {
+        int row = dockerTable.getSelectedRow();
+        if (row == -1) return;
+        String id = (String) dockerModel.getValueAt(row, 0);
+        new Thread(() -> {
+            try {
+                execCommand("docker restart " + id);
+                fetchDockerContainers();
+            } catch (Exception e) {}
+        }).start();
+    }
+
+    private String execCommand(String command) throws Exception {
+        ChannelExec channel = (ChannelExec) session.openChannel("exec");
+        channel.setCommand(command);
+        channel.setInputStream(null);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        channel.setOutputStream(baos);
+        channel.connect(3000);
+        while (!channel.isClosed()) {
+            Thread.sleep(100);
+        }
+        channel.disconnect();
+        return baos.toString();
+    }
+
+    private void openSftpTextEditor(SftpFileNode fileNode) {
+        new Thread(() -> {
+            try {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                sftpChannel.get(fileNode.fullPath, baos);
+                String content = baos.toString("UTF-8");
+                
+                SwingUtilities.invokeLater(() -> {
+                    JDialog editorDialog = new JDialog(SwingUtilities.getWindowAncestor(this), "Editing: " + fileNode.name, Dialog.ModalityType.APPLICATION_MODAL);
+                    editorDialog.setSize(800, 600);
+                    editorDialog.setLocationRelativeTo(this);
+                    
+                    RSyntaxTextArea textArea = new RSyntaxTextArea(20, 60);
+                    textArea.setText(content);
+                    if (fileNode.name.endsWith(".json")) textArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JSON);
+                    else if (fileNode.name.endsWith(".xml")) textArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_XML);
+                    else if (fileNode.name.endsWith(".sh") || fileNode.name.endsWith(".conf")) textArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_UNIX_SHELL);
+                    else if (fileNode.name.endsWith(".sql")) textArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_SQL);
+                    else if (fileNode.name.endsWith(".py")) textArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_PYTHON);
+                    
+                    RTextScrollPane sp = new RTextScrollPane(textArea);
+                    editorDialog.add(sp, BorderLayout.CENTER);
+                    
+                    JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+                    JButton saveBtn = new JButton("Save & Upload");
+                    saveBtn.addActionListener(e -> {
+                        new Thread(() -> {
+                            try {
+                                byte[] bytes = textArea.getText().getBytes("UTF-8");
+                                ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
+                                sftpChannel.put(bais, fileNode.fullPath);
+                                SwingUtilities.invokeLater(() -> {
+                                    JOptionPane.showMessageDialog(editorDialog, "Successfully saved to server!");
+                                    editorDialog.dispose();
+                                });
+                            } catch (Exception ex) {
+                                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(editorDialog, "Error saving: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE));
+                            }
+                        }).start();
+                    });
+                    JButton cancelBtn = new JButton("Cancel");
+                    cancelBtn.addActionListener(e -> editorDialog.dispose());
+                    bottom.add(cancelBtn);
+                    bottom.add(saveBtn);
+                    editorDialog.add(bottom, BorderLayout.SOUTH);
+                    
+                    editorDialog.setVisible(true);
+                });
+            } catch (Exception e) {
+                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Could not open file: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE));
+            }
+        }).start();
     }
 
     private void deleteFile(SftpFileNode fileNode, DefaultMutableTreeNode node) {

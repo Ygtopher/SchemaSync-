@@ -2,6 +2,7 @@ package com.dbtool;
 
 import com.dbtool.panels.SchemaPanel;
 import com.dbtool.panels.SqlEditorPanel;
+import com.dbtool.panels.ErDiagramPanel;
 import com.dbtool.panels.TableComparePanel;
 import com.dbtool.panels.ScriptBuilderPanel;
 import com.dbtool.panels.DataOpsPanel;
@@ -495,7 +496,9 @@ public class Main extends JFrame {
 
     public class VisualJoinTab extends JPanel {
     private SearchableComboBox baseTableDropdown = new SearchableComboBox();
-    private JPanel joinsContainer = new JPanel();
+    private JPanel implicitTablesContainer = new JPanel();
+        private java.util.List<ImplicitTablePanel> implicitTablePanels = new java.util.ArrayList<>();
+        private JPanel joinsContainer = new JPanel();
     private List<JoinPanel> joinPanels = new ArrayList<>();
     private JTable joinResultTable = new UpdatableTable(() -> (String) baseTableDropdown.getSelectedItem());
     private JButton joinSelectColsButton = new JButton("Columns (All)");
@@ -526,6 +529,16 @@ public class Main extends JFrame {
             baseTableDropdown.setPreferredSize(new Dimension(200, 26));
             tbBase.add(baseTableDropdown);
             tbBase.add(new JLabel(" | "));
+            JButton addTableBtn = new JButton("+ Table");
+            addTableBtn.addActionListener(e -> {
+                ImplicitTablePanel itp = new ImplicitTablePanel();
+                implicitTablePanels.add(itp);
+                implicitTablesContainer.add(itp);
+                implicitTablesContainer.revalidate();
+                implicitTablesContainer.repaint();
+                updateJoinDropdowns();
+            });
+            tbBase.add(addTableBtn);
             JButton addJoinBtn = new JButton("+ Add Join");
             addJoinBtn.addActionListener(e -> addJoinRow());
             tbBase.add(addJoinBtn);
@@ -538,8 +551,10 @@ public class Main extends JFrame {
             joinsContainer.setLayout(new BoxLayout(joinsContainer, BoxLayout.Y_AXIS));
             whereContainer.setLayout(new BoxLayout(whereContainer, BoxLayout.Y_AXIS));
             
+            implicitTablesContainer.setLayout(new BoxLayout(implicitTablesContainer, BoxLayout.Y_AXIS));
             JPanel listsPanel = new JPanel();
             listsPanel.setLayout(new BoxLayout(listsPanel, BoxLayout.Y_AXIS));
+            listsPanel.add(implicitTablesContainer);
             listsPanel.add(joinsContainer);
             listsPanel.add(whereContainer);
             
@@ -772,6 +787,14 @@ public class Main extends JFrame {
                 if (baseTable != null) {
                     availableLeftTables.add(baseTable);
                 }
+                for (ImplicitTablePanel itp : implicitTablePanels) {
+                    String t = (String) itp.tableDropdown.getSelectedItem();
+                    if (t != null && !t.isEmpty()) availableLeftTables.add(t);
+                }
+                for (ImplicitTablePanel itp : implicitTablePanels) {
+                    String t = (String) itp.tableDropdown.getSelectedItem();
+                    if (t != null && !t.isEmpty()) availableLeftTables.add(t);
+                }
     
                 for (JoinPanel jp : joinPanels) {
                     String joinTable = (String) jp.joinTableDropdown.getSelectedItem();
@@ -972,7 +995,15 @@ public class Main extends JFrame {
             String distinctStr = joinDistinctCheckbox.isSelected() ? "DISTINCT " : "";
             
             StringBuilder sql = new StringBuilder();
-            sql.append("SELECT ").append(distinctStr).append(cols).append(" FROM ").append(dbManager.quoteTableName(baseTable)).append(" ");
+            sql.append("SELECT ").append(distinctStr).append(cols).append(" FROM ").append(dbManager.quoteTableName(baseTable));
+            
+            for (ImplicitTablePanel itp : implicitTablePanels) {
+                String t = (String) itp.tableDropdown.getSelectedItem();
+                if (t != null && !t.isEmpty()) {
+                    sql.append(", ").append(dbManager.quoteTableName(t));
+                }
+            }
+            sql.append(" ");
     
             for (JoinPanel jp : joinPanels) {
                 String type = (String) jp.joinTypeDropdown.getSelectedItem();
@@ -1211,7 +1242,99 @@ public class Main extends JFrame {
             if (sel != null && loadedTables.contains(sel)) baseTableDropdown.setSelectedItem(sel);
             updateJoinDropdowns();
         }
+        
+
+        public void loadFromSql(String rawSql) {
+            try {
+                net.sf.jsqlparser.statement.Statement stmt = net.sf.jsqlparser.parser.CCJSqlParserUtil.parse(rawSql);
+                if (stmt instanceof net.sf.jsqlparser.statement.select.Select) {
+                    net.sf.jsqlparser.statement.select.Select select = (net.sf.jsqlparser.statement.select.Select) stmt;
+                    if (select.getSelectBody() instanceof net.sf.jsqlparser.statement.select.PlainSelect) {
+                        net.sf.jsqlparser.statement.select.PlainSelect ps = (net.sf.jsqlparser.statement.select.PlainSelect) select.getSelectBody();
+                        
+                        clearJoins();
+                        
+                        net.sf.jsqlparser.schema.Table baseTable = (net.sf.jsqlparser.schema.Table) ps.getFromItem();
+                        if (baseTable != null && baseTable.getName() != null) {
+                            baseTableDropdown.setSelectedItem(baseTable.getName().replace("\"", ""));
+                        }
+                        
+                        java.util.List<net.sf.jsqlparser.statement.select.Join> joins = ps.getJoins();
+                        if (joins != null) {
+                            for (net.sf.jsqlparser.statement.select.Join join : joins) {
+                                addJoinRow();
+                                JoinPanel jp = joinPanels.get(joinPanels.size() - 1);
+                                
+                                if (join.isInner()) jp.joinTypeDropdown.setSelectedItem("INNER JOIN");
+                                else if (join.isLeft()) jp.joinTypeDropdown.setSelectedItem("LEFT JOIN");
+                                else if (join.isRight()) jp.joinTypeDropdown.setSelectedItem("RIGHT JOIN");
+                                else jp.joinTypeDropdown.setSelectedItem("JOIN");
+                                
+                                net.sf.jsqlparser.schema.Table joinTable = (net.sf.jsqlparser.schema.Table) join.getRightItem();
+                                if (joinTable != null) jp.joinTableDropdown.setSelectedItem(joinTable.getName().replace("\"", ""));
+                                
+                                net.sf.jsqlparser.expression.Expression onExp = join.getOnExpression();
+                                if (onExp instanceof net.sf.jsqlparser.expression.operators.relational.EqualsTo) {
+                                    net.sf.jsqlparser.expression.operators.relational.EqualsTo eq = (net.sf.jsqlparser.expression.operators.relational.EqualsTo) onExp;
+                                    
+                                    if (eq.getLeftExpression() instanceof net.sf.jsqlparser.schema.Column && eq.getRightExpression() instanceof net.sf.jsqlparser.schema.Column) {
+                                        net.sf.jsqlparser.schema.Column leftCol = (net.sf.jsqlparser.schema.Column) eq.getLeftExpression();
+                                        net.sf.jsqlparser.schema.Column rightCol = (net.sf.jsqlparser.schema.Column) eq.getRightExpression();
+                                        
+                                        JoinConditionPanel cp = jp.conditionPanels.get(0);
+                                        
+                                        if (leftCol.getTable() != null) cp.leftTableDropdown.setSelectedItem(leftCol.getTable().getName().replace("\"", ""));
+                                        cp.leftColDropdown.setSelectedItem(leftCol.getColumnName().replace("\"", ""));
+                                        
+                                        cp.rightColDropdown.setSelectedItem(rightCol.getColumnName().replace("\"", ""));
+                                    }
+                                }
+                            }
+                        }
+                        updateJoinDropdowns();
+                        executeVisualJoin();
+                    }
+                }
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, "Failed to parse SQL query: " + e.getMessage(), "Parse Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+        
+        class ImplicitTablePanel extends JPanel {
+            SearchableComboBox tableDropdown = new SearchableComboBox();
+
+            public ImplicitTablePanel() {
+                setLayout(new FlowLayout(FlowLayout.LEFT));
+                add(new JLabel("And Table: "));
+                
+                tableDropdown.setAllItems(loadedTables);
+                tableDropdown.setPreferredSize(new Dimension(200, 26));
+                tableDropdown.addActionListener(e -> {
+                    joinSelectedColumns.clear();
+                    joinSelectColsButton.setText("Columns (All)");
+                    updateJoinDropdowns();
+                });
+                add(tableDropdown);
+                
+                JButton removeBtn = new JButton("X");
+                removeBtn.addActionListener(e -> {
+                    implicitTablePanels.remove(this);
+                    implicitTablesContainer.remove(this);
+                    implicitTablesContainer.revalidate();
+                    implicitTablesContainer.repaint();
+                    joinSelectedColumns.clear();
+                    joinSelectColsButton.setText("Columns (All)");
+                    updateJoinDropdowns();
+                });
+                add(removeBtn);
+            }
+        }
+
         public void clearJoins() {
+            implicitTablesContainer.removeAll();
+            implicitTablePanels.clear();
+            implicitTablesContainer.revalidate();
+            implicitTablesContainer.repaint();
             joinsContainer.removeAll();
             joinPanels.clear();
             joinsContainer.revalidate();
@@ -1578,6 +1701,7 @@ public class Main extends JFrame {
     // New panels
     private SchemaPanel schemaPanel;
     private SqlEditorPanel sqlEditorPanel;
+    private ErDiagramPanel erDiagramPanel;
     private TableComparePanel tableComparePanel;
     private ScriptBuilderPanel scriptBuilderPanel;
     private DataOpsPanel dataOpsPanel;
@@ -1597,6 +1721,16 @@ public class Main extends JFrame {
         // Initialize new panels
         schemaPanel = new SchemaPanel(dbManager);
         sqlEditorPanel = new SqlEditorPanel(dbManager);
+        sqlEditorPanel.setSendToVisualBuilderAction(sql -> {
+            tabbedPane.setSelectedIndex(1); // Switch to Visual Join Builder
+            if (joinTabContainer.getTabs().isEmpty()) {
+                joinTabContainer.addNewTabAndGet().loadFromSql(sql);
+            } else {
+                VisualJoinTab tab = joinTabContainer.getTabs().get(0);
+                tab.loadFromSql(sql);
+            }
+        });
+        erDiagramPanel = new ErDiagramPanel();
         tableComparePanel = new TableComparePanel(dbManager);
         scriptBuilderPanel = new ScriptBuilderPanel(dbManager);
         dataOpsPanel = new DataOpsPanel(dbManager);
@@ -1638,11 +1772,17 @@ public class Main extends JFrame {
         tabbedPane.addTab("Visual Join Builder", joinTabContainer);
         tabbedPane.addTab("Data Operations", dataOpsPanel);
         tabbedPane.addTab("SQL Editor", sqlEditorPanel);
+        tabbedPane.addTab("Activity Monitor", new com.dbtool.panels.ActivityMonitorPanel(dbManager));
+        tabbedPane.addTab("Schema Dependencies", new com.dbtool.panels.DependencyGraphPanel(dbManager));
+        tabbedPane.addTab("ER Diagram", erDiagramPanel);
         tabbedPane.addTab("Script Builder", scriptBuilderPanel);
         tabbedPane.addTab("Compare Queries", tableComparePanel);
         
         com.dbtool.panels.SshTerminalPanel sshTerminalPanel = new com.dbtool.panels.SshTerminalPanel(dbManager);
         tabbedPane.addTab("SSH / Server", sshTerminalPanel);
+
+        com.dbtool.panels.NetworkScannerPanel networkScannerPanel = new com.dbtool.panels.NetworkScannerPanel();
+        // Network Scanner tab is hidden by default
 
         // Main layout: Schema sidebar left, tabs center
         com.dbtool.panels.QueryLogPanel queryLogPanel = new com.dbtool.panels.QueryLogPanel();
@@ -1697,7 +1837,7 @@ public class Main extends JFrame {
         mainSplit.setResizeWeight(0.0);
         add(mainSplit, BorderLayout.CENTER);
 
-        JButton toggleSidebarBtn = new JButton("☰");
+        JButton toggleSidebarBtn = new JButton("\u2630");
         toggleSidebarBtn.setToolTipText("Toggle Sidebar");
         toggleSidebarBtn.addActionListener(e -> {
             if (mainSplit.getDividerLocation() <= 10) {
@@ -1707,6 +1847,41 @@ public class Main extends JFrame {
             }
         });
         topPanel.add(toggleSidebarBtn, 0); // Add to extreme left
+
+        JButton toggleQueryLogBtn = new JButton("\u2630");
+        toggleQueryLogBtn.setToolTipText("Toggle Global Query Log");
+        toggleQueryLogBtn.addActionListener(e -> {
+            if (centerSplit.getDividerLocation() >= centerSplit.getHeight() - 40) {
+                centerSplit.setDividerLocation(centerSplit.getHeight() - 250); // Expand up
+            } else {
+                centerSplit.setDividerLocation(centerSplit.getHeight()); // Collapse down
+            }
+        });
+        topPanel.add(toggleQueryLogBtn, 1); // Add right next to sidebar toggle
+        
+        JToggleButton adminToolsBtn = new JToggleButton("Admin Tools");
+        adminToolsBtn.setToolTipText("Show/Hide Network Scanner (Requires Password)");
+        adminToolsBtn.addActionListener(e -> {
+            if (adminToolsBtn.isSelected()) {
+                JPasswordField pf = new JPasswordField();
+                int okCxl = JOptionPane.showConfirmDialog(null, pf, "Enter Admin Password", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+                if (okCxl == JOptionPane.OK_OPTION) {
+                    String password = new String(pf.getPassword());
+                    if ("admin".equals(password)) {
+                        tabbedPane.addTab("Network Scanner", networkScannerPanel);
+                        tabbedPane.setSelectedComponent(networkScannerPanel);
+                    } else {
+                        JOptionPane.showMessageDialog(null, "Incorrect password!", "Access Denied", JOptionPane.ERROR_MESSAGE);
+                        adminToolsBtn.setSelected(false);
+                    }
+                } else {
+                    adminToolsBtn.setSelected(false);
+                }
+            } else {
+                tabbedPane.remove(networkScannerPanel);
+            }
+        });
+        topPanel.add(adminToolsBtn);
 
     }
 

@@ -22,7 +22,13 @@ public class SqlEditorPanel extends JPanel {
     private final DefaultListModel<String> historyModel = new DefaultListModel<>();
     private final JList<String> historyList = new JList<>(historyModel);
     private final JLabel statusLabel = new JLabel("Ready.");
+    private final javax.swing.JProgressBar progressBar = new javax.swing.JProgressBar();
     private final JComboBox<String> savedQueriesDropdown = new JComboBox<>();
+    private java.util.function.Consumer<String> sendToVisualBuilderAction;
+
+    public void setSendToVisualBuilderAction(java.util.function.Consumer<String> action) {
+        this.sendToVisualBuilderAction = action;
+    }
 
     public SqlEditorPanel(DatabaseManager dbManager) {
         this.dbManager = dbManager;
@@ -45,6 +51,8 @@ public class SqlEditorPanel extends JPanel {
         JButton saveQueryBtn = new JButton("Save Query");
         JButton loadQueryBtn = new JButton("Load Query");
         JButton loadSqlFileBtn = new JButton("📂 Load SQL File");
+        JButton toggleHistoryBtn = new JButton("☰");
+        toggleHistoryBtn.setToolTipText("Toggle Query History");
         JButton exportCsvBtn = new JButton("Export CSV");
         JButton exportXlsxBtn = new JButton("Export XLSX");
         JButton exportPdfBtn = new JButton("Export PDF");
@@ -89,11 +97,25 @@ public class SqlEditorPanel extends JPanel {
         toolbar.add(exportPdfBtn);
         toolbar.add(exportXlsxBtn);
 
+        JPanel toolbarWrapper = new JPanel(new BorderLayout());
+        toolbarWrapper.add(toolbar, BorderLayout.CENTER);
+        
+        JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        rightToolbar.add(toggleHistoryBtn);
+        toolbarWrapper.add(rightToolbar, BorderLayout.EAST);
+
         // Editor + toolbar top section
         JPanel topSection = new JPanel(new BorderLayout());
-        topSection.add(toolbar, BorderLayout.NORTH);
+        topSection.add(toolbarWrapper, BorderLayout.NORTH);
         topSection.add(editorScroll, BorderLayout.CENTER);
-        topSection.add(statusLabel, BorderLayout.SOUTH);
+        
+        progressBar.setIndeterminate(true);
+        progressBar.setVisible(false);
+        JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        statusPanel.add(statusLabel);
+        statusPanel.add(progressBar);
+        topSection.add(statusPanel, BorderLayout.SOUTH);
+
 
         // History sidebar
         historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -144,6 +166,13 @@ public class SqlEditorPanel extends JPanel {
             }
         });
         clearHistBtn.addActionListener(e -> { QueryHistory.clear(); historyModel.clear(); });
+        toggleHistoryBtn.addActionListener(e -> {
+            boolean isVisible = historyPanel.isVisible();
+            historyPanel.setVisible(!isVisible);
+            if (!isVisible) {
+                mainSplit.setDividerLocation(0.82);
+            }
+        });
         historyList.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseClicked(java.awt.event.MouseEvent e) {
                 if (e.getClickCount() == 2 && !e.isConsumed() && e.getButton() == java.awt.event.MouseEvent.BUTTON1) {
@@ -243,10 +272,12 @@ public class SqlEditorPanel extends JPanel {
     private void executeQuery(String sql, boolean isExplain) {
         if (sql.isEmpty()) return;
         if (dbManager.connection == null) {
+            progressBar.setVisible(false);
             JOptionPane.showMessageDialog(this, "No database connected.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
         statusLabel.setText("Running...");
+        progressBar.setVisible(true);
         new Thread(() -> {
             long start = System.currentTimeMillis();
             try {
@@ -261,6 +292,7 @@ public class SqlEditorPanel extends JPanel {
                         ta.setEditable(false);
                         ta.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
                         addResultTab("Explain Plan", new JScrollPane(ta));
+                        progressBar.setVisible(false);
                         statusLabel.setText("Explain done in " + (System.currentTimeMillis() - start) + "ms");
                     });
                 } else {
@@ -297,7 +329,9 @@ public class SqlEditorPanel extends JPanel {
                                     table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
                                     table.setAutoCreateRowSorter(true);
                                     com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(table);
-                                    addResultTab(tabTitle, new JScrollPane(table));
+                                    JScrollPane scrollPane = new JScrollPane(table);
+                                    com.dbtool.util.TableRowUtilities.addRowNumbers(table, scrollPane);
+                                    addResultTab(tabTitle, scrollPane);
                                 });
                             }
                         } else {
@@ -318,6 +352,7 @@ public class SqlEditorPanel extends JPanel {
                     final int finalTotal = totalRows;
                     final int finalResultCount = resultCount;
                     SwingUtilities.invokeLater(() -> {
+                        progressBar.setVisible(false);
                         statusLabel.setText("Executed " + (finalResultCount - 1) + " statements in " + elapsed + "ms");
                     });
                     QueryHistory.add(sql);
@@ -328,6 +363,7 @@ public class SqlEditorPanel extends JPanel {
             } catch (Exception ex) {
                 com.dbtool.util.QueryLogger.log(sql, System.currentTimeMillis() - start, false);
                 SwingUtilities.invokeLater(() -> {
+                    progressBar.setVisible(false);
                     statusLabel.setText("Error: " + ex.getMessage());
                     addResultTab("Error", createTextTab("Error: " + ex.getMessage()));
                 });
