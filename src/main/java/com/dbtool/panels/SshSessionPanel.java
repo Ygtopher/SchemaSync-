@@ -539,7 +539,39 @@ public class SshSessionPanel extends JPanel {
         JPanel notesPanel = new JPanel(new BorderLayout());
         notesPanel.add(notesToolbar, BorderLayout.NORTH);
         notesPanel.add(new JScrollPane(notesArea), BorderLayout.CENTER);
-        rightTabbedPane.setPreferredSize(new Dimension(280, 0));
+        
+        // --- Metrics Tab ---
+        JPanel metricsPanel = new JPanel(new GridLayout(2, 1, 5, 5));
+        metricsPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        cpuLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        memLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        metricsPanel.add(cpuLabel);
+        metricsPanel.add(memLabel);
+        
+        // --- Docker Tab ---
+        JPanel dockerPanel = new JPanel(new BorderLayout());
+        dockerModel = new DefaultTableModel(new String[]{"ID", "Image", "Status", "Name"}, 0) {
+            public boolean isCellEditable(int row, int column) { return false; }
+        };
+        dockerTable = new JTable(dockerModel);
+        dockerTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JToolBar dockerTb = new JToolBar();
+        dockerTb.setFloatable(false);
+        JButton refreshDockerBtn = new JButton("Refresh");
+        refreshDockerBtn.addActionListener(e -> fetchDockerContainers());
+        JButton restartDockerBtn = new JButton("Restart Container");
+        restartDockerBtn.addActionListener(e -> restartSelectedContainer());
+        dockerTb.add(refreshDockerBtn);
+        dockerTb.add(restartDockerBtn);
+        dockerPanel.add(dockerTb, BorderLayout.NORTH);
+        dockerPanel.add(new JScrollPane(dockerTable), BorderLayout.CENTER);
+        
+        // Add all to right tabbed pane
+        rightTabbedPane.addTab("Notes", notesPanel);
+        rightTabbedPane.addTab("Metrics", metricsPanel);
+        rightTabbedPane.addTab("Docker", dockerPanel);
+        
+        rightTabbedPane.setPreferredSize(new Dimension(350, 0));
         rightTabbedPane.setVisible(false);
 
         JSplitPane outerSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, splitPane, rightTabbedPane);
@@ -549,7 +581,7 @@ public class SshSessionPanel extends JPanel {
         toggleNotesBtn.addActionListener(e -> {
             rightTabbedPane.setVisible(!rightTabbedPane.isVisible());
             if (rightTabbedPane.isVisible()) {
-                outerSplitPane.setDividerLocation(outerSplitPane.getWidth() - 280);
+                outerSplitPane.setDividerLocation(outerSplitPane.getWidth() - 350);
             }
         });
 

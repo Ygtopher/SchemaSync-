@@ -63,7 +63,7 @@ public class Main extends JFrame {
                 browseWhereContainer.revalidate();
                 browseWhereContainer.repaint();
                 refreshOrderByDropdown();
-                
+                loadTableData();
             });
             browseTableDropdown.setPreferredSize(new Dimension(200, 26));
             tbSelect.add(browseTableDropdown);
@@ -90,7 +90,9 @@ public class Main extends JFrame {
             JButton addBrowseOrderBtn = new JButton("+ Add Order By");
             addBrowseOrderBtn.addActionListener(e -> addBrowseOrderByRow());
             tbQuery.add(addBrowseOrderBtn);
-            JButton applyOrderBtn = new JButton("Apply");
+            JButton applyOrderBtn = new JButton("▶ Run Query");
+            applyOrderBtn.setFont(applyOrderBtn.getFont().deriveFont(java.awt.Font.BOLD));
+            applyOrderBtn.setForeground(new java.awt.Color(0, 150, 0));
             applyOrderBtn.addActionListener(e -> loadTableData());
             tbQuery.add(applyOrderBtn);
             
@@ -525,6 +527,7 @@ public class Main extends JFrame {
                 joinSelectedColumns.clear();
                 joinSelectColsButton.setText("Columns (All)");
                 updateJoinDropdowns();
+                executeVisualJoin();
             });
             baseTableDropdown.setPreferredSize(new Dimension(200, 26));
             tbBase.add(baseTableDropdown);
@@ -1712,6 +1715,7 @@ public class Main extends JFrame {
     private JButton loadDbButton = new JButton("Connect & Upload (.accdb, .sql, .sql.gz)");
     private JButton connectExistingBtn = new JButton("Connect to Existing DB");
     private JButton disconnectDbButton = new JButton("Disconnect DB");
+    private JButton exportDbBtn = new JButton("Export DB");
     public Main() {
         setTitle("SchemaSync");
         setSize(1280, 800);
@@ -1755,6 +1759,10 @@ public class Main extends JFrame {
         disconnectDbButton.setVisible(false);
         topPanel.add(disconnectDbButton);
 
+        exportDbBtn.addActionListener(e -> showExportDatabaseDialog());
+        exportDbBtn.setVisible(false);
+        topPanel.add(exportDbBtn);
+
         JButton themeBtn = new JButton("🌙 Dark Mode");
         themeBtn.addActionListener(e -> com.dbtool.util.ThemeManager.toggleTheme(themeBtn));
         topPanel.add(themeBtn);
@@ -1766,9 +1774,17 @@ public class Main extends JFrame {
         add(topPanel, BorderLayout.NORTH);
 
         tabbedPane = new JTabbedPane();
-        browseTabContainer = new com.dbtool.panels.MultiTabContainer<>("Browse", () -> new BrowseTab());
+        browseTabContainer = new com.dbtool.panels.MultiTabContainer<>("Browse", () -> {
+            BrowseTab tab = new BrowseTab();
+            tab.refreshTables();
+            return tab;
+        });
         tabbedPane.addTab("Browse & Search", browseTabContainer);
-        joinTabContainer = new com.dbtool.panels.MultiTabContainer<>("Join", () -> new VisualJoinTab());
+        joinTabContainer = new com.dbtool.panels.MultiTabContainer<>("Join", () -> {
+            VisualJoinTab tab = new VisualJoinTab();
+            tab.refreshTables();
+            return tab;
+        });
         tabbedPane.addTab("Visual Join Builder", joinTabContainer);
         tabbedPane.addTab("Data Operations", dataOpsPanel);
         tabbedPane.addTab("SQL Editor", sqlEditorPanel);
@@ -1973,6 +1989,112 @@ public class Main extends JFrame {
 
 
 
+    private void showExportDatabaseDialog() {
+        if (dbManager.connection == null) {
+            JOptionPane.showMessageDialog(this, "No database connected.");
+            return;
+        }
+        
+        Object[] formats = {".sql", ".sql.gz", ".accdb"};
+        String format = (String) JOptionPane.showInputDialog(this, 
+                "Select export format:", "Export Database",
+                JOptionPane.PLAIN_MESSAGE, null, formats, formats[0]);
+                
+        if (format == null) return;
+        
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Save Database As...");
+        
+        String defaultName = "export";
+        try {
+            if (dbManager.connection != null) {
+                String catalog = dbManager.connection.getCatalog();
+                if (catalog != null && !catalog.isEmpty()) {
+                    defaultName = catalog;
+                } else {
+                    String url = dbManager.connection.getMetaData().getURL();
+                    if (url != null) {
+                        int lastSlash = url.lastIndexOf('/');
+                        if (lastSlash > -1) {
+                            int qMark = url.indexOf('?', lastSlash);
+                            if (qMark > -1) {
+                                defaultName = url.substring(lastSlash + 1, qMark);
+                            } else {
+                                defaultName = url.substring(lastSlash + 1);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {}
+        
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd_MM_yyyy_HH'h'mm");
+        defaultName = defaultName + "_" + sdf.format(new java.util.Date());
+        
+        chooser.setSelectedFile(new java.io.File(defaultName + format));
+        
+        if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            java.io.File targetFile = chooser.getSelectedFile();
+            
+            // Show a waiting dialog
+            JDialog loadingDialog = new JDialog(this, "Exporting...", true);
+            loadingDialog.setSize(400, 150);
+            loadingDialog.setLocationRelativeTo(this);
+            loadingDialog.setLayout(new BorderLayout(10, 10));
+            
+            JLabel statusLabel = new JLabel("Exporting database, please wait...", SwingConstants.CENTER);
+            loadingDialog.add(statusLabel, BorderLayout.NORTH);
+            
+            JProgressBar progressBar = new JProgressBar();
+            progressBar.setStringPainted(true);
+            loadingDialog.add(progressBar, BorderLayout.CENTER);
+            
+            JButton cancelBtn = new JButton("Cancel");
+            final boolean[] isCancelled = {false};
+            cancelBtn.addActionListener(e -> {
+                isCancelled[0] = true;
+                cancelBtn.setEnabled(false);
+                cancelBtn.setText("Cancelling...");
+            });
+            JPanel bottomPanel = new JPanel();
+            bottomPanel.add(cancelBtn);
+            loadingDialog.add(bottomPanel, BorderLayout.SOUTH);
+            
+            new Thread(() -> {
+                try {
+                    com.dbtool.core.export.ExportProgressMonitor monitor = new com.dbtool.core.export.ExportProgressMonitor() {
+                        public void onProgress(int processedRows, int totalRows) {
+                            SwingUtilities.invokeLater(() -> {
+                                if (totalRows > 0) {
+                                    int pct = (int) ((processedRows * 100L) / totalRows);
+                                    progressBar.setValue(pct);
+                                    progressBar.setString("Exported " + processedRows + " / " + totalRows + " rows (" + pct + "%)");
+                                } else {
+                                    progressBar.setIndeterminate(true);
+                                    progressBar.setString(processedRows + " rows exported...");
+                                }
+                            });
+                        }
+                        public boolean isCancelled() { return isCancelled[0]; }
+                    };
+                    
+                    com.dbtool.core.export.FullDatabaseExporter.exportDatabase(dbManager.connection, "postgres", targetFile, format.replace(".", ""), monitor);
+                    SwingUtilities.invokeLater(() -> {
+                        loadingDialog.dispose();
+                        JOptionPane.showMessageDialog(Main.this, "Database exported successfully to:\n" + targetFile.getAbsolutePath());
+                    });
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    SwingUtilities.invokeLater(() -> {
+                        loadingDialog.dispose();
+                        JOptionPane.showMessageDialog(Main.this, "Error exporting database:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    });
+                }
+            }).start();
+            loadingDialog.setVisible(true);
+        }
+    }
+
     private void disconnectDatabase() {
         if (dbManager.connection != null) {
             try { dbManager.connection.close(); } catch (Exception e) {}
@@ -2005,6 +2127,7 @@ public class Main extends JFrame {
         connectExistingBtn.setEnabled(true);
         connectExistingBtn.setVisible(true);
         disconnectDbButton.setVisible(false);
+        exportDbBtn.setVisible(false);
     }
 
 
@@ -2016,6 +2139,7 @@ public class Main extends JFrame {
         connectExistingBtn.setEnabled(false);
         connectExistingBtn.setVisible(false);
         disconnectDbButton.setVisible(true);
+        exportDbBtn.setVisible(true);
         loadedTables = dbManager.getTableNames();
         if (browseTabContainer != null) {
             for (BrowseTab tab : browseTabContainer.getTabs()) {
@@ -2059,6 +2183,7 @@ public class Main extends JFrame {
                         connectExistingBtn.setVisible(false);
                         loadDbButton.setVisible(false);
                         disconnectDbButton.setVisible(true);
+                        exportDbBtn.setVisible(true);
                     } catch (Exception ex) {
                         ex.printStackTrace();
                         statusLabel.setText("Failed to load tables.");
