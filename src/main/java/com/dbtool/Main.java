@@ -1797,6 +1797,11 @@ public class Main extends JFrame {
         com.dbtool.panels.SshTerminalPanel sshTerminalPanel = new com.dbtool.panels.SshTerminalPanel(dbManager);
         tabbedPane.addTab("SSH / Server", sshTerminalPanel);
 
+        com.dbtool.panels.AiAssistantTab aiAssistantTab = new com.dbtool.panels.AiAssistantTab(dbManager);
+        tabbedPane.addTab("AI Assistant", aiAssistantTab);
+
+        
+                
         com.dbtool.panels.NetworkScannerPanel networkScannerPanel = new com.dbtool.panels.NetworkScannerPanel();
         // Network Scanner tab is hidden by default
 

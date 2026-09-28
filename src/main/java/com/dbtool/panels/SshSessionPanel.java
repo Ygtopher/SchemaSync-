@@ -70,6 +70,13 @@ public class SshSessionPanel extends JPanel {
     private Timer metricsTimer;
     private JLabel cpuLabel = new JLabel("CPU: --%");
     private JLabel memLabel = new JLabel("Memory: -- / --");
+    private JLabel diskLabel = new JLabel("Disk: --");
+    private JLabel loadLabel = new JLabel("Load Avg: --");
+    private JLabel uptimeLabel = new JLabel("Uptime: --");
+    private JLabel usersLabel = new JLabel("Active Users: --");
+    private JLabel pgLabel = new JLabel("Postgres: --");
+    private JLabel httpLabel = new JLabel("HTTPD/Apache: --");
+    private JLabel phpLabel = new JLabel("PHP-FPM: --");
     private JTable dockerTable;
     private DefaultTableModel dockerModel;
     private JTabbedPane rightTabbedPane = new JTabbedPane();
@@ -541,12 +548,28 @@ public class SshSessionPanel extends JPanel {
         notesPanel.add(new JScrollPane(notesArea), BorderLayout.CENTER);
         
         // --- Metrics Tab ---
-        JPanel metricsPanel = new JPanel(new GridLayout(2, 1, 5, 5));
+        JPanel metricsPanel = new JPanel(new GridLayout(9, 1, 5, 5));
         metricsPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        cpuLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        memLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        Font mFont = new Font("Segoe UI", Font.BOLD, 14);
+        cpuLabel.setFont(mFont);
+        memLabel.setFont(mFont);
+        diskLabel.setFont(mFont);
+        loadLabel.setFont(mFont);
+        uptimeLabel.setFont(mFont);
+        usersLabel.setFont(mFont);
+        pgLabel.setFont(mFont);
+        httpLabel.setFont(mFont);
+        phpLabel.setFont(mFont);
+        
         metricsPanel.add(cpuLabel);
         metricsPanel.add(memLabel);
+        metricsPanel.add(diskLabel);
+        metricsPanel.add(loadLabel);
+        metricsPanel.add(uptimeLabel);
+        metricsPanel.add(usersLabel);
+        metricsPanel.add(pgLabel);
+        metricsPanel.add(httpLabel);
+        metricsPanel.add(phpLabel);
         
         // --- Docker Tab ---
         JPanel dockerPanel = new JPanel(new BorderLayout());
@@ -680,6 +703,17 @@ public class SshSessionPanel extends JPanel {
                 session = jsch.getSession(user, host, finalPort);
                 session.setPassword(pass);
                 session.setConfig("StrictHostKeyChecking", "no");
+                
+                // Enable legacy algorithms for older servers (e.g., CentOS 6/7)
+                String currentHostKeys = com.jcraft.jsch.JSch.getConfig("server_host_key");
+                session.setConfig("server_host_key", currentHostKeys + ",ssh-rsa,ssh-dss");
+                
+                String currentPubKeys = com.jcraft.jsch.JSch.getConfig("PubkeyAcceptedAlgorithms");
+                if (currentPubKeys != null) {
+                    session.setConfig("PubkeyAcceptedAlgorithms", currentPubKeys + ",ssh-rsa,ssh-dss");
+                } else {
+                    session.setConfig("PubkeyAcceptedAlgorithms", "ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,rsa-sha2-512,rsa-sha2-256,ssh-rsa,ssh-dss");
+                }
                 session.connect(10000);
 
                 // Setup Shell
@@ -706,6 +740,9 @@ public class SshSessionPanel extends JPanel {
                     treeModel.nodeChanged(rootNode);
                     loadDirectory(rootNode, "/");
                     terminalArea.requestFocus();
+                    
+                    startMetricsTimer();
+                    fetchDockerContainers();
 
                     // Update title with connection info
                     String newTitle = user + "@" + host;
@@ -819,16 +856,48 @@ public class SshSessionPanel extends JPanel {
             public void run() {
                 if (session == null || !session.isConnected()) return;
                 try {
-                    String memOutput = execCommand("free -m | grep Mem | awk '{print $3\\\"/\\\"$2\\\" MB\\\"}'");
-                    String cpuOutput = execCommand("top -bn1 | grep 'Cpu(s)' | awk '{print $2 + $4\\\"%\\\"}'");
-                    if (cpuOutput.isEmpty()) cpuOutput = execCommand("vmstat 1 2 | tail -1 | awk '{print 100 - $15\\\"%\\\"}'"); // fallback
+                    String combinedCmd = 
+                        "export PATH=$PATH:/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin; " +
+                        "check_svc() { for s in \"$@\"; do if command -v systemctl >/dev/null 2>&1; then systemctl is-active --quiet \"$s\" && { echo 'active'; return; }; else if service \"$s\" status >/dev/null 2>&1; then echo 'active'; return; fi; service \"$s\" status 2>/dev/null | grep -Eiq 'running|en cours|ok' && { echo 'active'; return; }; fi; done; echo 'inactive'; }; " +
+                        "free -m | grep Mem | awk '{print \"MEM:\"$3\"/\"$2\" MB\"}'; " +
+                        "cpu=$(top -bn1 | grep 'Cpu(s)' | awk '{print $2 + $4\"%\"}'); [ -z \"$cpu\" ] && cpu=$(vmstat 1 2 | tail -1 | awk '{print 100 - $15\"%\"}'); echo \"CPU:$cpu\"; " +
+                        "df -h / | tail -1 | awk '{print \"DISK:\"$3\"/\"$2\" (\"$5\")\"}'; " +
+                        "uptime | awk -F'load average:' '{print \"LOAD:\"$2}'; " +
+                        "echo \"UPTIME:$(awk '{d=int($1/86400); h=int(($1%86400)/3600); m=int(($1%3600)/60); if(d>0) printf \"%d days, \", d; printf \"%d hours, %d mins\", h, m}' /proc/uptime)\"; " +
+                        "echo \"USERS:$(who | wc -l)\"; " +
+                        "echo \"PG:$(check_svc postgresql-15 postgresql postgres)\"; " +
+                        "echo \"HTTP:$(check_svc httpd apache2)\"; " +
+                        "echo \"PHP:$(check_svc php56-php-fpm php-fpm php8.0-fpm php7.4-fpm)\"";
                     
-                    final String finalMem = memOutput.trim();
-                    final String finalCpu = cpuOutput.trim();
+                    String out = execCommand(combinedCmd);
+                    
+                    String mem = "", cpu = "", disk = "", load = "", uptime = "", users = "", pg = "", http = "", php = "";
+                    for (String line : out.split("\n")) {
+                        line = line.trim();
+                        if (line.startsWith("MEM:")) mem = line.substring(4);
+                        else if (line.startsWith("CPU:")) cpu = line.substring(4);
+                        else if (line.startsWith("DISK:")) disk = line.substring(5);
+                        else if (line.startsWith("LOAD:")) load = line.substring(5);
+                        else if (line.startsWith("UPTIME:")) uptime = line.substring(7).replace("up ", "");
+                        else if (line.startsWith("USERS:")) users = line.substring(6);
+                        else if (line.startsWith("PG:")) pg = line.substring(3);
+                        else if (line.startsWith("HTTP:")) http = line.substring(5);
+                        else if (line.startsWith("PHP:")) php = line.substring(4);
+                    }
+                    
+                    final String fMem = mem, fCpu = cpu, fDisk = disk, fLoad = load, fUptime = uptime, fUsers = users;
+                    final String fPg = pg, fHttp = http, fPhp = php;
                     
                     SwingUtilities.invokeLater(() -> {
-                        if (!finalMem.isEmpty()) memLabel.setText("Memory: " + finalMem);
-                        if (!finalCpu.isEmpty()) cpuLabel.setText("CPU: " + finalCpu);
+                        if (!fMem.isEmpty()) memLabel.setText("Memory: " + fMem);
+                        if (!fCpu.isEmpty()) cpuLabel.setText("CPU: " + fCpu);
+                        if (!fDisk.isEmpty()) diskLabel.setText("Disk: " + fDisk);
+                        if (!fLoad.isEmpty()) loadLabel.setText("Load Avg:" + fLoad);
+                        if (!fUptime.isEmpty()) uptimeLabel.setText("Uptime: " + fUptime);
+                        if (!fUsers.isEmpty()) usersLabel.setText("Active Users: " + fUsers);
+                        if (!fPg.isEmpty()) pgLabel.setText("Postgres: " + (fPg.equals("active") ? "Active [OK]" : fPg.equals("Unknown") ? "Not Found" : "Inactive [X]"));
+                        if (!fHttp.isEmpty()) httpLabel.setText("HTTPD: " + (fHttp.equals("active") ? "Active [OK]" : fHttp.equals("Unknown") ? "Not Found" : "Inactive [X]"));
+                        if (!fPhp.isEmpty()) phpLabel.setText("PHP: " + (fPhp.equals("active") ? "Active [OK]" : fPhp.equals("Unknown") ? "Not Found" : "Inactive [X]"));
                     });
                 } catch (Exception e) {}
             }
@@ -839,15 +908,24 @@ public class SshSessionPanel extends JPanel {
         if (session == null || !session.isConnected()) return;
         new Thread(() -> {
             try {
-                String out = execCommand("docker ps --format '{{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}'");
+                String out = execCommand("docker ps --format '{{.ID}}\\t{{.Image}}\\t{{.Status}}\\t{{.Names}}'");
+                if (out.trim().contains("permission denied") || out.trim().contains("Cannot connect")) {
+                    out = execCommand("sudo -n docker ps --format '{{.ID}}\\t{{.Image}}\\t{{.Status}}\\t{{.Names}}'");
+                }
+                final String finalOut = out;
                 SwingUtilities.invokeLater(() -> {
                     dockerModel.setRowCount(0);
-                    if (out.trim().isEmpty()) return;
-                    for (String line : out.trim().split("\n")) {
-                        String[] parts = line.split("\t");
+                    if (finalOut.trim().isEmpty()) return;
+                    boolean added = false;
+                    for (String line : finalOut.trim().split("\n")) {
+                        String[] parts = line.split("\\t");
                         if (parts.length >= 4) {
                             dockerModel.addRow(new Object[]{parts[0], parts[1], parts[2], parts[3]});
+                            added = true;
                         }
+                    }
+                    if (!added) {
+                        dockerModel.addRow(new Object[]{"Error", finalOut.trim(), "-", "-"});
                     }
                 });
             } catch (Exception e) {}
@@ -872,9 +950,12 @@ public class SshSessionPanel extends JPanel {
         channel.setInputStream(null);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         channel.setOutputStream(baos);
+        channel.setErrStream(baos);
         channel.connect(3000);
+        long start = System.currentTimeMillis();
         while (!channel.isClosed()) {
             Thread.sleep(100);
+            if (System.currentTimeMillis() - start > 10000) break;
         }
         channel.disconnect();
         return baos.toString();
