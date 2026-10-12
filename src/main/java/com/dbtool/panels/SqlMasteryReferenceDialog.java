@@ -3,6 +3,7 @@ package com.dbtool.panels;
 import com.dbtool.util.ClipboardUtil;
 import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.util.SqlSnippetsLibrary.Snippet;
+import com.dbtool.util.ThemeManager;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.fife.ui.rtextarea.RTextScrollPane;
@@ -96,8 +97,9 @@ public class SqlMasteryReferenceDialog extends JDialog {
         titleBadgePanel.add(titleLabel);
 
         dialectBadge.setOpaque(true);
-        dialectBadge.setBackground(new Color(225, 235, 250));
-        dialectBadge.setForeground(new Color(25, 65, 130));
+        boolean dark = ThemeManager.isDarkMode();
+        dialectBadge.setBackground(dark ? new Color(35, 55, 85) : new Color(225, 235, 250));
+        dialectBadge.setForeground(dark ? new Color(140, 195, 255) : new Color(25, 65, 130));
         dialectBadge.setBorder(new EmptyBorder(2, 6, 2, 6));
         titleBadgePanel.add(dialectBadge);
 

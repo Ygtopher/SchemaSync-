@@ -64,6 +64,10 @@ public class SqlSnippetsLibrary {
             "SELECT * FROM employees WHERE salary > 50000;\nSELECT * FROM employees WHERE dept = 'IT' AND salary > 60000;\nSELECT * FROM employees WHERE dept IN ('IT', 'HR', 'Finance');\nSELECT * FROM employees WHERE name LIKE 'A%';\nSELECT * FROM employees WHERE salary BETWEEN 40000 AND 80000;\nSELECT * FROM employees WHERE manager_id IS NULL;\nSELECT * FROM employees ORDER BY salary DESC LIMIT 10 OFFSET 5;\n",
             "Filtering operators, pattern matching, null checks, and pagination.", "ANSI");
 
+        add("1. DQL — Data Query Language", "Aggregate Functions (COUNT, SUM, AVG, MIN, MAX)",
+            "-- Standard Aggregate Functions\nSELECT \n    COUNT(*) AS total_rows,\n    COUNT(emp_id) AS non_null_count,\n    COUNT(DISTINCT dept) AS distinct_depts,\n    SUM(salary) AS total_payroll,\n    AVG(salary) AS avg_salary,\n    MIN(salary) AS min_salary,\n    MAX(salary) AS max_salary\nFROM employees;\n",
+            "Comprehensive summary of all standard relational aggregate functions: COUNT(*), SUM(salary), AVG(salary), MIN, and MAX.", "ANSI");
+
         add("1. DQL — Data Query Language", "Aggregation & Grouping (GROUP BY, HAVING)",
             "SELECT dept, COUNT(*) AS emp_count, AVG(salary) AS avg_sal, SUM(salary) AS total_sal, MIN(salary) AS min_sal, MAX(salary) AS max_sal\nFROM employees\nGROUP BY dept\nHAVING AVG(salary) > 50000;\n",
             "Aggregate metrics grouped by categorical attributes with post-aggregation filtering.", "ANSI");

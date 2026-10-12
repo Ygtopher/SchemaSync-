@@ -630,6 +630,10 @@ public class DatabaseManager {
     }
 
     public String quoteTableName(String tableName) {
+        if (tableName == null) return "";
+        if (tableName.contains("(") || tableName.contains(")")) {
+            return tableName;
+        }
         if (tableName.contains(".")) {
             String[] parts = tableName.split("\\.", 2);
             return quoteIfNecessary(parts[0]) + "." + quoteIfNecessary(parts[1]);
@@ -638,6 +642,11 @@ public class DatabaseManager {
     }
 
     public String quoteColumnName(String fullColumnName) {
+        if (fullColumnName == null) return "";
+        // Do not wrap functions/expressions like COUNT(*), SUM(col), AVG(col), etc. in quotes
+        if (fullColumnName.equals("*") || fullColumnName.contains("(") || fullColumnName.contains(")")) {
+            return fullColumnName;
+        }
         String[] parts = fullColumnName.split("\\.");
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < parts.length; i++) {

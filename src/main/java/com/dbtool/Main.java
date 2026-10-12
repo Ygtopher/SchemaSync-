@@ -94,6 +94,11 @@ public class Main extends JFrame {
             JButton addBrowseOrderBtn = new JButton("+ Add Order By");
             addBrowseOrderBtn.addActionListener(e -> addBrowseOrderByRow());
             tbQuery.add(addBrowseOrderBtn);
+            tbQuery.add(new JLabel(" | "));
+            JButton aggregatesBtn = new JButton("📊 Aggregates & Group By");
+            aggregatesBtn.setToolTipText("Compute aggregate metrics (COUNT(*), SUM, AVG, MIN, MAX) and GROUP BY / HAVING summary");
+            aggregatesBtn.addActionListener(e -> openBrowseAggregatesDialog());
+            tbQuery.add(aggregatesBtn);
             JButton applyOrderBtn = new JButton("▶ Run Query");
             applyOrderBtn.setFont(applyOrderBtn.getFont().deriveFont(java.awt.Font.BOLD));
             applyOrderBtn.setForeground(new java.awt.Color(0, 150, 0));
@@ -381,6 +386,258 @@ public class Main extends JFrame {
             dialog.setLocationRelativeTo(this);
             dialog.setVisible(true);
         }
+
+    private void openBrowseAggregatesDialog() {
+        String selectedTable = (String) browseTableDropdown.getSelectedItem();
+        if (selectedTable == null) {
+            JOptionPane.showMessageDialog(this, "Please select a table first.", "No Table Selected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        List<String> cols = dbManager.getColumnNames(selectedTable);
+        if (cols.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No columns found for table: " + selectedTable, "Empty Table", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JDialog dialog = new JDialog(Main.this, "📊 Aggregates & Group By — " + selectedTable, true);
+        dialog.setLayout(new BorderLayout(8, 8));
+        dialog.setSize(680, 560);
+        dialog.setLocationRelativeTo(Main.this);
+
+        JPanel mainForm = new JPanel(new GridBagLayout());
+        mainForm.setBorder(BorderFactory.createEmptyBorder(10, 14, 8, 14));
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(3, 4, 3, 4);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        // Group By row
+        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.35;
+        mainForm.add(new JLabel("GROUP BY Column:"), gbc);
+        JComboBox<String> groupByCb = new JComboBox<>();
+        groupByCb.addItem("-- None (Overall Table Summary) --");
+        for (String c : cols) groupByCb.addItem(c);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(groupByCb, gbc);
+
+        // Header
+        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 2;
+        JLabel aggHeader = new JLabel("Aggregate Metrics (COUNT, SUM, AVG, MIN, MAX):");
+        aggHeader.setFont(aggHeader.getFont().deriveFont(Font.BOLD));
+        mainForm.add(aggHeader, gbc);
+        gbc.gridwidth = 1;
+
+        // 1. COUNT(*)
+        gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.35;
+        JCheckBox countAllCb = new JCheckBox("COUNT(*) Total Rows", true);
+        mainForm.add(countAllCb, gbc);
+        JTextField countAllAlias = new JTextField("total_count", 10);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(countAllAlias, gbc);
+
+        // 2. COUNT(DISTINCT col)
+        gbc.gridx = 0; gbc.gridy = 3; gbc.weightx = 0.35;
+        JCheckBox countDistCb = new JCheckBox("COUNT(DISTINCT):");
+        mainForm.add(countDistCb, gbc);
+        JPanel cdP = new JPanel(new BorderLayout(4, 0));
+        JComboBox<String> countDistCol = new JComboBox<>(cols.toArray(new String[0]));
+        JTextField countDistAlias = new JTextField("distinct_count", 10);
+        cdP.add(countDistCol, BorderLayout.CENTER);
+        cdP.add(countDistAlias, BorderLayout.EAST);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(cdP, gbc);
+
+        // 3. SUM(col)
+        gbc.gridx = 0; gbc.gridy = 4; gbc.weightx = 0.35;
+        JCheckBox sumCb = new JCheckBox("SUM(col):");
+        mainForm.add(sumCb, gbc);
+        JPanel sumP = new JPanel(new BorderLayout(4, 0));
+        JComboBox<String> sumCol = new JComboBox<>(cols.toArray(new String[0]));
+        JTextField sumAlias = new JTextField("total_sum", 10);
+        sumP.add(sumCol, BorderLayout.CENTER);
+        sumP.add(sumAlias, BorderLayout.EAST);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(sumP, gbc);
+
+        // 4. AVG(col)
+        gbc.gridx = 0; gbc.gridy = 5; gbc.weightx = 0.35;
+        JCheckBox avgCb = new JCheckBox("AVG(col):");
+        mainForm.add(avgCb, gbc);
+        JPanel avgP = new JPanel(new BorderLayout(4, 0));
+        JComboBox<String> avgCol = new JComboBox<>(cols.toArray(new String[0]));
+        JTextField avgAlias = new JTextField("avg_val", 10);
+        avgP.add(avgCol, BorderLayout.CENTER);
+        avgP.add(avgAlias, BorderLayout.EAST);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(avgP, gbc);
+
+        // 5. MIN(col)
+        gbc.gridx = 0; gbc.gridy = 6; gbc.weightx = 0.35;
+        JCheckBox minCb = new JCheckBox("MIN(col):");
+        mainForm.add(minCb, gbc);
+        JPanel minP = new JPanel(new BorderLayout(4, 0));
+        JComboBox<String> minCol = new JComboBox<>(cols.toArray(new String[0]));
+        JTextField minAlias = new JTextField("min_val", 10);
+        minP.add(minCol, BorderLayout.CENTER);
+        minP.add(minAlias, BorderLayout.EAST);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(minP, gbc);
+
+        // 6. MAX(col)
+        gbc.gridx = 0; gbc.gridy = 7; gbc.weightx = 0.35;
+        JCheckBox maxCb = new JCheckBox("MAX(col):");
+        mainForm.add(maxCb, gbc);
+        JPanel maxP = new JPanel(new BorderLayout(4, 0));
+        JComboBox<String> maxCol = new JComboBox<>(cols.toArray(new String[0]));
+        JTextField maxAlias = new JTextField("max_val", 10);
+        maxP.add(maxCol, BorderLayout.CENTER);
+        maxP.add(maxAlias, BorderLayout.EAST);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(maxP, gbc);
+
+        // HAVING Clause
+        gbc.gridx = 0; gbc.gridy = 8; gbc.weightx = 0.35;
+        mainForm.add(new JLabel("HAVING (Optional):"), gbc);
+        JTextField havingField = new JTextField(20);
+        havingField.setToolTipText("e.g. COUNT(*) > 1 or AVG(salary) > 50000");
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(havingField, gbc);
+
+        // Preview Area
+        JTextArea previewArea = new JTextArea(4, 40);
+        previewArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        previewArea.setEditable(false);
+        previewArea.setLineWrap(true);
+        previewArea.setWrapStyleWord(true);
+        JScrollPane previewScroll = new JScrollPane(previewArea);
+        previewScroll.setBorder(BorderFactory.createTitledBorder("Generated SQL Statement"));
+
+        Runnable updatePreview = () -> {
+            List<String> selectParts = new ArrayList<>();
+            String groupCol = (String) groupByCb.getSelectedItem();
+            boolean hasGroup = groupCol != null && !groupCol.startsWith("--");
+            if (hasGroup) {
+                selectParts.add(dbManager.quoteColumnName(groupCol));
+            }
+            if (countAllCb.isSelected()) {
+                String al = countAllAlias.getText().trim();
+                selectParts.add("COUNT(*)" + (al.isEmpty() ? "" : " AS " + al));
+            }
+            if (countDistCb.isSelected() && countDistCol.getSelectedItem() != null) {
+                String al = countDistAlias.getText().trim();
+                selectParts.add("COUNT(DISTINCT " + dbManager.quoteColumnName((String) countDistCol.getSelectedItem()) + ")" + (al.isEmpty() ? "" : " AS " + al));
+            }
+            if (sumCb.isSelected() && sumCol.getSelectedItem() != null) {
+                String al = sumAlias.getText().trim();
+                selectParts.add("SUM(" + dbManager.quoteColumnName((String) sumCol.getSelectedItem()) + ")" + (al.isEmpty() ? "" : " AS " + al));
+            }
+            if (avgCb.isSelected() && avgCol.getSelectedItem() != null) {
+                String al = avgAlias.getText().trim();
+                selectParts.add("AVG(" + dbManager.quoteColumnName((String) avgCol.getSelectedItem()) + ")" + (al.isEmpty() ? "" : " AS " + al));
+            }
+            if (minCb.isSelected() && minCol.getSelectedItem() != null) {
+                String al = minAlias.getText().trim();
+                selectParts.add("MIN(" + dbManager.quoteColumnName((String) minCol.getSelectedItem()) + ")" + (al.isEmpty() ? "" : " AS " + al));
+            }
+            if (maxCb.isSelected() && maxCol.getSelectedItem() != null) {
+                String al = maxAlias.getText().trim();
+                selectParts.add("MAX(" + dbManager.quoteColumnName((String) maxCol.getSelectedItem()) + ")" + (al.isEmpty() ? "" : " AS " + al));
+            }
+
+            if (selectParts.isEmpty()) {
+                selectParts.add("COUNT(*)");
+            }
+
+            StringBuilder q = new StringBuilder("SELECT ");
+            q.append(String.join(", ", selectParts));
+            q.append(" FROM ").append(dbManager.quoteTableName(selectedTable));
+            String where = buildBrowseWhereClause();
+            if (where != null && !where.isEmpty()) {
+                q.append(where);
+            }
+            if (hasGroup) {
+                q.append(" GROUP BY ").append(dbManager.quoteColumnName(groupCol));
+            }
+            String hav = havingField.getText().trim();
+            if (!hav.isEmpty()) {
+                q.append(" HAVING ").append(hav);
+            }
+            previewArea.setText(q.toString());
+        };
+
+        groupByCb.addActionListener(e -> updatePreview.run());
+        countAllCb.addActionListener(e -> updatePreview.run());
+        countDistCb.addActionListener(e -> updatePreview.run());
+        countDistCol.addActionListener(e -> updatePreview.run());
+        sumCb.addActionListener(e -> updatePreview.run());
+        sumCol.addActionListener(e -> updatePreview.run());
+        avgCb.addActionListener(e -> updatePreview.run());
+        avgCol.addActionListener(e -> updatePreview.run());
+        minCb.addActionListener(e -> updatePreview.run());
+        minCol.addActionListener(e -> updatePreview.run());
+        maxCb.addActionListener(e -> updatePreview.run());
+        maxCol.addActionListener(e -> updatePreview.run());
+        countAllAlias.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { updatePreview.run(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { updatePreview.run(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { updatePreview.run(); }
+        });
+        havingField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { updatePreview.run(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { updatePreview.run(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { updatePreview.run(); }
+        });
+        updatePreview.run();
+
+        JPanel centerPanel = new JPanel(new BorderLayout(4, 4));
+        centerPanel.add(mainForm, BorderLayout.NORTH);
+        centerPanel.add(previewScroll, BorderLayout.CENTER);
+        dialog.add(centerPanel, BorderLayout.CENTER);
+
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 6));
+        JButton runBtn = new JButton("▶ Run Aggregate Query");
+        runBtn.setFont(runBtn.getFont().deriveFont(Font.BOLD));
+        runBtn.setForeground(new Color(0, 150, 0));
+        JButton openSqlBtn = new JButton("Open in SQL Editor");
+        JButton copySqlBtn = new JButton("📋 Copy SQL");
+        JButton closeBtn = new JButton("Close");
+
+        runBtn.addActionListener(e -> {
+            String sql = previewArea.getText();
+            dialog.dispose();
+            lastExecutedBrowseQuery = sql;
+            new Thread(() -> {
+                try {
+                    DefaultTableModel model = dbManager.executeQuery(sql);
+                    SwingUtilities.invokeLater(() -> browseTable.setModel(model));
+                } catch (Exception ex) {
+                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(Main.this, "Error executing aggregate query: " + ex.getMessage(), "Query Error", JOptionPane.ERROR_MESSAGE));
+                }
+            }).start();
+        });
+
+        openSqlBtn.addActionListener(e -> {
+            String sql = previewArea.getText();
+            sqlEditorPanel.setEditorText(sql);
+            tabbedPane.setSelectedComponent(sqlEditorPanel);
+            dialog.dispose();
+        });
+
+        copySqlBtn.addActionListener(e -> {
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(previewArea.getText()), null);
+            JOptionPane.showMessageDialog(dialog, "Aggregate SQL copied to clipboard!");
+        });
+
+        closeBtn.addActionListener(e -> dialog.dispose());
+
+        btnPanel.add(copySqlBtn);
+        btnPanel.add(openSqlBtn);
+        btnPanel.add(runBtn);
+        btnPanel.add(closeBtn);
+        dialog.add(btnPanel, BorderLayout.SOUTH);
+
+        dialog.setVisible(true);
+    }
+
     private void loadTableData() {
             String selectedTable = (String) browseTableDropdown.getSelectedItem();
             if (selectedTable == null) return;
@@ -690,6 +947,11 @@ public class Main extends JFrame {
             JButton addJoinOrderBtn = new JButton("+ Add Order By");
             addJoinOrderBtn.addActionListener(e -> addJoinOrderByRow());
             tbRun.add(addJoinOrderBtn);
+            tbRun.add(new JLabel(" | "));
+            JButton joinAggregatesBtn = new JButton("📊 Aggregates & Group By");
+            joinAggregatesBtn.setToolTipText("Add aggregate metrics (COUNT, SUM, AVG, MIN, MAX) and GROUP BY / HAVING to this join");
+            joinAggregatesBtn.addActionListener(e -> openJoinAggregatesDialog());
+            tbRun.add(joinAggregatesBtn);
             
             tbRun.add(new JLabel(" | "));
             JButton runJoinBtn = new JButton("▶ Execute Join");
@@ -913,6 +1175,308 @@ public class Main extends JFrame {
             dialog.setLocationRelativeTo(this);
             dialog.setVisible(true);
         }
+
+    private void openJoinAggregatesDialog() {
+        String baseTable = (String) baseTableDropdown.getSelectedItem();
+        if (baseTable == null) {
+            JOptionPane.showMessageDialog(Main.this, "Please select a base table first.", "No Base Table", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        List<String> joinTables = new ArrayList<>();
+        joinTables.add(baseTable);
+        for (ImplicitTablePanel itp : implicitTablePanels) {
+            String t = (String) itp.tableDropdown.getSelectedItem();
+            if (t != null && !t.isEmpty() && !joinTables.contains(t)) joinTables.add(t);
+        }
+        for (JoinPanel jp : joinPanels) {
+            String t = (String) jp.joinTableDropdown.getSelectedItem();
+            if (t != null && !t.isEmpty() && !joinTables.contains(t)) joinTables.add(t);
+        }
+
+        List<String> allQualifiedCols = new ArrayList<>();
+        for (String tbl : joinTables) {
+            for (String col : dbManager.getColumnNames(tbl)) {
+                allQualifiedCols.add(tbl + "." + col);
+            }
+        }
+
+        if (allQualifiedCols.isEmpty()) {
+            JOptionPane.showMessageDialog(Main.this, "No columns found for joined tables.", "No Columns", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JDialog dialog = new JDialog(Main.this, "📊 Visual Join Aggregates & Group By", true);
+        dialog.setLayout(new BorderLayout(8, 8));
+        dialog.setSize(720, 600);
+        dialog.setLocationRelativeTo(Main.this);
+
+        JPanel mainForm = new JPanel(new GridBagLayout());
+        mainForm.setBorder(BorderFactory.createEmptyBorder(10, 14, 8, 14));
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(3, 4, 3, 4);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        // Group By
+        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.35;
+        mainForm.add(new JLabel("GROUP BY Column:"), gbc);
+        JComboBox<String> groupByCb = new JComboBox<>();
+        groupByCb.addItem("-- None (Overall Join Summary) --");
+        for (String c : allQualifiedCols) groupByCb.addItem(c);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(groupByCb, gbc);
+
+        // Header
+        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 2;
+        JLabel aggHeader = new JLabel("Aggregate Metrics Across Joined Tables:");
+        aggHeader.setFont(aggHeader.getFont().deriveFont(Font.BOLD));
+        mainForm.add(aggHeader, gbc);
+        gbc.gridwidth = 1;
+
+        // 1. COUNT(*)
+        gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.35;
+        JCheckBox countAllCb = new JCheckBox("COUNT(*) Joined Rows", true);
+        mainForm.add(countAllCb, gbc);
+        JTextField countAllAlias = new JTextField("total_count", 10);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(countAllAlias, gbc);
+
+        // 2. COUNT(DISTINCT col)
+        gbc.gridx = 0; gbc.gridy = 3; gbc.weightx = 0.35;
+        JCheckBox countDistCb = new JCheckBox("COUNT(DISTINCT):");
+        mainForm.add(countDistCb, gbc);
+        JPanel cdP = new JPanel(new BorderLayout(4, 0));
+        JComboBox<String> countDistCol = new JComboBox<>(allQualifiedCols.toArray(new String[0]));
+        JTextField countDistAlias = new JTextField("distinct_count", 10);
+        cdP.add(countDistCol, BorderLayout.CENTER);
+        cdP.add(countDistAlias, BorderLayout.EAST);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(cdP, gbc);
+
+        // 3. SUM(col)
+        gbc.gridx = 0; gbc.gridy = 4; gbc.weightx = 0.35;
+        JCheckBox sumCb = new JCheckBox("SUM(col):");
+        mainForm.add(sumCb, gbc);
+        JPanel sumP = new JPanel(new BorderLayout(4, 0));
+        JComboBox<String> sumCol = new JComboBox<>(allQualifiedCols.toArray(new String[0]));
+        JTextField sumAlias = new JTextField("total_sum", 10);
+        sumP.add(sumCol, BorderLayout.CENTER);
+        sumP.add(sumAlias, BorderLayout.EAST);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(sumP, gbc);
+
+        // 4. AVG(col)
+        gbc.gridx = 0; gbc.gridy = 5; gbc.weightx = 0.35;
+        JCheckBox avgCb = new JCheckBox("AVG(col):");
+        mainForm.add(avgCb, gbc);
+        JPanel avgP = new JPanel(new BorderLayout(4, 0));
+        JComboBox<String> avgCol = new JComboBox<>(allQualifiedCols.toArray(new String[0]));
+        JTextField avgAlias = new JTextField("avg_val", 10);
+        avgP.add(avgCol, BorderLayout.CENTER);
+        avgP.add(avgAlias, BorderLayout.EAST);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(avgP, gbc);
+
+        // 5. MIN(col)
+        gbc.gridx = 0; gbc.gridy = 6; gbc.weightx = 0.35;
+        JCheckBox minCb = new JCheckBox("MIN(col):");
+        mainForm.add(minCb, gbc);
+        JPanel minP = new JPanel(new BorderLayout(4, 0));
+        JComboBox<String> minCol = new JComboBox<>(allQualifiedCols.toArray(new String[0]));
+        JTextField minAlias = new JTextField("min_val", 10);
+        minP.add(minCol, BorderLayout.CENTER);
+        minP.add(minAlias, BorderLayout.EAST);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(minP, gbc);
+
+        // 6. MAX(col)
+        gbc.gridx = 0; gbc.gridy = 7; gbc.weightx = 0.35;
+        JCheckBox maxCb = new JCheckBox("MAX(col):");
+        mainForm.add(maxCb, gbc);
+        JPanel maxP = new JPanel(new BorderLayout(4, 0));
+        JComboBox<String> maxCol = new JComboBox<>(allQualifiedCols.toArray(new String[0]));
+        JTextField maxAlias = new JTextField("max_val", 10);
+        maxP.add(maxCol, BorderLayout.CENTER);
+        maxP.add(maxAlias, BorderLayout.EAST);
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(maxP, gbc);
+
+        // HAVING Clause
+        gbc.gridx = 0; gbc.gridy = 8; gbc.weightx = 0.35;
+        mainForm.add(new JLabel("HAVING (Optional):"), gbc);
+        JTextField havingField = new JTextField(20);
+        havingField.setToolTipText("e.g. COUNT(*) > 5 or AVG(salary) > 60000");
+        gbc.gridx = 1; gbc.weightx = 0.65;
+        mainForm.add(havingField, gbc);
+
+        // Preview Area
+        JTextArea previewArea = new JTextArea(5, 40);
+        previewArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        previewArea.setEditable(false);
+        previewArea.setLineWrap(true);
+        previewArea.setWrapStyleWord(true);
+        JScrollPane previewScroll = new JScrollPane(previewArea);
+        previewScroll.setBorder(BorderFactory.createTitledBorder("Generated Join Aggregation SQL"));
+
+        Runnable updatePreview = () -> {
+            List<String> selectParts = new ArrayList<>();
+            String groupCol = (String) groupByCb.getSelectedItem();
+            boolean hasGroup = groupCol != null && !groupCol.startsWith("--");
+            if (hasGroup) {
+                selectParts.add(dbManager.quoteColumnName(groupCol));
+            }
+            if (countAllCb.isSelected()) {
+                String al = countAllAlias.getText().trim();
+                selectParts.add("COUNT(*)" + (al.isEmpty() ? "" : " AS " + al));
+            }
+            if (countDistCb.isSelected() && countDistCol.getSelectedItem() != null) {
+                String al = countDistAlias.getText().trim();
+                selectParts.add("COUNT(DISTINCT " + dbManager.quoteColumnName((String) countDistCol.getSelectedItem()) + ")" + (al.isEmpty() ? "" : " AS " + al));
+            }
+            if (sumCb.isSelected() && sumCol.getSelectedItem() != null) {
+                String al = sumAlias.getText().trim();
+                selectParts.add("SUM(" + dbManager.quoteColumnName((String) sumCol.getSelectedItem()) + ")" + (al.isEmpty() ? "" : " AS " + al));
+            }
+            if (avgCb.isSelected() && avgCol.getSelectedItem() != null) {
+                String al = avgAlias.getText().trim();
+                selectParts.add("AVG(" + dbManager.quoteColumnName((String) avgCol.getSelectedItem()) + ")" + (al.isEmpty() ? "" : " AS " + al));
+            }
+            if (minCb.isSelected() && minCol.getSelectedItem() != null) {
+                String al = minAlias.getText().trim();
+                selectParts.add("MIN(" + dbManager.quoteColumnName((String) minCol.getSelectedItem()) + ")" + (al.isEmpty() ? "" : " AS " + al));
+            }
+            if (maxCb.isSelected() && maxCol.getSelectedItem() != null) {
+                String al = maxAlias.getText().trim();
+                selectParts.add("MAX(" + dbManager.quoteColumnName((String) maxCol.getSelectedItem()) + ")" + (al.isEmpty() ? "" : " AS " + al));
+            }
+
+            if (selectParts.isEmpty()) {
+                selectParts.add("COUNT(*)");
+            }
+
+            StringBuilder q = new StringBuilder("SELECT ");
+            q.append(String.join(", ", selectParts));
+            q.append(" FROM ").append(dbManager.quoteTableName(baseTable));
+
+            for (ImplicitTablePanel itp : implicitTablePanels) {
+                String t = (String) itp.tableDropdown.getSelectedItem();
+                if (t != null && !t.isEmpty()) {
+                    q.append(", ").append(dbManager.quoteTableName(t));
+                }
+            }
+
+            for (JoinPanel jp : joinPanels) {
+                String type = (String) jp.joinTypeDropdown.getSelectedItem();
+                String table = (String) jp.joinTableDropdown.getSelectedItem();
+                if (table == null || table.isEmpty()) continue;
+                q.append(" ").append(type).append(" ").append(dbManager.quoteTableName(table)).append(" ");
+                for (int i = 0; i < jp.conditionPanels.size(); i++) {
+                    JoinConditionPanel cp = jp.conditionPanels.get(i);
+                    String leftTable = (String) cp.leftTableDropdown.getSelectedItem();
+                    String leftCol = (String) cp.leftColDropdown.getSelectedItem();
+                    String rightCol = (String) cp.rightColDropdown.getSelectedItem();
+                    if (leftTable != null && leftCol != null && rightCol != null) {
+                        q.append(cp.operator).append(" ")
+                         .append(dbManager.quoteColumnName(leftTable + "." + leftCol))
+                         .append(" = ")
+                         .append(dbManager.quoteColumnName(table + "." + rightCol)).append(" ");
+                    }
+                }
+            }
+
+            if (!wherePanels.isEmpty()) {
+                StringBuilder wsb = new StringBuilder(" WHERE ");
+                int count = 0;
+                for (int i = 0; i < wherePanels.size(); i++) {
+                    WherePanel wp = wherePanels.get(i);
+                    String cond = wp.buildConditionClause(dbManager);
+                    if (cond.isEmpty()) continue;
+                    if (count > 0) wsb.append(wp.logicDropdown.getSelectedItem()).append(" ");
+                    wsb.append(cond);
+                    count++;
+                }
+                if (count > 0) q.append(wsb.toString());
+            }
+
+            if (hasGroup) {
+                q.append(" GROUP BY ").append(dbManager.quoteColumnName(groupCol));
+            }
+            String hav = havingField.getText().trim();
+            if (!hav.isEmpty()) {
+                q.append(" HAVING ").append(hav);
+            }
+            previewArea.setText(q.toString());
+        };
+
+        groupByCb.addActionListener(e -> updatePreview.run());
+        countAllCb.addActionListener(e -> updatePreview.run());
+        countDistCb.addActionListener(e -> updatePreview.run());
+        countDistCol.addActionListener(e -> updatePreview.run());
+        sumCb.addActionListener(e -> updatePreview.run());
+        sumCol.addActionListener(e -> updatePreview.run());
+        avgCb.addActionListener(e -> updatePreview.run());
+        avgCol.addActionListener(e -> updatePreview.run());
+        minCb.addActionListener(e -> updatePreview.run());
+        minCol.addActionListener(e -> updatePreview.run());
+        maxCb.addActionListener(e -> updatePreview.run());
+        maxCol.addActionListener(e -> updatePreview.run());
+        havingField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { updatePreview.run(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { updatePreview.run(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { updatePreview.run(); }
+        });
+        updatePreview.run();
+
+        JPanel centerPanel = new JPanel(new BorderLayout(4, 4));
+        centerPanel.add(mainForm, BorderLayout.NORTH);
+        centerPanel.add(previewScroll, BorderLayout.CENTER);
+        dialog.add(centerPanel, BorderLayout.CENTER);
+
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 6));
+        JButton runBtn = new JButton("▶ Execute Join Aggregates");
+        runBtn.setFont(runBtn.getFont().deriveFont(Font.BOLD));
+        runBtn.setForeground(new Color(0, 102, 51));
+        JButton openSqlBtn = new JButton("Open in SQL Editor");
+        JButton copySqlBtn = new JButton("📋 Copy SQL");
+        JButton closeBtn = new JButton("Close");
+
+        runBtn.addActionListener(e -> {
+            String sql = previewArea.getText();
+            dialog.dispose();
+            lastExecutedJoinQuery = sql;
+            new Thread(() -> {
+                try {
+                    DefaultTableModel model = dbManager.executeQuery(sql);
+                    SwingUtilities.invokeLater(() -> joinResultTable.setModel(model));
+                } catch (Exception ex) {
+                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(Main.this, "Error executing join aggregates: " + ex.getMessage(), "Query Error", JOptionPane.ERROR_MESSAGE));
+                }
+            }).start();
+        });
+
+        openSqlBtn.addActionListener(e -> {
+            String sql = previewArea.getText();
+            sqlEditorPanel.setEditorText(sql);
+            tabbedPane.setSelectedComponent(sqlEditorPanel);
+            dialog.dispose();
+        });
+
+        copySqlBtn.addActionListener(e -> {
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(previewArea.getText()), null);
+            JOptionPane.showMessageDialog(dialog, "Join Aggregate SQL copied to clipboard!");
+        });
+
+        closeBtn.addActionListener(e -> dialog.dispose());
+
+        btnPanel.add(copySqlBtn);
+        btnPanel.add(openSqlBtn);
+        btnPanel.add(runBtn);
+        btnPanel.add(closeBtn);
+        dialog.add(btnPanel, BorderLayout.SOUTH);
+
+        dialog.setVisible(true);
+    }
+
     private void addJoinOrderByRow() {
             OrderByPanel op = new OrderByPanel(true, joinOrderByPanels, joinOrderByContainer);
             joinOrderByPanels.add(op);

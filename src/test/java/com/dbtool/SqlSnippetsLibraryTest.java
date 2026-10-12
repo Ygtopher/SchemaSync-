@@ -235,4 +235,26 @@ public class SqlSnippetsLibraryTest {
         SqlSnippetsLibrary.populateSubMenu(menu, sql -> {});
         assertTrue(menu.getItemCount() > 0, "Submenu should contain items");
     }
+
+    @Test
+    public void testAggregateFunctionsAndQuoting() {
+        List<Snippet> aggregates = SqlSnippetsLibrary.search("COUNT");
+        assertFalse(aggregates.isEmpty(), "Searching 'COUNT' should return aggregate snippets");
+
+        boolean hasCountStar = aggregates.stream().anyMatch(s -> s.getSql().contains("COUNT(*)"));
+        boolean hasSum = aggregates.stream().anyMatch(s -> s.getSql().contains("SUM(salary)"));
+        boolean hasAvg = aggregates.stream().anyMatch(s -> s.getSql().contains("AVG(salary)"));
+
+        assertTrue(hasCountStar, "Must include COUNT(*) in aggregate snippets");
+        assertTrue(hasSum, "Must include SUM(salary) in aggregate snippets");
+        assertTrue(hasAvg, "Must include AVG(salary) in aggregate snippets");
+
+        DatabaseManager dm = new DatabaseManager();
+        assertEquals("COUNT(*)", dm.quoteColumnName("COUNT(*)"), "COUNT(*) must not be wrapped in quotes");
+        assertEquals("SUM(salary)", dm.quoteColumnName("SUM(salary)"), "SUM(salary) must not be wrapped in quotes");
+        assertEquals("AVG(salary)", dm.quoteColumnName("AVG(salary)"), "AVG(salary) must not be wrapped in quotes");
+        assertEquals("MIN(salary)", dm.quoteColumnName("MIN(salary)"), "MIN(salary) must not be wrapped in quotes");
+        assertEquals("MAX(salary)", dm.quoteColumnName("MAX(salary)"), "MAX(salary) must not be wrapped in quotes");
+        assertEquals("COUNT(DISTINCT dept)", dm.quoteColumnName("COUNT(DISTINCT dept)"), "COUNT(DISTINCT ...) must not be wrapped in quotes");
+    }
 }
