@@ -21,4 +21,14 @@ public class SchemaDiffResult implements Serializable {
     public boolean hasDifferences() {
         return tableDiffs.stream().anyMatch(t -> t.getType() != DifferenceType.IDENTICAL);
     }
+
+    public TableDiff findTableDiff(String tableName) {
+        if (tableName == null) return null;
+        for (TableDiff td : tableDiffs) {
+            if (tableName.equalsIgnoreCase(td.getTableName())) {
+                return td;
+            }
+        }
+        return null;
+    }
 }

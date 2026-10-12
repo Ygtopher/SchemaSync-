@@ -25,7 +25,7 @@ public class ActivityMonitorPanel extends JPanel {
         JToolBar toolbar = new JToolBar();
         toolbar.setFloatable(false);
         JButton refreshBtn = new JButton("Refresh Now");
-        autoRefreshCheck = new JCheckBox("Auto-Refresh (3s)", true);
+        autoRefreshCheck = new JCheckBox("Auto-Refresh (10s)", false);
         killBtn = new JButton("Kill Selected Process");
         killBtn.setForeground(Color.RED);
         killBtn.setEnabled(false);
@@ -91,9 +91,9 @@ public class ActivityMonitorPanel extends JPanel {
             }
         });
 
-        // Timer
-        refreshTimer = new Timer(3000, e -> {
-            if (autoRefreshCheck.isSelected() && this.dbManager != null && this.dbManager.connection != null) {
+        // Timer - only fires when Auto-Refresh is enabled and panel is currently visible to the user
+        refreshTimer = new Timer(10000, e -> {
+            if (autoRefreshCheck.isSelected() && isShowing() && this.dbManager != null && this.dbManager.connection != null) {
                 refreshData();
             }
         });

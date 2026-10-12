@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 import com.dbtool.model.VisualJoinState;
 import com.dbtool.util.VisualJoinProjectManager;
 
@@ -155,6 +157,16 @@ public class Main extends JFrame {
                     JOptionPane.showMessageDialog(this, "No query executed yet.");
                 }
             });
+            JButton openInSqlBtn = new JButton("▶ Open in SQL Editor");
+            openInSqlBtn.setToolTipText("Open current query in SQL Editor tab");
+            openInSqlBtn.addActionListener(e -> {
+                if (!lastExecutedBrowseQuery.isEmpty()) {
+                    sqlEditorPanel.setEditorText(lastExecutedBrowseQuery);
+                    tabbedPane.setSelectedComponent(sqlEditorPanel);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Please run a query first.");
+                }
+            });
             tbActions.add(exportCsvBtn);
             tbActions.add(exportPdfBtn);
             tbActions.add(exportXlsxBtn);
@@ -162,6 +174,7 @@ public class Main extends JFrame {
             tbActions.addSeparator();
             tbActions.add(copyBtn);
             tbActions.add(copySqlBtn);
+            tbActions.add(openInSqlBtn);
     
             // Enable sorting on browseTable
             browseTable.setAutoCreateRowSorter(true);
@@ -440,24 +453,16 @@ public class Main extends JFrame {
     private String buildBrowseWhereClause() {
             if (browseWherePanels.isEmpty()) return "";
             StringBuilder sb = new StringBuilder(" WHERE ");
+            int count = 0;
             for (int i = 0; i < browseWherePanels.size(); i++) {
                 WherePanel wp = browseWherePanels.get(i);
-                if (i > 0) sb.append(wp.logicDropdown.getSelectedItem()).append(" ");
-                String tbl = (String) wp.tableDropdown.getSelectedItem();
-                String col = (String) wp.columnDropdown.getSelectedItem();
-                String op = (String) wp.operatorDropdown.getSelectedItem();
-                String val = wp.valueField.getText();
-                if (tbl != null && col != null) {
-                    sb.append(dbManager.quoteColumnName(tbl + "." + col)).append(" ").append(op).append(" ");
-                    if (!op.contains("NULL")) {
-                        if ((op.equalsIgnoreCase("LIKE") || op.equalsIgnoreCase("ILIKE")) && !val.contains("%")) {
-                            val = "%" + val + "%";
-                        }
-                        sb.append("'").append(val.replace("'", "''")).append("' ");
-                    }
-                }
+                String cond = wp.buildConditionClause(dbManager);
+                if (cond.isEmpty()) continue;
+                if (count > 0) sb.append(wp.logicDropdown.getSelectedItem()).append(" ");
+                sb.append(cond);
+                count++;
             }
-            return sb.toString();
+            return count > 0 ? sb.toString() : "";
         }
     private void addBrowseOrderByRow() {
             String selectedTable = (String) browseTableDropdown.getSelectedItem();
@@ -477,6 +482,7 @@ public class Main extends JFrame {
             if (selectedTable != null) tables.add(selectedTable);
             wp.updateTables(tables);
             if (selectedTable != null) wp.tableDropdown.setSelectedItem(selectedTable);
+            wp.fetchTablesFromDb();
             browseWherePanels.add(wp);
             browseWhereContainer.add(wp);
             browseWhereContainer.revalidate();
@@ -490,9 +496,63 @@ public class Main extends JFrame {
             Object sel = browseTableDropdown.getSelectedItem();
             browseTableDropdown.setAllItems(loadedTables);
             if (sel != null && loadedTables.contains(sel)) browseTableDropdown.setSelectedItem(sel);
+            for (WherePanel wp : browseWherePanels) {
+                wp.fetchTablesFromDb();
+            }
         }
         public void setBrowseTableDropdownValue(String val) {
             browseTableDropdown.setSelectedItem(val);
+        }
+
+        public com.dbtool.model.SessionSnapshot.BrowseState captureBrowseState() {
+            com.dbtool.model.SessionSnapshot.BrowseState bs = new com.dbtool.model.SessionSnapshot.BrowseState();
+            bs.tableName = (String) browseTableDropdown.getSelectedItem();
+            bs.distinct = browseDistinctCheckbox.isSelected();
+            bs.limit = limitField.getText();
+            bs.selectedColumns = new ArrayList<>(currentSelectedColumns);
+            for (WherePanel wp : browseWherePanels) {
+                bs.wheres.add(wp.captureWhereState());
+            }
+            for (OrderByPanel op : browseOrderByPanels) {
+                bs.orderBys.add(op.captureOrderByState());
+            }
+            return bs;
+        }
+
+        public void restoreBrowseState(com.dbtool.model.SessionSnapshot.BrowseState bs) {
+            if (bs == null) return;
+            if (bs.tableName != null && !bs.tableName.isEmpty()) {
+                browseTableDropdown.setSelectedItem(bs.tableName);
+            }
+            browseDistinctCheckbox.setSelected(bs.distinct);
+            if (bs.limit != null) limitField.setText(bs.limit);
+            if (bs.selectedColumns != null) {
+                currentSelectedColumns.clear();
+                currentSelectedColumns.addAll(bs.selectedColumns);
+                selectColsButton.setText(currentSelectedColumns.isEmpty() ? "Columns (All)" : "Columns (" + currentSelectedColumns.size() + ")");
+            }
+            browseWherePanels.clear();
+            browseWhereContainer.removeAll();
+            if (bs.wheres != null && !bs.wheres.isEmpty()) {
+                for (VisualJoinState.WhereState ws : bs.wheres) {
+                    addBrowseWhereRow();
+                    if (!browseWherePanels.isEmpty()) {
+                        browseWherePanels.get(browseWherePanels.size() - 1).restoreWhereState(ws);
+                    }
+                }
+            }
+            browseOrderByPanels.clear();
+            browseOrderByContainer.removeAll();
+            if (bs.orderBys != null && !bs.orderBys.isEmpty()) {
+                for (VisualJoinState.OrderByState os : bs.orderBys) {
+                    addBrowseOrderByRow();
+                    if (!browseOrderByPanels.isEmpty()) {
+                        browseOrderByPanels.get(browseOrderByPanels.size() - 1).restoreOrderByState(os);
+                    }
+                }
+            }
+            browseWhereContainer.revalidate(); browseWhereContainer.repaint();
+            browseOrderByContainer.revalidate(); browseOrderByContainer.repaint();
         }
     }
 
@@ -635,6 +695,27 @@ public class Main extends JFrame {
             tbActions.addSeparator();
             tbActions.add(copyDataBtn);
             tbActions.add(copySqlBtn);
+
+            JButton loadSqlBtn = new JButton("📥 Load SQL");
+            loadSqlBtn.setToolTipText("Load or paste a SELECT query with JOIN into Visual Join Builder");
+            loadSqlBtn.addActionListener(e -> {
+                String input = JOptionPane.showInputDialog(this, "Enter or paste a SELECT query with JOIN:", "Load SQL into Visual Join Builder", JOptionPane.PLAIN_MESSAGE);
+                if (input != null && !input.trim().isEmpty()) {
+                    loadFromSql(input.trim());
+                }
+            });
+            JButton openInSqlBtn = new JButton("▶ Open in SQL Editor");
+            openInSqlBtn.setToolTipText("Open the executed join query in SQL Editor");
+            openInSqlBtn.addActionListener(e -> {
+                if (!lastExecutedJoinQuery.isEmpty()) {
+                    sqlEditorPanel.setEditorText(lastExecutedJoinQuery);
+                    tabbedPane.setSelectedComponent(sqlEditorPanel);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Please execute the join first.");
+                }
+            });
+            tbActions.add(loadSqlBtn);
+            tbActions.add(openInSqlBtn);
             
             joinOrderByContainer.setLayout(new BoxLayout(joinOrderByContainer, BoxLayout.Y_AXIS));
             bottomOptionsPanel.add(joinOrderByContainer);
@@ -775,6 +856,7 @@ public class Main extends JFrame {
     private void addWhereRow() {
             boolean isFirst = wherePanels.isEmpty();
             WherePanel wp = new WherePanel(isFirst, wherePanels, whereContainer);
+            wp.fetchTablesFromDb();
             wherePanels.add(wp);
             whereContainer.add(wp);
             whereContainer.revalidate();
@@ -874,7 +956,7 @@ public class Main extends JFrame {
                 wp.updateTables(availableTables);
             }
         }
-    private void saveVisualJoinProject() {
+        public VisualJoinState captureJoinState() {
             VisualJoinState state = new VisualJoinState();
             state.baseTable = (String) baseTableDropdown.getSelectedItem();
             state.distinct = joinDistinctCheckbox.isSelected();
@@ -897,27 +979,21 @@ public class Main extends JFrame {
             }
             
             for (WherePanel wp : wherePanels) {
-                VisualJoinState.WhereState ws = new VisualJoinState.WhereState();
-                ws.logic = (String) wp.logicDropdown.getSelectedItem();
-                ws.table = (String) wp.tableDropdown.getSelectedItem();
-                ws.column = (String) wp.columnDropdown.getSelectedItem();
-                ws.operator = (String) wp.operatorDropdown.getSelectedItem();
-                ws.value = wp.valueField.getText();
-                state.wheres.add(ws);
+                state.wheres.add(wp.captureWhereState());
             }
             
             for (OrderByPanel op : joinOrderByPanels) {
-                VisualJoinState.OrderByState os = new VisualJoinState.OrderByState();
-                os.table = (String) op.tableDropdown.getSelectedItem();
-                os.column = (String) op.columnDropdown.getSelectedItem();
-                os.direction = (String) op.dirDropdown.getSelectedItem();
-                state.orderBys.add(os);
+                state.orderBys.add(op.captureOrderByState());
             }
-            
+            return state;
+        }
+
+        private void saveVisualJoinProject() {
+            VisualJoinState state = captureJoinState();
             VisualJoinProjectManager.saveProject(state, this);
         }
-    private void loadVisualJoinProject() {
-            VisualJoinState state = VisualJoinProjectManager.loadProject(this);
+
+        public void restoreJoinState(VisualJoinState state) {
             if (state == null) return;
             
             // Reset current UI
@@ -960,26 +1036,26 @@ public class Main extends JFrame {
             for (VisualJoinState.WhereState ws : state.wheres) {
                 addWhereRow();
                 WherePanel wp = wherePanels.get(wherePanels.size() - 1);
-                wp.logicDropdown.setSelectedItem(ws.logic);
-                wp.tableDropdown.setSelectedItem(ws.table);
-                wp.columnDropdown.setSelectedItem(ws.column);
-                wp.operatorDropdown.setSelectedItem(ws.operator);
-                wp.valueField.setText(ws.value);
+                wp.restoreWhereState(ws);
             }
             
             for (VisualJoinState.OrderByState os : state.orderBys) {
                 addJoinOrderByRow();
                 OrderByPanel op = joinOrderByPanels.get(joinOrderByPanels.size() - 1);
-                op.tableDropdown.setSelectedItem(os.table);
-                op.columnDropdown.setSelectedItem(os.column);
-                op.dirDropdown.setSelectedItem(os.direction);
+                op.restoreOrderByState(os);
             }
             
             joinSelectedColumns.addAll(state.selectedColumns);
-                    joinSelectColsButton.setText(joinSelectedColumns.isEmpty() ? "Columns (All)" : "Columns (" + joinSelectedColumns.size() + ")");
+            joinSelectColsButton.setText(joinSelectedColumns.isEmpty() ? "Columns (All)" : "Columns (" + joinSelectedColumns.size() + ")");
             joinsContainer.revalidate(); joinsContainer.repaint();
             whereContainer.revalidate(); whereContainer.repaint();
             joinOrderByContainer.revalidate(); joinOrderByContainer.repaint();
+        }
+
+        private void loadVisualJoinProject() {
+            VisualJoinState state = VisualJoinProjectManager.loadProject(this);
+            if (state == null) return;
+            restoreJoinState(state);
         }
     private void executeVisualJoin() {
             String baseTable = (String) baseTableDropdown.getSelectedItem();
@@ -1034,27 +1110,18 @@ public class Main extends JFrame {
                 }
             }
             if (!wherePanels.isEmpty()) {
-                sql.append("WHERE ");
+                StringBuilder wsb = new StringBuilder("WHERE ");
+                int count = 0;
                 for (int i = 0; i < wherePanels.size(); i++) {
                     WherePanel wp = wherePanels.get(i);
-                    if (i > 0) {
-                        sql.append(wp.logicDropdown.getSelectedItem()).append(" ");
-                    }
-                    
-                    String tbl = (String) wp.tableDropdown.getSelectedItem();
-                    String col = (String) wp.columnDropdown.getSelectedItem();
-                    String op = (String) wp.operatorDropdown.getSelectedItem();
-                    String val = wp.valueField.getText();
-                    
-                    if (tbl != null && col != null) {
-                        sql.append(dbManager.quoteColumnName(tbl + "." + col)).append(" ").append(op).append(" ");
-                        if (!op.contains("NULL")) {
-                            if ((op.equalsIgnoreCase("LIKE") || op.equalsIgnoreCase("ILIKE")) && !val.contains("%")) {
-                                val = "%" + val + "%";
-                            }
-                            sql.append("'").append(val.replace("'", "''")).append("' ");
-                        }
-                    }
+                    String cond = wp.buildConditionClause(dbManager);
+                    if (cond.isEmpty()) continue;
+                    if (count > 0) wsb.append(wp.logicDropdown.getSelectedItem()).append(" ");
+                    wsb.append(cond);
+                    count++;
+                }
+                if (count > 0) {
+                    sql.append(wsb.toString());
                 }
             }
             if (!joinOrderByPanels.isEmpty()) {
@@ -1082,29 +1149,33 @@ public class Main extends JFrame {
             
             lastExecutedJoinQuery = sql.toString();
             
-            try {
-                System.out.println("Executing JOIN: " + lastExecutedJoinQuery);
-                DefaultTableModel model = dbManager.executeQuery(lastExecutedJoinQuery);
-                joinResultTable.setModel(model);
-                
-                // If execution succeeded, learn the joins!
-                for (JoinPanel jp : joinPanels) {
-                    String table = (String) jp.joinTableDropdown.getSelectedItem();
-                    for (JoinConditionPanel cp : jp.conditionPanels) {
-                        String leftTable = (String) cp.leftTableDropdown.getSelectedItem();
-                        String leftCol = (String) cp.leftColDropdown.getSelectedItem();
-                        String rightCol = (String) cp.rightColDropdown.getSelectedItem();
-                        
-                        if (table != null && leftTable != null && leftCol != null && rightCol != null) {
-                            dbManager.learnJoin(leftTable, leftTable + "." + leftCol, table, table + "." + rightCol);
+            System.out.println("Executing JOIN: " + lastExecutedJoinQuery);
+            new Thread(() -> {
+                try {
+                    DefaultTableModel model = dbManager.executeQuery(lastExecutedJoinQuery);
+                    javax.swing.SwingUtilities.invokeLater(() -> {
+                        joinResultTable.setModel(model);
+                        // If execution succeeded, learn the joins!
+                        for (JoinPanel jp : joinPanels) {
+                            String table = (String) jp.joinTableDropdown.getSelectedItem();
+                            for (JoinConditionPanel cp : jp.conditionPanels) {
+                                String leftTable = (String) cp.leftTableDropdown.getSelectedItem();
+                                String leftCol = (String) cp.leftColDropdown.getSelectedItem();
+                                String rightCol = (String) cp.rightColDropdown.getSelectedItem();
+                                
+                                if (table != null && leftTable != null && leftCol != null && rightCol != null) {
+                                    dbManager.learnJoin(leftTable, leftTable + "." + leftCol, table, table + "." + rightCol);
+                                }
+                            }
                         }
-                    }
+                    });
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    javax.swing.SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(VisualJoinTab.this, "SQL Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    });
                 }
-                
-            } catch (SQLException ex) {
-                ex.printStackTrace();
-                JOptionPane.showMessageDialog(this, "SQL Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
+            }).start();
         }
     class JoinConditionPanel extends JPanel {
             String operator;
@@ -1244,6 +1315,9 @@ public class Main extends JFrame {
             baseTableDropdown.setAllItems(loadedTables);
             if (sel != null && loadedTables.contains(sel)) baseTableDropdown.setSelectedItem(sel);
             updateJoinDropdowns();
+            for (WherePanel wp : wherePanels) {
+                wp.fetchTablesFromDb();
+            }
         }
         
 
@@ -1348,6 +1422,7 @@ public class Main extends JFrame {
 
         class UpdatableTable extends JTable {
         private java.util.function.Supplier<String> tableNameSupplier;
+        private final java.util.Map<String, java.util.Vector<String>> fkOptionsCache = new java.util.concurrent.ConcurrentHashMap<>();
 
         public UpdatableTable(java.util.function.Supplier<String> tableNameSupplier) {
             super();
@@ -1515,20 +1590,27 @@ public class Main extends JFrame {
                     String[] pkInfo = fks.get(actualCol);
                     String pkTable = pkInfo[0];
                     String pkCol = pkInfo[1];
-                    try {
-                        javax.swing.table.DefaultTableModel rs = dbManager.executeQuery("SELECT DISTINCT " + dbManager.quoteColumnName(pkCol) + " FROM " + dbManager.quoteTableName(pkTable) + " LIMIT 500");
-                        java.util.Vector<String> options = new java.util.Vector<>();
-                        for (int i = 0; i < rs.getRowCount(); i++) {
-                            Object val = rs.getValueAt(i, 0);
-                            if (val != null) options.add(val.toString());
+                    String cacheKey = pkTable + "." + pkCol;
+                    java.util.Vector<String> options = fkOptionsCache.get(cacheKey);
+                    if (options == null) {
+                        try {
+                            javax.swing.table.DefaultTableModel rs = dbManager.executeQuery("SELECT DISTINCT " + dbManager.quoteColumnName(pkCol) + " FROM " + dbManager.quoteTableName(pkTable) + " LIMIT 500");
+                            options = new java.util.Vector<>();
+                            for (int i = 0; i < rs.getRowCount(); i++) {
+                                Object val = rs.getValueAt(i, 0);
+                                if (val != null) options.add(val.toString());
+                            }
+                            if (!options.isEmpty()) {
+                                fkOptionsCache.put(cacheKey, options);
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
-                        if (!options.isEmpty()) {
-                            JComboBox<String> combo = new JComboBox<>(options);
-                            combo.setEditable(true);
-                            return new DefaultCellEditor(combo);
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
+                    }
+                    if (options != null && !options.isEmpty()) {
+                        JComboBox<String> combo = new JComboBox<>(options);
+                        combo.setEditable(true);
+                        return new DefaultCellEditor(combo);
                     }
                 }
             }
@@ -1706,6 +1788,7 @@ public class Main extends JFrame {
     private SqlEditorPanel sqlEditorPanel;
     private ErDiagramPanel erDiagramPanel;
     private TableComparePanel tableComparePanel;
+    private com.dbtool.panels.DualDatabaseComparePanel dualDbComparePanel;
     private ScriptBuilderPanel scriptBuilderPanel;
     private DataOpsPanel dataOpsPanel;
     
@@ -1714,8 +1797,11 @@ public class Main extends JFrame {
 
     private JButton loadDbButton = new JButton("Connect & Upload (.accdb, .sql, .sql.gz)");
     private JButton connectExistingBtn = new JButton("Connect to Existing DB");
+    private JButton sandboxBtn = new JButton("⚡ Sample Sandbox DB");
+    private JButton seedSampleBtn = new JButton("🌱 Seed Sample Tables");
     private JButton disconnectDbButton = new JButton("Disconnect DB");
     private JButton exportDbBtn = new JButton("Export DB");
+    private JButton autoSaveIndicatorBtn = new JButton("💾 Auto-Saved");
     public Main() {
         setTitle("SchemaSync");
         setSize(1280, 800);
@@ -1726,16 +1812,32 @@ public class Main extends JFrame {
         schemaPanel = new SchemaPanel(dbManager);
         sqlEditorPanel = new SqlEditorPanel(dbManager);
         sqlEditorPanel.setSendToVisualBuilderAction(sql -> {
-            tabbedPane.setSelectedIndex(1); // Switch to Visual Join Builder
-            if (joinTabContainer.getTabs().isEmpty()) {
-                joinTabContainer.addNewTabAndGet().loadFromSql(sql);
-            } else {
-                VisualJoinTab tab = joinTabContainer.getTabs().get(0);
-                tab.loadFromSql(sql);
+            tabbedPane.setSelectedComponent(joinTabContainer);
+            VisualJoinTab tab = joinTabContainer.getActiveTab();
+            if (tab == null) {
+                tab = joinTabContainer.addNewTabAndGet();
             }
+            tab.loadFromSql(sql);
+        });
+        sqlEditorPanel.setOnSchemaModified(() -> {
+            dbManager.clearCache();
+            loadedTables = dbManager.getTableNames();
+            if (browseTabContainer != null) {
+                for (BrowseTab tab : browseTabContainer.getTabs()) {
+                    tab.refreshTables();
+                }
+            }
+            if (joinTabContainer != null) {
+                for (VisualJoinTab tab : joinTabContainer.getTabs()) {
+                    tab.refreshTables();
+                }
+            }
+            schemaPanel.refresh();
+            if (erDiagramPanel != null) erDiagramPanel.markNeedsRefresh(dbManager);
         });
         erDiagramPanel = new ErDiagramPanel();
         tableComparePanel = new TableComparePanel(dbManager);
+        dualDbComparePanel = new com.dbtool.panels.DualDatabaseComparePanel(dbManager);
         scriptBuilderPanel = new ScriptBuilderPanel(dbManager);
         dataOpsPanel = new DataOpsPanel(dbManager);
 
@@ -1754,6 +1856,41 @@ public class Main extends JFrame {
         
         connectExistingBtn.addActionListener(e -> connectExistingDatabase());
         topPanel.add(connectExistingBtn);
+
+        sandboxBtn.setToolTipText("Load built-in in-memory Sandbox DB (Employees, Departments, Orders, and Sales)");
+        sandboxBtn.addActionListener(e -> {
+            try {
+                dbManager.connectSandbox();
+                statusLabel.setText("Database: Sandbox (In-Memory)");
+                statusLabel.setForeground(new java.awt.Color(0, 150, 0));
+                populateTablesUI();
+                JOptionPane.showMessageDialog(this, "Sample Sandbox DB loaded!\n\nPre-loaded tables ready to query:\n• employees\n• departments\n• contractors\n• new_hires\n• projects\n• accounts\n• orders\n• sales\n• audit_log", "Sandbox Ready", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Failed to load Sandbox: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        topPanel.add(sandboxBtn);
+
+        seedSampleBtn.setToolTipText("Seed sample tables into currently connected database");
+        seedSampleBtn.addActionListener(e -> {
+            if (dbManager.connection == null) {
+                JOptionPane.showMessageDialog(this, "No database connected. Please connect first or click '⚡ Sample Sandbox DB'.", "Notice", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            try {
+                dbManager.seedSampleSchema();
+                loadedTables = dbManager.getTableNames();
+                schemaPanel.refresh();
+                if (browseTabContainer != null) for (BrowseTab tab : browseTabContainer.getTabs()) tab.refreshTables();
+                if (joinTabContainer != null) for (VisualJoinTab tab : joinTabContainer.getTabs()) tab.refreshTables();
+                if (erDiagramPanel != null) erDiagramPanel.markNeedsRefresh(dbManager);
+                JOptionPane.showMessageDialog(this, "Sample tables (employees, departments, contractors, orders, sales, accounts) created and populated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Failed to seed sample tables: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        seedSampleBtn.setVisible(false);
+        topPanel.add(seedSampleBtn);
 
         disconnectDbButton.addActionListener(e -> disconnectDatabase());
         disconnectDbButton.setVisible(false);
@@ -1793,15 +1930,25 @@ public class Main extends JFrame {
         tabbedPane.addTab("ER Diagram", erDiagramPanel);
         tabbedPane.addTab("Script Builder", scriptBuilderPanel);
         tabbedPane.addTab("Compare Queries", tableComparePanel);
+        tabbedPane.addTab("Dual DB Compare", dualDbComparePanel);
         
         com.dbtool.panels.SshTerminalPanel sshTerminalPanel = new com.dbtool.panels.SshTerminalPanel(dbManager);
         tabbedPane.addTab("SSH / Server", sshTerminalPanel);
 
-        com.dbtool.panels.AiAssistantTab aiAssistantTab = new com.dbtool.panels.AiAssistantTab(dbManager);
-        tabbedPane.addTab("AI Assistant", aiAssistantTab);
+        // AI Assistant tab stopped until further notice
+        // com.dbtool.panels.AiAssistantTab aiAssistantTab = new com.dbtool.panels.AiAssistantTab(dbManager);
+        // tabbedPane.addTab("AI Assistant", aiAssistantTab);
 
+        tabbedPane.addChangeListener(e -> {
+            int selectedIndex = tabbedPane.getSelectedIndex();
+            if (selectedIndex != -1) {
+                String title = tabbedPane.getTitleAt(selectedIndex);
+                if ("ER Diagram".equals(title) && erDiagramPanel != null) {
+                    erDiagramPanel.checkAndRefresh();
+                }
+            }
+        });
         
-                
         com.dbtool.panels.NetworkScannerPanel networkScannerPanel = new com.dbtool.panels.NetworkScannerPanel();
         // Network Scanner tab is hidden by default
 
@@ -1904,6 +2051,192 @@ public class Main extends JFrame {
         });
         topPanel.add(adminToolsBtn);
 
+        // Auto-Save Indicator Button
+        autoSaveIndicatorBtn.setToolTipText("Auto-Save is active (Click for recovery options)");
+        autoSaveIndicatorBtn.addActionListener(e -> {
+            JPopupMenu menu = new JPopupMenu();
+            JMenuItem saveNowItem = new JMenuItem("💾 Save Snapshot Now");
+            saveNowItem.addActionListener(ev -> {
+                boolean saved = com.dbtool.util.SessionRecoveryManager.saveSessionSnapshot(captureCurrentSessionSnapshot());
+                String timeStr = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
+                onAutoSaved(timeStr);
+                JOptionPane.showMessageDialog(this, saved ? "Session snapshot saved successfully!" : "Session is already up to date.", "Snapshot Info", JOptionPane.INFORMATION_MESSAGE);
+            });
+            JMenuItem openFolderItem = new JMenuItem("📁 Open Recovery Folder...");
+            openFolderItem.addActionListener(ev -> {
+                try {
+                    java.awt.Desktop.getDesktop().open(com.dbtool.util.SessionRecoveryManager.getRecoveryDir());
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Recovery folder: " + com.dbtool.util.SessionRecoveryManager.getRecoveryDir().getAbsolutePath());
+                }
+            });
+            JMenuItem discardItem = new JMenuItem("🗑 Clear Autosave Backup");
+            discardItem.addActionListener(ev -> {
+                com.dbtool.util.SessionRecoveryManager.discardCrashedSession();
+                autoSaveIndicatorBtn.setText("💾 Auto-Save: Active");
+                JOptionPane.showMessageDialog(this, "Autosave backup cleared.");
+            });
+            menu.add(saveNowItem);
+            menu.add(openFolderItem);
+            menu.addSeparator();
+            menu.add(discardItem);
+            menu.show(autoSaveIndicatorBtn, 0, autoSaveIndicatorBtn.getHeight());
+        });
+        topPanel.add(autoSaveIndicatorBtn);
+
+        // Crash Recovery Check on Startup
+        if (com.dbtool.util.SessionRecoveryManager.hasCrashedSession()) {
+            SwingUtilities.invokeLater(() -> {
+                com.dbtool.model.SessionSnapshot snapshot = com.dbtool.util.SessionRecoveryManager.loadAutosavedSession();
+                if (snapshot != null) {
+                    com.dbtool.panels.RecoveryDialog dlg = new com.dbtool.panels.RecoveryDialog(this, snapshot);
+                    dlg.setVisible(true);
+                    if (dlg.getChoice() == com.dbtool.panels.RecoveryDialog.RecoveryChoice.RESTORE) {
+                        restoreSessionSnapshot(snapshot);
+                        JOptionPane.showMessageDialog(this, "Workspace session restored successfully!", "Session Restored", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                }
+            });
+        }
+
+        // Start background auto-save daemon and register shutdown hook
+        com.dbtool.util.SessionRecoveryManager.startAutoSaveDaemon(this::captureCurrentSessionSnapshot, this::onAutoSaved, 15);
+        com.dbtool.util.SessionRecoveryManager.registerShutdownHook(this::captureCurrentSessionSnapshot);
+
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                com.dbtool.util.SessionRecoveryManager.markCleanExit();
+            }
+        });
+    }
+
+    private void onAutoSaved(String timeStr) {
+        autoSaveIndicatorBtn.setText("💾 Auto-Saved (" + timeStr + ")");
+        autoSaveIndicatorBtn.setToolTipText("Last auto-saved at " + timeStr + ". Click for recovery options.");
+    }
+
+    public com.dbtool.model.SessionSnapshot captureCurrentSessionSnapshot() {
+        com.dbtool.model.SessionSnapshot snapshot = new com.dbtool.model.SessionSnapshot();
+        snapshot.timestamp = System.currentTimeMillis();
+        snapshot.activeTabIndex = tabbedPane != null ? tabbedPane.getSelectedIndex() : 0;
+        if (tabbedPane != null && snapshot.activeTabIndex >= 0 && snapshot.activeTabIndex < tabbedPane.getTabCount()) {
+            snapshot.activeTabTitle = tabbedPane.getTitleAt(snapshot.activeTabIndex);
+        }
+
+        // Connection
+        if (dbManager != null) {
+            snapshot.connection = new com.dbtool.model.SessionSnapshot.ConnectionInfo();
+            if (dbManager.isSandbox()) {
+                snapshot.connection.type = "SANDBOX";
+            } else if (dbManager.getLastDumpFile() != null) {
+                snapshot.connection.type = "FILE";
+                snapshot.connection.filePath = dbManager.getLastDumpFile();
+            } else if (dbManager.getLastHost() != null) {
+                snapshot.connection.type = "POSTGRES";
+                snapshot.connection.host = dbManager.getLastHost();
+                snapshot.connection.port = dbManager.getLastPort();
+                snapshot.connection.dbName = dbManager.getLastDbName();
+                snapshot.connection.user = dbManager.getLastUser();
+                snapshot.connection.pass = dbManager.getLastPass();
+            } else {
+                snapshot.connection.type = "NONE";
+            }
+        }
+
+        // SQL Editor
+        if (sqlEditorPanel != null) {
+            snapshot.sqlEditor.queryText = sqlEditorPanel.getEditorText();
+        }
+
+        // Browse Tabs
+        if (browseTabContainer != null) {
+            for (BrowseTab tab : browseTabContainer.getTabs()) {
+                snapshot.browseTabs.add(tab.captureBrowseState());
+            }
+        }
+
+        // Join Tabs
+        if (joinTabContainer != null) {
+            for (VisualJoinTab tab : joinTabContainer.getTabs()) {
+                snapshot.joinTabs.add(tab.captureJoinState());
+            }
+        }
+
+        // Table Compare
+        if (tableComparePanel != null) {
+            snapshot.tableCompare.queryA = tableComparePanel.getQueryA();
+            snapshot.tableCompare.queryB = tableComparePanel.getQueryB();
+        }
+
+        return snapshot;
+    }
+
+    public void restoreSessionSnapshot(com.dbtool.model.SessionSnapshot snapshot) {
+        if (snapshot == null) return;
+
+        // 1. Restore Database Connection
+        if (snapshot.connection != null && !"NONE".equals(snapshot.connection.type)) {
+            new Thread(() -> {
+                try {
+                    if ("SANDBOX".equals(snapshot.connection.type)) {
+                        dbManager.connectSandbox();
+                        SwingUtilities.invokeLater(() -> {
+                            statusLabel.setText("Database: Sandbox (In-Memory)");
+                            statusLabel.setForeground(new java.awt.Color(0, 150, 0));
+                            populateTablesUI();
+                        });
+                    } else if ("POSTGRES".equals(snapshot.connection.type) && snapshot.connection.host != null) {
+                        dbManager.connectExistingPostgres(snapshot.connection.host, snapshot.connection.port, snapshot.connection.dbName, snapshot.connection.user, snapshot.connection.pass);
+                        SwingUtilities.invokeLater(() -> {
+                            statusLabel.setText("Connected: " + snapshot.connection.dbName);
+                            statusLabel.setForeground(new java.awt.Color(0, 150, 0));
+                            populateTablesUI();
+                            connectExistingBtn.setVisible(false);
+                            loadDbButton.setVisible(false);
+                            disconnectDbButton.setVisible(true);
+                            exportDbBtn.setVisible(true);
+                        });
+                    }
+                } catch (Exception ex) {
+                    System.err.println("Could not auto-reconnect on restore: " + ex.getMessage());
+                }
+            }).start();
+        }
+
+        // 2. Restore SQL Editor
+        if (sqlEditorPanel != null && snapshot.sqlEditor != null && snapshot.sqlEditor.queryText != null) {
+            sqlEditorPanel.setEditorText(snapshot.sqlEditor.queryText);
+        }
+
+        // 3. Restore Browse Tabs
+        if (browseTabContainer != null && snapshot.browseTabs != null && !snapshot.browseTabs.isEmpty()) {
+            browseTabContainer.clearAllTabs();
+            for (com.dbtool.model.SessionSnapshot.BrowseState bs : snapshot.browseTabs) {
+                BrowseTab tab = browseTabContainer.addNewTabAndGet();
+                tab.restoreBrowseState(bs);
+            }
+        }
+
+        // 4. Restore Visual Join Tabs
+        if (joinTabContainer != null && snapshot.joinTabs != null && !snapshot.joinTabs.isEmpty()) {
+            joinTabContainer.clearAllTabs();
+            for (com.dbtool.model.VisualJoinState js : snapshot.joinTabs) {
+                VisualJoinTab tab = joinTabContainer.addNewTabAndGet();
+                tab.restoreJoinState(js);
+            }
+        }
+
+        // 5. Restore Table Compare
+        if (tableComparePanel != null && snapshot.tableCompare != null) {
+            tableComparePanel.setQueryA(snapshot.tableCompare.queryA);
+            tableComparePanel.setQueryB(snapshot.tableCompare.queryB);
+        }
+
+        // 6. Restore Active Tab
+        if (tabbedPane != null && snapshot.activeTabIndex >= 0 && snapshot.activeTabIndex < tabbedPane.getTabCount()) {
+            tabbedPane.setSelectedIndex(snapshot.activeTabIndex);
+        }
     }
 
     
@@ -1975,6 +2308,15 @@ public class Main extends JFrame {
             new Thread(() -> {
                 try {
                     dbManager.connectPostgres(selectedFile.getAbsolutePath(), finalHost, finalPort, finalUser, finalPass, finalDbName);
+                    
+                    // Pre-fetch caches in background so we don't freeze EDT
+                    java.util.List<String> tables = dbManager.getTableNames();
+                    if (tables != null) {
+                        for (String t : tables) {
+                            dbManager.getColumnNames(t);
+                        }
+                    }
+
                     SwingUtilities.invokeLater(() -> {
                         statusLabel.setText("Loaded: " + selectedFile.getName());
                         statusLabel.setForeground(new Color(0, 150, 0));
@@ -2121,6 +2463,7 @@ public class Main extends JFrame {
         }
         
         schemaPanel.refresh();
+        if (erDiagramPanel != null) erDiagramPanel.refresh(null, null);
         tableComparePanel.refreshTables();
         if (dataOpsPanel != null) dataOpsPanel.refreshTables();
         
@@ -2131,6 +2474,9 @@ public class Main extends JFrame {
         loadDbButton.setVisible(true);
         connectExistingBtn.setEnabled(true);
         connectExistingBtn.setVisible(true);
+        sandboxBtn.setEnabled(true);
+        sandboxBtn.setVisible(true);
+        seedSampleBtn.setVisible(false);
         disconnectDbButton.setVisible(false);
         exportDbBtn.setVisible(false);
     }
@@ -2143,6 +2489,8 @@ public class Main extends JFrame {
         loadDbButton.setVisible(false);
         connectExistingBtn.setEnabled(false);
         connectExistingBtn.setVisible(false);
+        sandboxBtn.setVisible(false);
+        seedSampleBtn.setVisible(true);
         disconnectDbButton.setVisible(true);
         exportDbBtn.setVisible(true);
         loadedTables = dbManager.getTableNames();
@@ -2157,6 +2505,7 @@ public class Main extends JFrame {
             }
         }
         schemaPanel.refresh();
+        if (erDiagramPanel != null) erDiagramPanel.markNeedsRefresh(dbManager);
     }
 
     private void connectExistingDatabase() {
@@ -2179,6 +2528,14 @@ public class Main extends JFrame {
             try {
                 dbManager.connectExistingPostgres(finalHost, finalPort, finalDbName, finalUser, finalPass);
                 
+                // Pre-fetch caches in background so we don't freeze EDT
+                java.util.List<String> tables = dbManager.getTableNames();
+                if (tables != null) {
+                    for (String t : tables) {
+                        dbManager.getColumnNames(t);
+                    }
+                }
+
                 javax.swing.SwingUtilities.invokeLater(() -> {
                     try {
                         statusLabel.setText("Connected: " + finalDbName);
@@ -2292,22 +2649,86 @@ public class Main extends JFrame {
             columnDropdown.setAllItems(cols);
             if (selected != null && cols.contains(selected)) columnDropdown.setSelectedItem(selected);
         }
+
+        public VisualJoinState.OrderByState captureOrderByState() {
+            VisualJoinState.OrderByState os = new VisualJoinState.OrderByState();
+            os.table = (String) tableDropdown.getSelectedItem();
+            os.column = (String) columnDropdown.getSelectedItem();
+            os.direction = (String) dirDropdown.getSelectedItem();
+            return os;
+        }
+
+        public void restoreOrderByState(VisualJoinState.OrderByState os) {
+            if (os == null) return;
+            if (os.table != null) tableDropdown.setSelectedItem(os.table);
+            if (os.column != null) columnDropdown.setSelectedItem(os.column);
+            if (os.direction != null) dirDropdown.setSelectedItem(os.direction);
+        }
     }
 
-class WherePanel extends JPanel {
+    class WherePanel extends JPanel {
         JComboBox<String> logicDropdown = new JComboBox<>(new String[]{"AND", "OR"});
         SearchableComboBox tableDropdown = new SearchableComboBox();
         SearchableComboBox columnDropdown = new SearchableComboBox();
-        JComboBox<String> operatorDropdown = new JComboBox<>(new String[]{"=", "!=", ">", "<", ">=", "<=", "LIKE", "ILIKE", "IS NULL", "IS NOT NULL"});
+        JComboBox<String> operatorDropdown = new JComboBox<>(new String[]{"=", "!=", ">", "<", ">=", "<=", "LIKE", "ILIKE", "IN", "NOT IN", "BETWEEN", "IS NULL", "IS NOT NULL"});
         JTextField valueField = new JTextField(15);
 
+        // IN / NOT IN enhanced controls
+        JComboBox<String> inTypeDropdown = new JComboBox<>(new String[]{"Distinct Values", "Subquery (SELECT)", "Manual Values"});
+        SearchableComboBox inValuesDropdown = new SearchableComboBox();
+        JButton inPickBtn = new JButton("☑ Pick...");
+        JPanel inControlsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
+
+        // Subquery controls
+        JLabel subSelectLabel = new JLabel("(SELECT ");
+        SearchableComboBox inSubColDropdown = new SearchableComboBox();
+        JLabel subFromLabel = new JLabel(" FROM ");
+        SearchableComboBox inSubTableDropdown = new SearchableComboBox();
+        JButton inSubClausesBtn = new JButton("⚙ Clauses (WHERE, ORDER...)");
+        JLabel subCloseLabel = new JLabel(") ");
+
+        // Subquery Clauses State
+        class SubqueryWhereCondition {
+            String logic = "AND";
+            String column = "";
+            String operator = "=";
+            String value = "";
+
+            public SubqueryWhereCondition() {}
+            public SubqueryWhereCondition(String logic, String column, String operator, String value) {
+                this.logic = logic;
+                this.column = column;
+                this.operator = operator;
+                this.value = value;
+            }
+        }
+
+        private boolean subDistinct = false;
+        private List<SubqueryWhereCondition> subWhereConditions = new ArrayList<>();
+        private String subOrderByCol = "";
+        private String subOrderDir = "ASC";
+        private String subLimit = "";
+        private String subOffset = "";
+        private String subGroupByCol = "";
+        private String subHaving = "";
+        private boolean useCustomSubquery = false;
+        private String customSubqueryText = "";
+
+        private List<String> cachedDistinctValues = new ArrayList<>();
+
         public WherePanel(boolean isFirst, List<WherePanel> ownerList, JPanel ownerContainer) {
-            setLayout(new FlowLayout(FlowLayout.LEFT));
-            
+            setLayout(new FlowLayout(FlowLayout.LEFT, 3, 2));
+
             if (!isFirst) {
                 add(logicDropdown);
             }
-            
+
+            tableDropdown.setPreferredSize(new Dimension(140, 26));
+            columnDropdown.setPreferredSize(new Dimension(140, 26));
+            inValuesDropdown.setPreferredSize(new Dimension(140, 26));
+            inSubTableDropdown.setPreferredSize(new Dimension(130, 26));
+            inSubColDropdown.setPreferredSize(new Dimension(130, 26));
+
             tableDropdown.addActionListener(e -> {
                 String t = (String) tableDropdown.getSelectedItem();
                 if (t != null) {
@@ -2321,25 +2742,111 @@ class WherePanel extends JPanel {
                     }).start();
                 }
             });
-            
+
+            columnDropdown.addActionListener(e -> {
+                String op = (String) operatorDropdown.getSelectedItem();
+                if (op != null && (op.equalsIgnoreCase("IN") || op.equalsIgnoreCase("NOT IN"))) {
+                    loadDistinctValues();
+                }
+            });
+
             add(tableDropdown);
             add(new JLabel(" . "));
             add(columnDropdown);
             add(operatorDropdown);
-            add(valueField);
-            
+
+            inControlsPanel.setOpaque(false);
+            inControlsPanel.setVisible(false);
+            inTypeDropdown.setVisible(false);
+
+            inPickBtn.setToolTipText("Open checklist dialog to select multiple distinct values");
+            inPickBtn.addActionListener(e -> openMultiSelectDialog());
+
+            inValuesDropdown.addActionListener(e -> {
+                if (inValuesDropdown.isAdjusting) return;
+                Object sel = inValuesDropdown.getSelectedItem();
+                if (sel != null && !sel.toString().trim().isEmpty()) {
+                    String formatted = formatSingleValue(sel.toString().trim());
+                    String cur = valueField.getText().trim();
+                    if (cur.isEmpty()) {
+                        valueField.setText(formatted);
+                    } else if (!cur.contains(formatted)) {
+                        valueField.setText(cur + ", " + formatted);
+                    }
+                }
+            });
+
+            inSubClausesBtn.setToolTipText("Configure WHERE conditions, ORDER BY, LIMIT, and other clauses for subquery");
+            inSubClausesBtn.addActionListener(e -> openSubqueryClausesDialog());
+
+            inSubTableDropdown.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
+                @Override
+                public void popupMenuWillBecomeVisible(javax.swing.event.PopupMenuEvent e) {
+                    if (inSubTableDropdown.getModel().getSize() <= 1 && dbManager != null && dbManager.connection != null) {
+                        fetchTablesFromDb();
+                    }
+                }
+                @Override public void popupMenuWillBecomeInvisible(javax.swing.event.PopupMenuEvent e) {}
+                @Override public void popupMenuCanceled(javax.swing.event.PopupMenuEvent e) {}
+            });
+
+            inSubTableDropdown.addActionListener(e -> {
+                String subT = (String) inSubTableDropdown.getSelectedItem();
+                if (subT != null) {
+                    new Thread(() -> {
+                        List<String> cols = dbManager.getColumnNames(subT);
+                        SwingUtilities.invokeLater(() -> {
+                            Object cur = inSubColDropdown.getSelectedItem();
+                            inSubColDropdown.setAllItems(cols);
+                            String targetCol = (String) columnDropdown.getSelectedItem();
+                            if (targetCol != null && cols.contains(targetCol)) {
+                                inSubColDropdown.setSelectedItem(targetCol);
+                            } else if (cur != null && cols.contains(cur)) {
+                                inSubColDropdown.setSelectedItem(cur);
+                            } else if (!cols.isEmpty()) {
+                                inSubColDropdown.setSelectedItem(cols.get(0));
+                            }
+                            updateSubClausesBtnDisplay();
+                        });
+                    }).start();
+                }
+            });
+
+            inTypeDropdown.addActionListener(e -> updateInControlsLayout());
+
             operatorDropdown.addActionListener(e -> {
                 String op = (String) operatorDropdown.getSelectedItem();
-                valueField.setEnabled(!op.contains("NULL"));
+                boolean isNullOp = op != null && op.contains("NULL");
+                boolean isInOp = op != null && (op.equalsIgnoreCase("IN") || op.equalsIgnoreCase("NOT IN"));
+
+                valueField.setEnabled(!isNullOp);
+                inTypeDropdown.setVisible(isInOp);
+                inControlsPanel.setVisible(isInOp);
+
+                if (isInOp) {
+                    updateInControlsLayout();
+                    loadDistinctValues();
+                    fetchTablesFromDb();
+                } else {
+                    if (valueField.getParent() != WherePanel.this) {
+                        WherePanel.this.add(valueField, Math.max(0, WherePanel.this.getComponentCount() - 1));
+                    }
+                    valueField.setVisible(true);
+                    valueField.setToolTipText(null);
+                }
+                revalidate();
+                repaint();
             });
-            
+
+            add(inTypeDropdown);
+            add(inControlsPanel);
+            add(valueField);
+
             JButton removeBtn = new JButton("X");
             removeBtn.addActionListener(e -> {
                 int idx = ownerList.indexOf(this);
                 ownerList.remove(this);
                 ownerContainer.remove(this);
-                // If we removed the first row and there are still rows remaining,
-                // make sure the next first row no longer shows the logic dropdown
                 if (idx == 0 && !ownerList.isEmpty()) {
                     WherePanel newFirst = ownerList.get(0);
                     newFirst.remove(newFirst.logicDropdown);
@@ -2350,12 +2857,1020 @@ class WherePanel extends JPanel {
                 ownerContainer.repaint();
             });
             add(removeBtn);
+
+            fetchTablesFromDb();
+        }
+
+        public void fetchTablesFromDb() {
+            new Thread(() -> {
+                List<String> tbls = null;
+                if (dbManager != null && dbManager.connection != null) {
+                    try {
+                        tbls = dbManager.getTableNames();
+                    } catch (Exception ignored) {}
+                }
+                if (tbls == null || tbls.isEmpty()) {
+                    tbls = loadedTables;
+                }
+                if (tbls != null && !tbls.isEmpty()) {
+                    final List<String> fTbls = new ArrayList<>(tbls);
+                    SwingUtilities.invokeLater(() -> {
+                        Object cur = inSubTableDropdown.getSelectedItem();
+                        inSubTableDropdown.setAllItems(fTbls);
+                        if (cur != null && fTbls.contains(cur)) {
+                            inSubTableDropdown.setSelectedItem(cur);
+                        } else {
+                            String parentTbl = (String) tableDropdown.getSelectedItem();
+                            if (parentTbl != null && fTbls.contains(parentTbl)) {
+                                inSubTableDropdown.setSelectedItem(parentTbl);
+                            } else if (inSubTableDropdown.getItemCount() > 0) {
+                                inSubTableDropdown.setSelectedIndex(0);
+                            }
+                        }
+                        String selT = (String) inSubTableDropdown.getSelectedItem();
+                        if (selT != null) {
+                            new Thread(() -> {
+                                List<String> cols = dbManager.getColumnNames(selT);
+                                SwingUtilities.invokeLater(() -> {
+                                    Object curCol = inSubColDropdown.getSelectedItem();
+                                    inSubColDropdown.setAllItems(cols);
+                                    String targetCol = (String) columnDropdown.getSelectedItem();
+                                    if (targetCol != null && cols.contains(targetCol)) {
+                                        inSubColDropdown.setSelectedItem(targetCol);
+                                    } else if (curCol != null && cols.contains(curCol)) {
+                                        inSubColDropdown.setSelectedItem(curCol);
+                                    } else if (!cols.isEmpty()) {
+                                        inSubColDropdown.setSelectedItem(cols.get(0));
+                                    }
+                                    updateSubClausesBtnDisplay();
+                                });
+                            }).start();
+                        }
+                    });
+                }
+            }).start();
+        }
+
+        private void updateInControlsLayout() {
+            inControlsPanel.removeAll();
+            String inType = (String) inTypeDropdown.getSelectedItem();
+
+            if ("Distinct Values".equals(inType)) {
+                inControlsPanel.add(inValuesDropdown);
+                inControlsPanel.add(inPickBtn);
+                inControlsPanel.add(valueField);
+                valueField.setVisible(true);
+                valueField.setToolTipText("Comma-separated values (pick from dropdown or click Pick...)");
+            } else if ("Subquery (SELECT)".equals(inType)) {
+                inControlsPanel.add(subSelectLabel);
+                inControlsPanel.add(inSubColDropdown);
+                inControlsPanel.add(subFromLabel);
+                inControlsPanel.add(inSubTableDropdown);
+                inControlsPanel.add(inSubClausesBtn);
+                inControlsPanel.add(subCloseLabel);
+                valueField.setVisible(false);
+
+                fetchTablesFromDb();
+                updateSubClausesBtnDisplay();
+            } else { // Manual Values
+                inControlsPanel.add(valueField);
+                valueField.setVisible(true);
+                valueField.setToolTipText("Enter values separated by commas: e.g. 101, 102 or 'IT', 'HR'");
+            }
+            inControlsPanel.revalidate();
+            inControlsPanel.repaint();
+            revalidate();
+            repaint();
+        }
+
+        private void updateSubClausesBtnDisplay() {
+            if (useCustomSubquery && customSubqueryText != null && !customSubqueryText.trim().isEmpty()) {
+                inSubClausesBtn.setText("⚙ Custom SQL (Active)");
+                inSubClausesBtn.setForeground(new Color(0, 140, 0));
+                inSubClausesBtn.setToolTipText("<html><b>Custom Subquery SQL:</b><br><pre>" + customSubqueryText + "</pre></html>");
+                return;
+            }
+
+            List<String> activeList = new ArrayList<>();
+            if (subDistinct) activeList.add("DISTINCT");
+            int whereCount = 0;
+            if (subWhereConditions != null) {
+                for (SubqueryWhereCondition c : subWhereConditions) {
+                    if (c.column != null && !c.column.isEmpty() && (c.operator.contains("NULL") || !c.value.isEmpty())) {
+                        whereCount++;
+                    }
+                }
+            }
+            if (whereCount > 0) activeList.add(whereCount + " WHERE");
+            if (subGroupByCol != null && !subGroupByCol.isEmpty() && !subGroupByCol.equals("(None)")) activeList.add("GROUP BY");
+            if (subOrderByCol != null && !subOrderByCol.isEmpty() && !subOrderByCol.equals("(None)")) activeList.add("ORDER BY");
+            if (subLimit != null && !subLimit.trim().isEmpty()) activeList.add("LIMIT " + subLimit.trim());
+
+            if (!activeList.isEmpty()) {
+                inSubClausesBtn.setText("⚙ Clauses (" + String.join(", ", activeList) + ")");
+                inSubClausesBtn.setForeground(new Color(0, 140, 0));
+            } else {
+                inSubClausesBtn.setText("⚙ Clauses (WHERE, ORDER...)");
+                inSubClausesBtn.setForeground(null);
+            }
+
+            String sql = buildSubquerySql(dbManager);
+            if (!sql.isEmpty()) {
+                inSubClausesBtn.setToolTipText("<html><b>Subquery SQL:</b><br><code>" + sql + "</code><br><i>Click to edit WHERE, ORDER BY, LIMIT clauses</i></html>");
+            } else {
+                inSubClausesBtn.setToolTipText("Click to configure WHERE, ORDER BY, LIMIT, and other clauses for this subquery");
+            }
+        }
+
+        private String buildSubqueryWhereString(DatabaseManager dbManager) {
+            if (subWhereConditions == null || subWhereConditions.isEmpty()) return "";
+            StringBuilder sb = new StringBuilder();
+            int count = 0;
+            for (SubqueryWhereCondition cond : subWhereConditions) {
+                if (cond.column == null || cond.column.trim().isEmpty() || cond.operator == null) continue;
+                boolean isNullOp = cond.operator.contains("NULL");
+                if (!isNullOp && (cond.value == null || cond.value.trim().isEmpty())) continue;
+
+                if (count > 0) {
+                    sb.append(" ").append(cond.logic != null && !cond.logic.isEmpty() ? cond.logic : "AND").append(" ");
+                }
+                sb.append(dbManager.quoteColumnName(cond.column)).append(" ").append(cond.operator).append(" ");
+                if (!isNullOp) {
+                    String v = cond.value.trim();
+                    if (cond.operator.equalsIgnoreCase("IN") || cond.operator.equalsIgnoreCase("NOT IN")) {
+                        if (!v.startsWith("(") && !v.endsWith(")")) {
+                            String[] parts = v.split(",");
+                            List<String> formatted = new ArrayList<>();
+                            for (String p : parts) {
+                                formatted.add(formatSingleValue(p.trim()));
+                            }
+                            sb.append("(").append(String.join(", ", formatted)).append(")");
+                        } else {
+                            sb.append(v);
+                        }
+                    } else if (cond.operator.equalsIgnoreCase("LIKE") || cond.operator.equalsIgnoreCase("ILIKE")) {
+                        if (!v.contains("%")) v = "%" + v + "%";
+                        sb.append("'").append(v.replace("'", "''")).append("'");
+                    } else if (cond.operator.equalsIgnoreCase("BETWEEN")) {
+                        sb.append(v);
+                    } else {
+                        sb.append(formatSingleValue(v));
+                    }
+                }
+                count++;
+            }
+            return sb.toString();
+        }
+
+        public String buildSubquerySql(DatabaseManager dbManager) {
+            if (useCustomSubquery && customSubqueryText != null && !customSubqueryText.trim().isEmpty()) {
+                String trimmed = customSubqueryText.trim();
+                while (trimmed.startsWith("(") && trimmed.endsWith(")")) {
+                    trimmed = trimmed.substring(1, trimmed.length() - 1).trim();
+                }
+                return trimmed;
+            }
+
+            String subT = (String) inSubTableDropdown.getSelectedItem();
+            String subC = (String) inSubColDropdown.getSelectedItem();
+            if (subT == null || subC == null || subT.trim().isEmpty() || subC.trim().isEmpty()) return "";
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("SELECT ");
+            if (subDistinct) {
+                sb.append("DISTINCT ");
+            }
+            sb.append(dbManager.quoteColumnName(subC)).append(" FROM ").append(dbManager.quoteTableName(subT));
+
+            String whereStr = buildSubqueryWhereString(dbManager);
+            if (!whereStr.isEmpty()) {
+                sb.append(" WHERE ").append(whereStr);
+            }
+
+            if (subGroupByCol != null && !subGroupByCol.trim().isEmpty() && !subGroupByCol.equals("(None)")) {
+                sb.append(" GROUP BY ").append(dbManager.quoteColumnName(subGroupByCol));
+                if (subHaving != null && !subHaving.trim().isEmpty()) {
+                    sb.append(" HAVING ").append(subHaving.trim());
+                }
+            }
+
+            if (subOrderByCol != null && !subOrderByCol.trim().isEmpty() && !subOrderByCol.equals("(None)")) {
+                sb.append(" ORDER BY ").append(dbManager.quoteColumnName(subOrderByCol)).append(" ").append(subOrderDir != null ? subOrderDir : "ASC");
+            }
+
+            if (subLimit != null && !subLimit.trim().isEmpty()) {
+                sb.append(" LIMIT ").append(subLimit.trim());
+                if (subOffset != null && !subOffset.trim().isEmpty()) {
+                    sb.append(" OFFSET ").append(subOffset.trim());
+                }
+            }
+
+            return sb.toString();
+        }
+
+        class SubqueryConditionRow extends JPanel {
+            JComboBox<String> logicCombo = new JComboBox<>(new String[]{"AND", "OR"});
+            SearchableComboBox colCombo = new SearchableComboBox();
+            JComboBox<String> opCombo = new JComboBox<>(new String[]{"=", "!=", ">", "<", ">=", "<=", "LIKE", "ILIKE", "IN", "NOT IN", "BETWEEN", "IS NULL", "IS NOT NULL"});
+            JTextField valField = new JTextField(12);
+            JButton delBtn = new JButton("X");
+
+            public SubqueryConditionRow(boolean isFirst, List<String> cols, SubqueryWhereCondition initData, Runnable onUpdate, Runnable onRemove) {
+                setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+                logicCombo.setPreferredSize(new Dimension(65, 26));
+                colCombo.setPreferredSize(new Dimension(140, 26));
+                opCombo.setPreferredSize(new Dimension(95, 26));
+                valField.setPreferredSize(new Dimension(140, 26));
+                delBtn.setPreferredSize(new Dimension(38, 24));
+                delBtn.setMargin(new Insets(1, 4, 1, 4));
+
+                colCombo.setAllItems(cols);
+
+                if (!isFirst) {
+                    add(logicCombo);
+                } else {
+                    JPanel spacer = new JPanel();
+                    spacer.setPreferredSize(new Dimension(65, 26));
+                    spacer.setOpaque(false);
+                    add(spacer);
+                }
+                add(colCombo);
+                add(opCombo);
+                add(valField);
+                add(delBtn);
+
+                if (initData != null) {
+                    if (initData.logic != null) logicCombo.setSelectedItem(initData.logic);
+                    if (initData.column != null && cols.contains(initData.column)) colCombo.setSelectedItem(initData.column);
+                    if (initData.operator != null) opCombo.setSelectedItem(initData.operator);
+                    if (initData.value != null) valField.setText(initData.value);
+                } else if (!cols.isEmpty()) {
+                    colCombo.setSelectedIndex(0);
+                }
+
+                opCombo.addActionListener(e -> {
+                    String op = (String) opCombo.getSelectedItem();
+                    boolean isNull = op != null && op.contains("NULL");
+                    valField.setEnabled(!isNull);
+                    if (onUpdate != null) onUpdate.run();
+                });
+
+                colCombo.addActionListener(e -> { if (onUpdate != null) onUpdate.run(); });
+                logicCombo.addActionListener(e -> { if (onUpdate != null) onUpdate.run(); });
+                valField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+                    public void insertUpdate(javax.swing.event.DocumentEvent e) { if (onUpdate != null) onUpdate.run(); }
+                    public void removeUpdate(javax.swing.event.DocumentEvent e) { if (onUpdate != null) onUpdate.run(); }
+                    public void changedUpdate(javax.swing.event.DocumentEvent e) { if (onUpdate != null) onUpdate.run(); }
+                });
+
+                delBtn.addActionListener(e -> {
+                    if (onRemove != null) onRemove.run();
+                });
+            }
+
+            public void updateCols(List<String> newCols) {
+                Object cur = colCombo.getSelectedItem();
+                colCombo.setAllItems(newCols);
+                if (cur != null && newCols.contains(cur)) {
+                    colCombo.setSelectedItem(cur);
+                } else if (!newCols.isEmpty()) {
+                    colCombo.setSelectedIndex(0);
+                }
+            }
+
+            public void setFirst(boolean isFirst) {
+                removeAll();
+                if (!isFirst) {
+                    add(logicCombo);
+                } else {
+                    JPanel spacer = new JPanel();
+                    spacer.setPreferredSize(new Dimension(65, 26));
+                    spacer.setOpaque(false);
+                    add(spacer);
+                }
+                add(colCombo);
+                add(opCombo);
+                add(valField);
+                add(delBtn);
+                revalidate();
+                repaint();
+            }
+        }
+
+        private void openSubqueryClausesDialog() {
+            JDialog dlg = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Subquery Clauses Builder (IN Subquery)", true);
+            dlg.setLayout(new BorderLayout(8, 8));
+
+            JPanel contentP = new JPanel();
+            contentP.setLayout(new BoxLayout(contentP, BoxLayout.Y_AXIS));
+            contentP.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+            // Section 1: Target SELECT ... FROM ...
+            JPanel targetCard = new JPanel(new GridBagLayout());
+            targetCard.setBorder(BorderFactory.createTitledBorder("1. Subquery Target (SELECT ... FROM ...)"));
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.insets = new Insets(4, 4, 4, 4);
+            gbc.fill = GridBagConstraints.HORIZONTAL;
+
+            gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.0;
+            targetCard.add(new JLabel("FROM Table:"), gbc);
+
+            gbc.gridx = 1; gbc.gridy = 0; gbc.weightx = 1.0;
+            SearchableComboBox dlgTableCombo = new SearchableComboBox();
+            List<String> allTbls = new ArrayList<>();
+            for (int i = 0; i < inSubTableDropdown.getItemCount(); i++) {
+                allTbls.add(inSubTableDropdown.getItemAt(i));
+            }
+            if (allTbls.isEmpty() && loadedTables != null) allTbls.addAll(loadedTables);
+            dlgTableCombo.setAllItems(allTbls);
+            Object curTbl = inSubTableDropdown.getSelectedItem();
+            if (curTbl != null && allTbls.contains(curTbl)) {
+                dlgTableCombo.setSelectedItem(curTbl);
+            } else if (!allTbls.isEmpty()) {
+                dlgTableCombo.setSelectedIndex(0);
+            }
+            targetCard.add(dlgTableCombo, gbc);
+
+            gbc.gridx = 2; gbc.gridy = 0; gbc.weightx = 0.0;
+            JButton refreshTblsBtn = new JButton("🔄 Refresh Tables");
+            refreshTblsBtn.setToolTipText("Fetch fresh tables list directly from connected database");
+            targetCard.add(refreshTblsBtn, gbc);
+
+            gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.0;
+            targetCard.add(new JLabel("SELECT Column:"), gbc);
+
+            gbc.gridx = 1; gbc.gridy = 1; gbc.weightx = 1.0;
+            SearchableComboBox dlgColCombo = new SearchableComboBox();
+            targetCard.add(dlgColCombo, gbc);
+
+            gbc.gridx = 2; gbc.gridy = 1; gbc.weightx = 0.0;
+            JCheckBox dlgDistinctCb = new JCheckBox("DISTINCT");
+            dlgDistinctCb.setSelected(subDistinct);
+            targetCard.add(dlgDistinctCb, gbc);
+
+            contentP.add(targetCard);
+            contentP.add(Box.createVerticalStrut(6));
+
+            // Section 2: WHERE filters
+            JPanel whereCard = new JPanel(new BorderLayout(5, 5));
+            whereCard.setBorder(BorderFactory.createTitledBorder("2. WHERE Clause (Filters for Subquery)"));
+
+            JPanel whereListPanel = new JPanel();
+            whereListPanel.setLayout(new BoxLayout(whereListPanel, BoxLayout.Y_AXIS));
+
+            JScrollPane whereScroll = new JScrollPane(whereListPanel);
+            whereScroll.setPreferredSize(new Dimension(680, 130));
+            whereScroll.getVerticalScrollBar().setUnitIncrement(16);
+
+            JPanel whereBtnP = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 2));
+            JButton addCondBtn = new JButton("➕ Add WHERE Condition");
+            whereBtnP.add(addCondBtn);
+
+            whereCard.add(whereScroll, BorderLayout.CENTER);
+            whereCard.add(whereBtnP, BorderLayout.SOUTH);
+
+            contentP.add(whereCard);
+            contentP.add(Box.createVerticalStrut(6));
+
+            // Section 3: GROUP BY & HAVING, ORDER BY & LIMIT
+            JPanel clausesCard = new JPanel(new GridLayout(2, 1, 4, 4));
+            clausesCard.setBorder(BorderFactory.createTitledBorder("3. GROUP BY, HAVING, ORDER BY & LIMIT"));
+
+            JPanel rowA = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
+            rowA.add(new JLabel("GROUP BY:"));
+            SearchableComboBox dlgGroupByCombo = new SearchableComboBox();
+            dlgGroupByCombo.setPreferredSize(new Dimension(140, 26));
+            rowA.add(dlgGroupByCombo);
+
+            rowA.add(Box.createHorizontalStrut(10));
+            rowA.add(new JLabel("HAVING:"));
+            JTextField dlgHavingField = new JTextField(subHaving != null ? subHaving : "", 16);
+            dlgHavingField.putClientProperty("JTextField.placeholderText", "e.g. COUNT(*) > 1");
+            rowA.add(dlgHavingField);
+            clausesCard.add(rowA);
+
+            JPanel rowB = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
+            rowB.add(new JLabel("ORDER BY:"));
+            SearchableComboBox dlgOrderByCombo = new SearchableComboBox();
+            dlgOrderByCombo.setPreferredSize(new Dimension(140, 26));
+            rowB.add(dlgOrderByCombo);
+
+            JComboBox<String> dlgOrderDirCombo = new JComboBox<>(new String[]{"ASC", "DESC"});
+            dlgOrderDirCombo.setSelectedItem(subOrderDir != null ? subOrderDir : "ASC");
+            rowB.add(dlgOrderDirCombo);
+
+            rowB.add(Box.createHorizontalStrut(10));
+            rowB.add(new JLabel("LIMIT:"));
+            JTextField dlgLimitField = new JTextField(subLimit != null ? subLimit : "", 5);
+            rowB.add(dlgLimitField);
+
+            rowB.add(new JLabel("OFFSET:"));
+            JTextField dlgOffsetField = new JTextField(subOffset != null ? subOffset : "", 5);
+            rowB.add(dlgOffsetField);
+            clausesCard.add(rowB);
+
+            contentP.add(clausesCard);
+            contentP.add(Box.createVerticalStrut(6));
+
+            // Section 4: Live SQL Preview / Custom Override
+            JPanel previewCard = new JPanel(new BorderLayout(4, 4));
+            previewCard.setBorder(BorderFactory.createTitledBorder("4. Live SQL Preview / Direct Override"));
+
+            JPanel overrideTop = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
+            JCheckBox customOverrideCb = new JCheckBox("Direct SQL Override (edit subquery manually)");
+            customOverrideCb.setSelected(useCustomSubquery);
+            JButton genFromGuiBtn = new JButton("Copy from GUI Clauses");
+            genFromGuiBtn.setEnabled(useCustomSubquery);
+            overrideTop.add(customOverrideCb);
+            overrideTop.add(genFromGuiBtn);
+
+            JTextArea sqlArea = new JTextArea(3, 50);
+            sqlArea.setLineWrap(true);
+            sqlArea.setWrapStyleWord(true);
+            sqlArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+            sqlArea.setEditable(useCustomSubquery);
+            if (useCustomSubquery && customSubqueryText != null && !customSubqueryText.trim().isEmpty()) {
+                sqlArea.setText(customSubqueryText);
+            }
+            JScrollPane sqlScroll = new JScrollPane(sqlArea);
+
+            previewCard.add(overrideTop, BorderLayout.NORTH);
+            previewCard.add(sqlScroll, BorderLayout.CENTER);
+
+            contentP.add(previewCard);
+
+            List<SubqueryConditionRow> condRows = new ArrayList<>();
+
+            Runnable updatePreview = () -> {
+                if (customOverrideCb.isSelected()) {
+                    return;
+                }
+                String t = (String) dlgTableCombo.getSelectedItem();
+                String c = (String) dlgColCombo.getSelectedItem();
+                if (t == null || c == null || t.trim().isEmpty() || c.trim().isEmpty()) {
+                    sqlArea.setText("");
+                    return;
+                }
+                StringBuilder sb = new StringBuilder();
+                sb.append("SELECT ");
+                if (dlgDistinctCb.isSelected()) sb.append("DISTINCT ");
+                sb.append(dbManager.quoteColumnName(c)).append(" FROM ").append(dbManager.quoteTableName(t));
+
+                StringBuilder wsb = new StringBuilder();
+                int count = 0;
+                for (SubqueryConditionRow r : condRows) {
+                    String col = (String) r.colCombo.getSelectedItem();
+                    String op = (String) r.opCombo.getSelectedItem();
+                    String val = r.valField.getText().trim();
+                    if (col == null || col.trim().isEmpty() || op == null) continue;
+                    boolean isNull = op.contains("NULL");
+                    if (!isNull && val.isEmpty()) continue;
+
+                    if (count > 0) {
+                        wsb.append(" ").append(r.logicCombo.getSelectedItem()).append(" ");
+                    }
+                    wsb.append(dbManager.quoteColumnName(col)).append(" ").append(op).append(" ");
+                    if (!isNull) {
+                        if (op.equalsIgnoreCase("IN") || op.equalsIgnoreCase("NOT IN")) {
+                            if (!val.startsWith("(") && !val.endsWith(")")) {
+                                String[] parts = val.split(",");
+                                List<String> formatted = new ArrayList<>();
+                                for (String p : parts) formatted.add(formatSingleValue(p.trim()));
+                                wsb.append("(").append(String.join(", ", formatted)).append(")");
+                            } else {
+                                wsb.append(val);
+                            }
+                        } else if (op.equalsIgnoreCase("LIKE") || op.equalsIgnoreCase("ILIKE")) {
+                            if (!val.contains("%")) val = "%" + val + "%";
+                            wsb.append("'").append(val.replace("'", "''")).append("'");
+                        } else if (op.equalsIgnoreCase("BETWEEN")) {
+                            wsb.append(val);
+                        } else {
+                            wsb.append(formatSingleValue(val));
+                        }
+                    }
+                    count++;
+                }
+
+                if (wsb.length() > 0) {
+                    sb.append(" WHERE ").append(wsb);
+                }
+
+                String gb = (String) dlgGroupByCombo.getSelectedItem();
+                if (gb != null && !gb.trim().isEmpty() && !gb.equals("(None)")) {
+                    sb.append(" GROUP BY ").append(dbManager.quoteColumnName(gb));
+                    String hav = dlgHavingField.getText().trim();
+                    if (!hav.isEmpty()) sb.append(" HAVING ").append(hav);
+                }
+
+                String ob = (String) dlgOrderByCombo.getSelectedItem();
+                if (ob != null && !ob.trim().isEmpty() && !ob.equals("(None)")) {
+                    sb.append(" ORDER BY ").append(dbManager.quoteColumnName(ob)).append(" ").append(dlgOrderDirCombo.getSelectedItem());
+                }
+
+                String lim = dlgLimitField.getText().trim();
+                if (!lim.isEmpty()) {
+                    sb.append(" LIMIT ").append(lim);
+                    String off = dlgOffsetField.getText().trim();
+                    if (!off.isEmpty()) sb.append(" OFFSET ").append(off);
+                }
+
+                sqlArea.setText(sb.toString());
+            };
+
+            java.util.function.Consumer<SubqueryConditionRow> removeRow = row -> {
+                condRows.remove(row);
+                whereListPanel.remove(row);
+                if (!condRows.isEmpty()) {
+                    condRows.get(0).setFirst(true);
+                }
+                whereListPanel.revalidate();
+                whereListPanel.repaint();
+                updatePreview.run();
+            };
+
+            addCondBtn.addActionListener(e -> {
+                List<String> cols = new ArrayList<>();
+                for (int i = 0; i < dlgColCombo.getItemCount(); i++) {
+                    cols.add(dlgColCombo.getItemAt(i));
+                }
+                SubqueryConditionRow r = new SubqueryConditionRow(condRows.isEmpty(), cols, null, updatePreview, null);
+                r.delBtn.addActionListener(ev -> removeRow.accept(r));
+                condRows.add(r);
+                whereListPanel.add(r);
+                whereListPanel.revalidate();
+                whereListPanel.repaint();
+                updatePreview.run();
+            });
+
+            // Populate initial columns and conditions
+            List<String> initCols = new ArrayList<>();
+            for (int i = 0; i < inSubColDropdown.getItemCount(); i++) {
+                initCols.add(inSubColDropdown.getItemAt(i));
+            }
+            dlgColCombo.setAllItems(initCols);
+            Object curCol = inSubColDropdown.getSelectedItem();
+            if (curCol != null && initCols.contains(curCol)) {
+                dlgColCombo.setSelectedItem(curCol);
+            } else if (!initCols.isEmpty()) {
+                dlgColCombo.setSelectedIndex(0);
+            }
+
+            List<String> initColsWithNone = new ArrayList<>();
+            initColsWithNone.add("(None)");
+            initColsWithNone.addAll(initCols);
+
+            dlgGroupByCombo.setAllItems(initColsWithNone);
+            if (subGroupByCol != null && initColsWithNone.contains(subGroupByCol)) dlgGroupByCombo.setSelectedItem(subGroupByCol);
+            else dlgGroupByCombo.setSelectedItem("(None)");
+
+            dlgOrderByCombo.setAllItems(initColsWithNone);
+            if (subOrderByCol != null && initColsWithNone.contains(subOrderByCol)) dlgOrderByCombo.setSelectedItem(subOrderByCol);
+            else dlgOrderByCombo.setSelectedItem("(None)");
+
+            if (subWhereConditions != null && !subWhereConditions.isEmpty()) {
+                for (int i = 0; i < subWhereConditions.size(); i++) {
+                    SubqueryWhereCondition cond = subWhereConditions.get(i);
+                    SubqueryConditionRow r = new SubqueryConditionRow(i == 0, initCols, cond, updatePreview, null);
+                    r.delBtn.addActionListener(ev -> removeRow.accept(r));
+                    condRows.add(r);
+                    whereListPanel.add(r);
+                }
+            }
+
+            dlgTableCombo.addActionListener(e -> {
+                String selectedTbl = (String) dlgTableCombo.getSelectedItem();
+                if (selectedTbl == null || selectedTbl.trim().isEmpty()) return;
+                new Thread(() -> {
+                    List<String> cols = dbManager.getColumnNames(selectedTbl);
+                    SwingUtilities.invokeLater(() -> {
+                        Object curC = dlgColCombo.getSelectedItem();
+                        dlgColCombo.setAllItems(cols);
+                        if (curC != null && cols.contains(curC)) {
+                            dlgColCombo.setSelectedItem(curC);
+                        } else if (!cols.isEmpty()) {
+                            dlgColCombo.setSelectedIndex(0);
+                        }
+
+                        List<String> withNone = new ArrayList<>();
+                        withNone.add("(None)");
+                        withNone.addAll(cols);
+
+                        Object curG = dlgGroupByCombo.getSelectedItem();
+                        dlgGroupByCombo.setAllItems(withNone);
+                        if (curG != null && withNone.contains(curG)) dlgGroupByCombo.setSelectedItem(curG);
+                        else dlgGroupByCombo.setSelectedItem("(None)");
+
+                        Object curO = dlgOrderByCombo.getSelectedItem();
+                        dlgOrderByCombo.setAllItems(withNone);
+                        if (curO != null && withNone.contains(curO)) dlgOrderByCombo.setSelectedItem(curO);
+                        else dlgOrderByCombo.setSelectedItem("(None)");
+
+                        for (SubqueryConditionRow r : condRows) {
+                            r.updateCols(cols);
+                        }
+                        updatePreview.run();
+                    });
+                }).start();
+            });
+
+            refreshTblsBtn.addActionListener(e -> {
+                refreshTblsBtn.setEnabled(false);
+                refreshTblsBtn.setText("Fetching...");
+                new Thread(() -> {
+                    List<String> freshTbls = dbManager.getTableNames();
+                    SwingUtilities.invokeLater(() -> {
+                        refreshTblsBtn.setEnabled(true);
+                        refreshTblsBtn.setText("🔄 Refresh Tables");
+                        if (freshTbls != null && !freshTbls.isEmpty()) {
+                            Object sel = dlgTableCombo.getSelectedItem();
+                            dlgTableCombo.setAllItems(freshTbls);
+                            inSubTableDropdown.setAllItems(freshTbls);
+                            if (sel != null && freshTbls.contains(sel)) {
+                                dlgTableCombo.setSelectedItem(sel);
+                            } else {
+                                dlgTableCombo.setSelectedIndex(0);
+                            }
+                        }
+                    });
+                }).start();
+            });
+
+            dlgColCombo.addActionListener(e -> updatePreview.run());
+            dlgDistinctCb.addActionListener(e -> updatePreview.run());
+            dlgGroupByCombo.addActionListener(e -> updatePreview.run());
+            dlgOrderByCombo.addActionListener(e -> updatePreview.run());
+            dlgOrderDirCombo.addActionListener(e -> updatePreview.run());
+
+            javax.swing.event.DocumentListener docL = new javax.swing.event.DocumentListener() {
+                public void insertUpdate(javax.swing.event.DocumentEvent e) { updatePreview.run(); }
+                public void removeUpdate(javax.swing.event.DocumentEvent e) { updatePreview.run(); }
+                public void changedUpdate(javax.swing.event.DocumentEvent e) { updatePreview.run(); }
+            };
+            dlgHavingField.getDocument().addDocumentListener(docL);
+            dlgLimitField.getDocument().addDocumentListener(docL);
+            dlgOffsetField.getDocument().addDocumentListener(docL);
+
+            customOverrideCb.addActionListener(e -> {
+                boolean active = customOverrideCb.isSelected();
+                genFromGuiBtn.setEnabled(active);
+                sqlArea.setEditable(active);
+                if (!active) {
+                    updatePreview.run();
+                }
+            });
+
+            genFromGuiBtn.addActionListener(e -> {
+                customOverrideCb.setSelected(false);
+                updatePreview.run();
+                customOverrideCb.setSelected(true);
+                genFromGuiBtn.setEnabled(true);
+                sqlArea.setEditable(true);
+            });
+
+            JPanel bottomBtnP = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
+
+            JButton clearBtn = new JButton("Clear All Clauses");
+            clearBtn.addActionListener(e -> {
+                dlgDistinctCb.setSelected(false);
+                condRows.clear();
+                whereListPanel.removeAll();
+                whereListPanel.revalidate();
+                whereListPanel.repaint();
+                dlgGroupByCombo.setSelectedItem("(None)");
+                dlgHavingField.setText("");
+                dlgOrderByCombo.setSelectedItem("(None)");
+                dlgOrderDirCombo.setSelectedItem("ASC");
+                dlgLimitField.setText("");
+                dlgOffsetField.setText("");
+                customOverrideCb.setSelected(false);
+                genFromGuiBtn.setEnabled(false);
+                sqlArea.setEditable(false);
+                updatePreview.run();
+            });
+
+            JButton applyBtn = new JButton("Apply");
+            applyBtn.setPreferredSize(new Dimension(85, 28));
+            applyBtn.addActionListener(e -> {
+                Object selT = dlgTableCombo.getSelectedItem();
+                if (selT != null) inSubTableDropdown.setSelectedItem(selT);
+                Object selC = dlgColCombo.getSelectedItem();
+                if (selC != null) inSubColDropdown.setSelectedItem(selC);
+
+                subDistinct = dlgDistinctCb.isSelected();
+
+                subWhereConditions.clear();
+                for (SubqueryConditionRow r : condRows) {
+                    String col = (String) r.colCombo.getSelectedItem();
+                    String op = (String) r.opCombo.getSelectedItem();
+                    String v = r.valField.getText().trim();
+                    String log = (String) r.logicCombo.getSelectedItem();
+                    if (col != null && !col.trim().isEmpty() && op != null) {
+                        subWhereConditions.add(new SubqueryWhereCondition(log, col, op, v));
+                    }
+                }
+
+                subGroupByCol = (String) dlgGroupByCombo.getSelectedItem();
+                subHaving = dlgHavingField.getText().trim();
+                subOrderByCol = (String) dlgOrderByCombo.getSelectedItem();
+                subOrderDir = (String) dlgOrderDirCombo.getSelectedItem();
+                subLimit = dlgLimitField.getText().trim();
+                subOffset = dlgOffsetField.getText().trim();
+                useCustomSubquery = customOverrideCb.isSelected();
+                customSubqueryText = sqlArea.getText().trim();
+
+                updateSubClausesBtnDisplay();
+                dlg.dispose();
+            });
+
+            JButton cancelBtn = new JButton("Cancel");
+            cancelBtn.addActionListener(e -> dlg.dispose());
+
+            bottomBtnP.add(clearBtn);
+            bottomBtnP.add(applyBtn);
+            bottomBtnP.add(cancelBtn);
+
+            dlg.add(contentP, BorderLayout.CENTER);
+            dlg.add(bottomBtnP, BorderLayout.SOUTH);
+
+            updatePreview.run();
+
+            dlg.pack();
+            dlg.setMinimumSize(new Dimension(720, 580));
+            dlg.setSize(750, 640);
+            dlg.setLocationRelativeTo(this);
+            dlg.setVisible(true);
+        }
+
+        private void loadDistinctValues() {
+            String t = (String) tableDropdown.getSelectedItem();
+            String c = (String) columnDropdown.getSelectedItem();
+            if (t == null || c == null || dbManager.connection == null) return;
+
+            new Thread(() -> {
+                List<String> vals = new ArrayList<>();
+                try {
+                    String q = "SELECT DISTINCT " + dbManager.quoteColumnName(c) + " FROM " + dbManager.quoteTableName(t) + " WHERE " + dbManager.quoteColumnName(c) + " IS NOT NULL ORDER BY 1 LIMIT 300";
+                    try (java.sql.Statement s = dbManager.connection.createStatement();
+                         java.sql.ResultSet rs = s.executeQuery(q)) {
+                        while (rs.next()) {
+                            String v = rs.getString(1);
+                            if (v != null) vals.add(v);
+                        }
+                    }
+                } catch (Exception ex) {
+                    try {
+                        String q = "SELECT DISTINCT " + dbManager.quoteColumnName(c) + " FROM " + dbManager.quoteTableName(t) + " WHERE " + dbManager.quoteColumnName(c) + " IS NOT NULL LIMIT 300";
+                        try (java.sql.Statement s = dbManager.connection.createStatement();
+                             java.sql.ResultSet rs = s.executeQuery(q)) {
+                            while (rs.next()) {
+                                String v = rs.getString(1);
+                                if (v != null) vals.add(v);
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+                SwingUtilities.invokeLater(() -> {
+                    cachedDistinctValues = vals;
+                    inValuesDropdown.setAllItems(vals);
+                });
+            }).start();
+        }
+
+        private void openMultiSelectDialog() {
+            if (cachedDistinctValues.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "No distinct values loaded yet for column " + columnDropdown.getSelectedItem(), "Notice", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+
+            JDialog dlg = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Select Values for IN (" + columnDropdown.getSelectedItem() + ")", true);
+            dlg.setLayout(new BorderLayout(8, 8));
+
+            JPanel topP = new JPanel(new BorderLayout(5, 5));
+            topP.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
+            JTextField searchField = new JTextField();
+            searchField.putClientProperty("JTextField.placeholderText", "Search values...");
+            topP.add(new JLabel("Search: "), BorderLayout.WEST);
+            topP.add(searchField, BorderLayout.CENTER);
+
+            JPanel listPanel = new JPanel();
+            listPanel.setLayout(new BoxLayout(listPanel, BoxLayout.Y_AXIS));
+
+            Set<String> currentlySelected = new HashSet<>();
+            String currentText = valueField.getText().trim();
+            if (!currentText.isEmpty()) {
+                String[] parts = currentText.split(",");
+                for (String p : parts) {
+                    currentlySelected.add(p.trim().replaceAll("^['\"]|['\"]$", ""));
+                }
+            }
+
+            List<JCheckBox> checkBoxes = new ArrayList<>();
+            for (String val : cachedDistinctValues) {
+                JCheckBox cb = new JCheckBox(val);
+                if (currentlySelected.contains(val)) cb.setSelected(true);
+                checkBoxes.add(cb);
+                listPanel.add(cb);
+            }
+
+            searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+                private void filter() {
+                    String q = searchField.getText().toLowerCase().trim();
+                    listPanel.removeAll();
+                    for (JCheckBox cb : checkBoxes) {
+                        if (q.isEmpty() || cb.getText().toLowerCase().contains(q)) {
+                            listPanel.add(cb);
+                        }
+                    }
+                    listPanel.revalidate();
+                    listPanel.repaint();
+                }
+                public void insertUpdate(javax.swing.event.DocumentEvent e) { filter(); }
+                public void removeUpdate(javax.swing.event.DocumentEvent e) { filter(); }
+                public void changedUpdate(javax.swing.event.DocumentEvent e) { filter(); }
+            });
+
+            JScrollPane scroll = new JScrollPane(listPanel);
+            scroll.setBorder(BorderFactory.createTitledBorder("Distinct Values (" + cachedDistinctValues.size() + ")"));
+
+            JPanel selectBtns = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            JButton selectAll = new JButton("Select All");
+            JButton unselectAll = new JButton("Clear All");
+            selectAll.addActionListener(e -> { for (JCheckBox cb : checkBoxes) cb.setSelected(true); });
+            unselectAll.addActionListener(e -> { for (JCheckBox cb : checkBoxes) cb.setSelected(false); });
+            selectBtns.add(selectAll);
+            selectBtns.add(unselectAll);
+
+            JPanel centerContainer = new JPanel(new BorderLayout());
+            centerContainer.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 8));
+            centerContainer.add(selectBtns, BorderLayout.NORTH);
+            centerContainer.add(scroll, BorderLayout.CENTER);
+
+            JPanel bottomP = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            JButton okBtn = new JButton("OK");
+            JButton cancelBtn = new JButton("Cancel");
+            okBtn.addActionListener(e -> {
+                List<String> chosen = new ArrayList<>();
+                for (JCheckBox cb : checkBoxes) {
+                    if (cb.isSelected()) {
+                        chosen.add(formatSingleValue(cb.getText()));
+                    }
+                }
+                valueField.setText(String.join(", ", chosen));
+                dlg.dispose();
+            });
+            cancelBtn.addActionListener(e -> dlg.dispose());
+            bottomP.add(okBtn);
+            bottomP.add(cancelBtn);
+
+            dlg.add(topP, BorderLayout.NORTH);
+            dlg.add(centerContainer, BorderLayout.CENTER);
+            dlg.add(bottomP, BorderLayout.SOUTH);
+
+            dlg.setSize(380, 480);
+            dlg.setLocationRelativeTo(this);
+            dlg.setVisible(true);
+        }
+
+        private String formatSingleValue(String val) {
+            if (val == null) return "NULL";
+            val = val.trim();
+            if ((val.startsWith("'") && val.endsWith("'")) || (val.startsWith("\"") && val.endsWith("\""))) {
+                return val;
+            }
+            try {
+                Double.parseDouble(val);
+                return val;
+            } catch (NumberFormatException e) {
+                return "'" + val.replace("'", "''") + "'";
+            }
+        }
+
+        public String buildConditionClause(DatabaseManager dbManager) {
+            String tbl = (String) tableDropdown.getSelectedItem();
+            String col = (String) columnDropdown.getSelectedItem();
+            String op = (String) operatorDropdown.getSelectedItem();
+            if (tbl == null || col == null || op == null) return "";
+
+            StringBuilder sb = new StringBuilder();
+            sb.append(dbManager.quoteColumnName(tbl + "." + col)).append(" ").append(op).append(" ");
+
+            if (op.contains("NULL")) {
+                return sb.toString();
+            }
+
+            if (op.equalsIgnoreCase("IN") || op.equalsIgnoreCase("NOT IN")) {
+                String inType = (String) inTypeDropdown.getSelectedItem();
+                if ("Subquery (SELECT)".equals(inType)) {
+                    String subSql = buildSubquerySql(dbManager);
+                    if (!subSql.isEmpty()) {
+                        sb.append("(").append(subSql).append(") ");
+                        return sb.toString();
+                    }
+                    return "";
+                }
+                String val = valueField.getText().trim();
+                if (val.isEmpty()) {
+                    Object sel = inValuesDropdown.getSelectedItem();
+                    if (sel != null && !sel.toString().trim().isEmpty()) {
+                        val = formatSingleValue(sel.toString().trim());
+                    }
+                }
+                if (val.isEmpty()) return "";
+
+                if (!val.startsWith("(") && !val.endsWith(")")) {
+                    sb.append("(").append(val).append(") ");
+                } else {
+                    sb.append(val).append(" ");
+                }
+                return sb.toString();
+            }
+
+            if (op.equalsIgnoreCase("BETWEEN")) {
+                String val = valueField.getText().trim();
+                sb.append(val).append(" ");
+                return sb.toString();
+            }
+
+            String val = valueField.getText().trim();
+            if ((op.equalsIgnoreCase("LIKE") || op.equalsIgnoreCase("ILIKE")) && !val.contains("%")) {
+                val = "%" + val + "%";
+            }
+            sb.append("'").append(val.replace("'", "''")).append("' ");
+            return sb.toString();
         }
 
         public void updateTables(List<String> tables) {
             Object selected = tableDropdown.getSelectedItem();
             tableDropdown.setAllItems(tables);
             if (selected != null && tables.contains(selected)) tableDropdown.setSelectedItem(selected);
+            List<String> allTables = (loadedTables != null && !loadedTables.isEmpty()) ? loadedTables : tables;
+            inSubTableDropdown.setAllItems(allTables);
+            fetchTablesFromDb();
+        }
+
+        public VisualJoinState.WhereState captureWhereState() {
+            VisualJoinState.WhereState ws = new VisualJoinState.WhereState();
+            ws.logic = (String) logicDropdown.getSelectedItem();
+            ws.table = (String) tableDropdown.getSelectedItem();
+            ws.column = (String) columnDropdown.getSelectedItem();
+            ws.operator = (String) operatorDropdown.getSelectedItem();
+            ws.value = valueField.getText();
+
+            ws.inType = (String) inTypeDropdown.getSelectedItem();
+            ws.subTable = (String) inSubTableDropdown.getSelectedItem();
+            ws.subCol = (String) inSubColDropdown.getSelectedItem();
+            ws.subDistinct = subDistinct;
+            ws.subGroupByCol = subGroupByCol;
+            ws.subHaving = subHaving;
+            ws.subOrderByCol = subOrderByCol;
+            ws.subOrderDir = subOrderDir != null ? subOrderDir : "ASC";
+            ws.subLimit = subLimit;
+            ws.subOffset = subOffset;
+            ws.useCustomSubquery = useCustomSubquery;
+            ws.customSubqueryText = customSubqueryText;
+
+            if (subWhereConditions != null) {
+                for (SubqueryWhereCondition c : subWhereConditions) {
+                    VisualJoinState.SubqueryConditionState cs = new VisualJoinState.SubqueryConditionState();
+                    cs.logic = c.logic;
+                    cs.column = c.column;
+                    cs.operator = c.operator;
+                    cs.value = c.value;
+                    ws.subConditions.add(cs);
+                }
+            }
+            return ws;
+        }
+
+        public void restoreWhereState(VisualJoinState.WhereState ws) {
+            if (ws == null) return;
+            if (ws.logic != null) logicDropdown.setSelectedItem(ws.logic);
+            if (ws.table != null) tableDropdown.setSelectedItem(ws.table);
+            if (ws.column != null) columnDropdown.setSelectedItem(ws.column);
+            if (ws.operator != null) operatorDropdown.setSelectedItem(ws.operator);
+            if (ws.value != null) valueField.setText(ws.value);
+
+            if (ws.inType != null) inTypeDropdown.setSelectedItem(ws.inType);
+            if (ws.subTable != null) inSubTableDropdown.setSelectedItem(ws.subTable);
+            if (ws.subCol != null) inSubColDropdown.setSelectedItem(ws.subCol);
+            this.subDistinct = ws.subDistinct;
+            this.subGroupByCol = ws.subGroupByCol;
+            this.subHaving = ws.subHaving;
+            this.subOrderByCol = ws.subOrderByCol;
+            this.subOrderDir = ws.subOrderDir != null ? ws.subOrderDir : "ASC";
+            this.subLimit = ws.subLimit;
+            this.subOffset = ws.subOffset;
+            this.useCustomSubquery = ws.useCustomSubquery;
+            this.customSubqueryText = ws.customSubqueryText;
+
+            this.subWhereConditions.clear();
+            if (ws.subConditions != null) {
+                for (VisualJoinState.SubqueryConditionState cs : ws.subConditions) {
+                    this.subWhereConditions.add(new SubqueryWhereCondition(cs.logic, cs.column, cs.operator, cs.value));
+                }
+            }
+            updateSubClausesBtnDisplay();
         }
     }
 
@@ -2366,99 +3881,9 @@ class WherePanel extends JPanel {
         });
     }
 
-    static class SearchableComboBox extends JComboBox<String> {
-        private List<String> allItems = new ArrayList<>();
-        private boolean isAdjusting = false;
-        
+    static class SearchableComboBox extends com.dbtool.ui.components.SearchableComboBox<String> {
         public SearchableComboBox() {
             super();
-            setEditable(true);
-            JTextField editor = (JTextField) getEditor().getEditorComponent();
-            
-            editor.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-                public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
-                public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
-                public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
-                
-                private void update() {
-                    if (isAdjusting) return;
-                    SwingUtilities.invokeLater(() -> {
-                        isAdjusting = true;
-                        String text = editor.getText();
-                        int caret = editor.getCaretPosition();
-                        
-                        DefaultComboBoxModel<String> model = (DefaultComboBoxModel<String>) getModel();
-                        model.removeAllElements();
-                        for (String item : allItems) {
-                            if (item.toLowerCase().contains(text.toLowerCase())) {
-                                model.addElement(item);
-                            }
-                        }
-                        
-                        model.setSelectedItem(text);
-                        editor.setText(text);
-                        editor.setCaretPosition(Math.min(caret, text.length()));
-                        
-                        if (model.getSize() > 0 && (editor.hasFocus() || SearchableComboBox.this.hasFocus())) {
-                            if (!isPopupVisible()) {
-                                showPopup();
-                            }
-                        } else {
-                            if (isPopupVisible()) {
-                                hidePopup();
-                            }
-                        }
-                        isAdjusting = false;
-                    });
-                }
-            });
-
-            this.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
-                @Override
-                public void popupMenuWillBecomeVisible(javax.swing.event.PopupMenuEvent e) {
-                    if (isAdjusting) return;
-                    
-                    isAdjusting = true;
-                    String text = editor.getText();
-                    int caret = editor.getCaretPosition();
-                    
-                    if (allItems.contains(text) || text.isEmpty()) {
-                        if (getModel().getSize() != allItems.size()) {
-                            DefaultComboBoxModel<String> model = (DefaultComboBoxModel<String>) getModel();
-                            model.removeAllElements();
-                            for (String item : allItems) {
-                                model.addElement(item);
-                            }
-                            editor.setText(text);
-                            editor.setCaretPosition(Math.min(caret, text.length()));
-                        }
-                    }
-                    isAdjusting = false;
-                }
-                @Override public void popupMenuWillBecomeInvisible(javax.swing.event.PopupMenuEvent e) {}
-                @Override public void popupMenuCanceled(javax.swing.event.PopupMenuEvent e) {}
-            });
-        }
-        
-        public void setAllItems(List<String> items) {
-            isAdjusting = true;
-            this.allItems = new ArrayList<>(items);
-            DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
-            for (String item : allItems) {
-                model.addElement(item);
-            }
-            setModel(model);
-            setSelectedIndex(-1);
-            ((JTextField) getEditor().getEditorComponent()).setText("");
-            isAdjusting = false;
-        }
-
-        @Override
-        public void setSelectedItem(Object anObject) {
-            boolean wasAdjusting = isAdjusting;
-            isAdjusting = true;
-            super.setSelectedItem(anObject);
-            isAdjusting = wasAdjusting;
         }
     }
 }

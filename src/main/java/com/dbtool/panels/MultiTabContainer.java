@@ -82,4 +82,18 @@ public class MultiTabContainer<T extends JPanel> extends JPanel {
     public List<T> getTabs() {
         return tabs;
     }
+
+    public T getActiveTab() {
+        int idx = tabbedPane.getSelectedIndex();
+        if (idx >= 0 && idx < tabs.size()) {
+            return tabs.get(idx);
+        }
+        return tabs.isEmpty() ? null : tabs.get(0);
+    }
+
+    public void clearAllTabs() {
+        tabbedPane.removeAll();
+        tabs.clear();
+        tabCount = 1;
+    }
 }

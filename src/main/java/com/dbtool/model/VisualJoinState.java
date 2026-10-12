@@ -30,14 +30,39 @@ public class VisualJoinState {
         public List<JoinConditionState> conditions = new ArrayList<>();
     }
 
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     public static class WhereState {
         public String logic;
         public String table;
         public String column;
         public String operator;
         public String value;
+
+        // Subquery extensions
+        public String inType;
+        public String subTable;
+        public String subCol;
+        public boolean subDistinct;
+        public List<SubqueryConditionState> subConditions = new ArrayList<>();
+        public String subGroupByCol;
+        public String subHaving;
+        public String subOrderByCol;
+        public String subOrderDir = "ASC";
+        public String subLimit;
+        public String subOffset;
+        public boolean useCustomSubquery;
+        public String customSubqueryText;
     }
 
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    public static class SubqueryConditionState {
+        public String logic = "AND";
+        public String column;
+        public String operator = "=";
+        public String value;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     public static class OrderByState {
         public String table;
         public String column;

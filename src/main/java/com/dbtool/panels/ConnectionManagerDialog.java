@@ -173,15 +173,29 @@ public class ConnectionManagerDialog extends JDialog {
             String d = dbNameField.getText().trim();
             String u = userField.getText().trim();
             String pw = new String(passField.getPassword());
-            try {
-                // Test Postgres Connection
-                String url = "jdbc:postgresql://" + h + ":" + p + "/" + d;
-                java.sql.Connection conn = java.sql.DriverManager.getConnection(url, u, pw);
-                conn.close();
-                JOptionPane.showMessageDialog(this, "Connection Successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Connection Failed:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
+            
+            testBtn.setEnabled(false);
+            testBtn.setText("Testing...");
+            
+            new Thread(() -> {
+                try {
+                    // Test Postgres Connection
+                    String url = "jdbc:postgresql://" + h + ":" + p + "/" + d + "?connectTimeout=10";
+                    java.sql.Connection conn = java.sql.DriverManager.getConnection(url, u, pw);
+                    conn.close();
+                    SwingUtilities.invokeLater(() -> {
+                        testBtn.setEnabled(true);
+                        testBtn.setText("Test Connection");
+                        JOptionPane.showMessageDialog(this, "Connection Successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    });
+                } catch (Exception ex) {
+                    SwingUtilities.invokeLater(() -> {
+                        testBtn.setEnabled(true);
+                        testBtn.setText("Test Connection");
+                        JOptionPane.showMessageDialog(this, "Connection Failed:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    });
+                }
+            }).start();
         });
         
         connectBtn.addActionListener(e -> {

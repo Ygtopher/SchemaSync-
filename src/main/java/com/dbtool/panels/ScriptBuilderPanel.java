@@ -25,7 +25,7 @@ public class ScriptBuilderPanel extends JPanel {
         // Step types toolbar
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         toolbar.add(new JLabel("Add Step:"));
-        String[] stepTypes = {"SELECT", "INSERT", "UPDATE", "DELETE", "BEGIN", "COMMIT", "Get Sequence", "Set Variable", "Echo", "Custom SQL"};
+        String[] stepTypes = {"SELECT", "INSERT", "UPDATE", "DELETE", "UPSERT", "CREATE TABLE", "CREATE VIEW", "CREATE INDEX", "TRUNCATE", "DROP TABLE", "GRANT", "BEGIN", "COMMIT", "ROLLBACK", "PROCEDURE", "FUNCTION", "TRIGGER", "Get Sequence", "Set Variable", "Echo", "Custom SQL"};
         for (String type : stepTypes) {
             JButton btn = new JButton(type);
             btn.addActionListener(e -> addStep(type));
@@ -160,8 +160,18 @@ public class ScriptBuilderPanel extends JPanel {
             case "UPDATE": return "UPDATE my_table SET col1 = 'value' WHERE id = 1;";
             case "DELETE": return "DELETE FROM my_table WHERE id = 1;";
             case "DROP TABLE": return "DROP TABLE IF EXISTS my_table;";
+            case "CREATE TABLE": return "CREATE TABLE my_table (\n  id SERIAL PRIMARY KEY,\n  name VARCHAR(100) NOT NULL\n);";
+            case "CREATE INDEX": return "CREATE INDEX idx_my_table_col ON my_table(col1);";
+            case "CREATE VIEW": return "CREATE VIEW my_view AS\nSELECT id, name FROM my_table;";
+            case "TRUNCATE": return "TRUNCATE TABLE my_table;";
+            case "UPSERT": return "INSERT INTO my_table (id, name) VALUES (1, 'value')\nON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;";
+            case "GRANT": return "GRANT SELECT, INSERT ON my_table TO my_role;";
             case "BEGIN": return "BEGIN;";
             case "COMMIT": return "COMMIT;";
+            case "ROLLBACK": return "ROLLBACK;";
+            case "PROCEDURE": return "CREATE OR REPLACE PROCEDURE my_proc()\nLANGUAGE plpgsql AS $$\nBEGIN\n  NULL;\nEND;\n$$;";
+            case "FUNCTION": return "CREATE OR REPLACE FUNCTION my_func()\nRETURNS void LANGUAGE plpgsql AS $$\nBEGIN\n  NULL;\nEND;\n$$;";
+            case "TRIGGER": return "CREATE TRIGGER trg_name\nAFTER INSERT ON my_table\nFOR EACH ROW EXECUTE FUNCTION my_func();";
             case "Get Sequence": return "SELECT nextval('my_seq') AS var_name \\gset";
             case "Set Variable": return "\\set var_name 'value'";
             case "Echo": return "\\echo 'Message: ':var_name";
@@ -204,6 +214,7 @@ public class ScriptBuilderPanel extends JPanel {
             String[] lines = script.split("\n");
             StringBuilder currentStmt = new StringBuilder();
             int pass = 0, fail = 0;
+            boolean inDollarQuote = false;
             
             for (String line : lines) {
                 String trimmed = line.trim();
@@ -238,10 +249,23 @@ public class ScriptBuilderPanel extends JPanel {
                 if (isGset) {
                     trimmed = trimmed.substring(0, trimmed.length() - 5).trim();
                 }
+
+                // Track $$ dollar quotes (PostgreSQL functions, procedures, DO blocks)
+                if (trimmed.contains("$$")) {
+                    int count = 0;
+                    int idx = 0;
+                    while ((idx = trimmed.indexOf("$$", idx)) != -1) {
+                        count++;
+                        idx += 2;
+                    }
+                    if (count % 2 != 0) {
+                        inDollarQuote = !inDollarQuote;
+                    }
+                }
                 
                 currentStmt.append(trimmed).append(" ");
                 
-                if (trimmed.endsWith(";") || isGset) {
+                if ((!inDollarQuote && trimmed.endsWith(";")) || isGset) {
                     String stmt = currentStmt.toString().trim();
                     currentStmt.setLength(0); // clear
                     

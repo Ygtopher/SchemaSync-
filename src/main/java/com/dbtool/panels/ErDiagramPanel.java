@@ -136,9 +136,23 @@ public class ErDiagramPanel extends JPanel {
         add(graphComponent, BorderLayout.CENTER);
     }
     
+    private boolean needsRefresh = false;
+
+    public void markNeedsRefresh(DatabaseManager db) {
+        this.dbManager = db;
+        this.needsRefresh = true;
+    }
+
+    public void checkAndRefresh() {
+        if (needsRefresh && dbManager != null) {
+            needsRefresh = false;
+            refresh(dbManager, "");
+        }
+    }
+    
     public void refresh(DatabaseManager db, String focusTable) {
         this.dbManager = db;
-        if (db == null) {
+        if (db == null || db.connection == null) {
             graph.getModel().beginUpdate();
             try {
                 graph.removeCells(graph.getChildVertices(graph.getDefaultParent()));
@@ -146,8 +160,10 @@ public class ErDiagramPanel extends JPanel {
                 graph.getModel().endUpdate();
             }
             searchDropdown.removeAllItems();
+            needsRefresh = false;
             return;
         }
+        needsRefresh = false;
         
         loadingLabel.setVisible(true);
         searchBtn.setEnabled(false);
@@ -164,10 +180,8 @@ public class ErDiagramPanel extends JPanel {
             @Override
             protected Void doInBackground() throws Exception {
                 allTables = db.getTableNames();
-                
-                // Pre-fetch FKs for all tables
-                for (String t : allTables) {
-                    tableFkMaps.put(t, db.getForeignKeys(t));
+                if (allTables == null || allTables.isEmpty()) {
+                    return null;
                 }
                 
                 if (focusTable != null && !focusTable.isEmpty()) {
@@ -181,6 +195,7 @@ public class ErDiagramPanel extends JPanel {
                     
                     if (exactFocus != null) {
                         includedTables.add(exactFocus);
+                        tableFkMaps.put(exactFocus, db.getForeignKeys(exactFocus));
                         
                         // 1. Tables exactFocus points to
                         Map<String, String[]> fks = tableFkMaps.get(exactFocus);
@@ -188,23 +203,32 @@ public class ErDiagramPanel extends JPanel {
                             String target = pkInfo[0];
                             if (!includedTables.contains(target) && allTables.contains(target)) {
                                 includedTables.add(target);
+                                tableFkMaps.put(target, db.getForeignKeys(target));
                             }
                         }
                         
                         // 2. Tables that point to exactFocus
                         for (String t : allTables) {
                             if (t.equals(exactFocus)) continue;
-                            Map<String, String[]> tFks = tableFkMaps.get(t);
+                            Map<String, String[]> tFks = db.getForeignKeys(t);
                             for (String[] pkInfo : tFks.values()) {
                                 if (pkInfo[0].equalsIgnoreCase(exactFocus)) {
                                     if (!includedTables.contains(t)) includedTables.add(t);
+                                    tableFkMaps.put(t, tFks);
                                     break;
                                 }
                             }
                         }
                     }
                 } else {
-                    includedTables.addAll(allTables);
+                    // Limit initial view to up to 35 tables to prevent massive network lag & layout lockup
+                    int limit = Math.min(35, allTables.size());
+                    for (int i = 0; i < limit; i++) {
+                        includedTables.add(allTables.get(i));
+                    }
+                    for (String t : includedTables) {
+                        tableFkMaps.put(t, db.getForeignKeys(t));
+                    }
                 }
                 
                 // Pre-fetch columns for included tables
@@ -221,7 +245,7 @@ public class ErDiagramPanel extends JPanel {
                     get(); // ensure no exceptions
                     
                     // Update Dropdown if empty
-                    if (searchDropdown.getItemCount() <= 1) { // Maybe just empty
+                    if (allTables != null && searchDropdown.getItemCount() <= 1) { // Maybe just empty
                         searchDropdown.removeAllItems();
                         searchDropdown.addItem("");
                         for (String t : allTables) {

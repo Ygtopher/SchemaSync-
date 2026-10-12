@@ -10,10 +10,32 @@ import java.util.zip.GZIPInputStream;
 import javax.swing.filechooser.FileSystemView;
 
 public class DatabaseManager {
+    private String lastHost, lastPort, lastDbName, lastUser, lastPass;
+    private String lastDumpFile;
+    public void autoReconnect() throws Exception {
+        if (lastHost != null) {
+            if (lastDumpFile == null) {
+                connectExistingPostgres(lastHost, lastPort, lastDbName, lastUser, lastPass);
+            } else {
+                // Skip re-importing the dump file, just connect
+                connectExistingPostgres(lastHost, lastPort, lastDbName, lastUser, lastPass);
+            }
+        }
+    }
+    public String getLastHost() { return lastHost; }
+    public String getLastPort() { return lastPort; }
+    public String getLastDbName() { return lastDbName; }
+    public String getLastUser() { return lastUser; }
+    public String getLastPass() { return lastPass; }
+    public String getLastDumpFile() { return lastDumpFile; }
+    public boolean isSandbox() { return lastDbName != null && lastDbName.startsWith("Sandbox"); }
+    public boolean isConnected() { return connection != null; }
+
     public Connection connection;
     private java.util.Properties learnedJoins = new java.util.Properties();
     private File learnedJoinsFile;
     private java.util.Map<String, java.util.List<String>> columnCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private java.util.Map<String, java.util.Map<String, String[]>> fkCache = new java.util.concurrent.ConcurrentHashMap<>();
     private java.util.List<String> tableCache = null;
 
     private File getSaveFile(String filename) {
@@ -39,7 +61,30 @@ public class DatabaseManager {
 
     public void clearCache() {
         columnCache.clear();
+        fkCache.clear();
         tableCache = null;
+    }
+
+    public void preloadAllColumns() {
+        if (connection == null) return;
+        try {
+            DatabaseMetaData metaData = connection.getMetaData();
+            try (ResultSet rs = metaData.getColumns(null, null, "%", "%")) {
+                while (rs.next()) {
+                    String sch = rs.getString("TABLE_SCHEM");
+                    String tbl = rs.getString("TABLE_NAME");
+                    String col = rs.getString("COLUMN_NAME");
+                    if (tbl != null && col != null) {
+                        columnCache.computeIfAbsent(tbl, k -> new ArrayList<>()).add(col);
+                        if (sch != null && !sch.equalsIgnoreCase("public") && !sch.isEmpty()) {
+                            columnCache.computeIfAbsent(sch + "." + tbl, k -> new ArrayList<>()).add(col);
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // Non-fatal, getColumnNames will fall back to per-table metadata query
+        }
     }
     public void connect(String dbFilePath) throws Exception {
         // Fallback for old method without credentials
@@ -47,6 +92,7 @@ public class DatabaseManager {
     }
 
     public void connectPostgres(String dbFilePath, String host, String port, String user, String pass, String dbName) throws Exception {
+        this.lastHost = host; this.lastPort = port; this.lastDbName = dbName; this.lastUser = user; this.lastPass = pass; this.lastDumpFile = dbFilePath;
         columnCache.clear();
         tableCache = null;
         // Close existing connection if any
@@ -58,7 +104,7 @@ public class DatabaseManager {
             System.out.println("Connecting to PostgreSQL to create database...");
             
             // Connect to the default 'postgres' database to create the new one
-            String baseUrl = "jdbc:postgresql://" + host + ":" + port + "/postgres";
+            String baseUrl = "jdbc:postgresql://" + host + ":" + port + "/postgres?tcpKeepAlive=true&gssEncMode=disable";
             try (Connection tempConn = DriverManager.getConnection(baseUrl, user, pass);
                  Statement stmt = tempConn.createStatement()) {
                 
@@ -75,7 +121,7 @@ public class DatabaseManager {
             }
             
             // Now connect to the new database
-            String targetUrl = "jdbc:postgresql://" + host + ":" + port + "/" + dbName;
+            String targetUrl = "jdbc:postgresql://" + host + ":" + port + "/" + dbName + "?tcpKeepAlive=true&gssEncMode=disable&connectTimeout=10&socketTimeout=30";
             connection = DriverManager.getConnection(targetUrl, user, pass);
             
             importSqlDump(dbFilePath);
@@ -96,9 +142,184 @@ public class DatabaseManager {
     }
 
     public void connectExistingPostgres(String host, String port, String dbName, String user, String pass) throws Exception {
+        this.lastHost = host; this.lastPort = port; this.lastDbName = dbName; this.lastUser = user; this.lastPass = pass; this.lastDumpFile = null;
         clearCache();
-        String targetUrl = "jdbc:postgresql://" + host + ":" + port + "/" + dbName;
+        String targetUrl = "jdbc:postgresql://" + host + ":" + port + "/" + dbName + "?tcpKeepAlive=true&gssEncMode=disable&connectTimeout=10&socketTimeout=30";
         connection = DriverManager.getConnection(targetUrl, user, pass);
+    }
+
+    public boolean isPostgres() {
+        if (connection == null) return false;
+        try {
+            String prod = connection.getMetaData().getDatabaseProductName();
+            return prod != null && prod.toLowerCase().contains("postgres");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean isH2() {
+        if (connection == null) return false;
+        try {
+            String prod = connection.getMetaData().getDatabaseProductName();
+            return prod != null && prod.toLowerCase().contains("h2");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public void connectSandbox() throws Exception {
+        connectSandbox("schemasync_sandbox");
+    }
+
+    public void connectSandbox(String memDbName) throws Exception {
+        String dbLabel = "schemasync_sandbox".equals(memDbName) ? "Sandbox (In-Memory)" : "Sandbox (" + memDbName + ")";
+        this.lastHost = null; this.lastPort = null; this.lastDbName = dbLabel; this.lastUser = "sa"; this.lastPass = ""; this.lastDumpFile = null;
+        clearCache();
+        if (connection != null && !connection.isClosed()) {
+            try { connection.close(); } catch (Exception ignored) {}
+        }
+        String url = "jdbc:h2:mem:" + memDbName + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
+        connection = DriverManager.getConnection(url, "sa", "");
+        seedSampleSchema();
+    }
+
+    public void useExistingConnection(DatabaseManager source) {
+        if (source != null && source.connection != null) {
+            this.connection = source.connection;
+            this.lastHost = source.getLastHost();
+            this.lastPort = source.getLastPort();
+            this.lastDbName = source.getLastDbName();
+            this.lastUser = source.getLastUser();
+            this.lastPass = source.getLastPass();
+            this.lastDumpFile = source.getLastDumpFile();
+            clearCache();
+        }
+    }
+
+    public void seedSampleSchema() throws SQLException {
+        if (connection == null) return;
+        boolean isPg = isPostgres();
+        try (Statement stmt = connection.createStatement()) {
+            // 1. Departments
+            stmt.execute("CREATE TABLE IF NOT EXISTS departments (\n" +
+                         "  id INT PRIMARY KEY,\n" +
+                         "  dept_name VARCHAR(100) NOT NULL,\n" +
+                         "  location VARCHAR(100),\n" +
+                         "  closed INT DEFAULT 0\n" +
+                         ");");
+            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM departments")) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    stmt.execute("INSERT INTO departments (id, dept_name, location, closed) VALUES\n" +
+                                 "(1, 'IT', 'NYC', 0),\n" +
+                                 "(2, 'HR', 'Chicago', 0),\n" +
+                                 "(3, 'Finance', 'NYC', 0),\n" +
+                                 "(4, 'Marketing', 'San Francisco', 0),\n" +
+                                 "(5, 'Legal', 'Boston', 1);");
+                }
+            }
+
+            // 2. Employees (Supports both 'dept' and 'department', 'name' and 'first_name'/'last_name')
+            String idCol = "id SERIAL PRIMARY KEY";
+            stmt.execute("CREATE TABLE IF NOT EXISTS employees (\n" +
+                         "  " + idCol + ",\n" +
+                         "  first_name VARCHAR(100),\n" +
+                         "  last_name VARCHAR(100),\n" +
+                         "  name VARCHAR(100),\n" +
+                         "  email VARCHAR(150) UNIQUE,\n" +
+                         "  dept VARCHAR(50),\n" +
+                         "  department VARCHAR(50),\n" +
+                         "  dept_id INT,\n" +
+                         "  salary DECIMAL(10,2) DEFAULT 0,\n" +
+                         "  hire_date DATE,\n" +
+                         "  manager_id INT,\n" +
+                         "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n" +
+                         ");");
+            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM employees")) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    stmt.execute("INSERT INTO employees (first_name, last_name, name, email, dept, department, dept_id, salary, hire_date, manager_id) VALUES\n" +
+                                 "('Alice', 'Smith', 'Alice Smith', 'alice@company.com', 'IT', 'IT', 1, 75000.00, '2015-03-12', NULL),\n" +
+                                 "('Bob', 'Jones', 'Bob Jones', 'bob@company.com', 'IT', 'IT', 1, 62000.00, '2018-06-01', 1),\n" +
+                                 "('Charlie', 'Brown', 'Charlie Brown', 'charlie@company.com', 'HR', 'HR', 2, 54000.00, '2019-09-15', NULL),\n" +
+                                 "('Diana', 'Prince', 'Diana Prince', 'diana@company.com', 'Finance', 'Finance', 3, 95000.00, '2012-01-10', NULL),\n" +
+                                 "('Evan', 'Wright', 'Evan Wright', 'evan@company.com', 'IT', 'IT', 1, 82000.00, '2020-04-20', 1),\n" +
+                                 "('Fiona', 'Gallagher', 'Fiona Gallagher', 'fiona@company.com', 'Finance', 'Finance', 3, 48000.00, '2021-11-05', 4),\n" +
+                                 "('George', 'Clark', 'George Clark', 'george@company.com', 'HR', 'HR', 2, 45000.00, '2022-02-18', 3),\n" +
+                                 "('Hannah', 'Abbott', 'Hannah Abbott', 'hannah@company.com', 'IT', 'IT', 1, 105000.00, '2010-08-25', 1),\n" +
+                                 "('Ian', 'Malcolm', 'Ian Malcolm', 'ian@company.com', 'Finance', 'Finance', 3, 115000.00, '2008-05-14', 4),\n" +
+                                 "('Julia', 'Roberts', 'Julia Roberts', 'julia@company.com', 'Marketing', 'Marketing', 4, 68000.00, '2023-01-09', NULL);");
+                }
+            }
+
+            // 3. Contractors
+            stmt.execute("CREATE TABLE IF NOT EXISTS contractors (name VARCHAR(100));");
+            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM contractors")) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    stmt.execute("INSERT INTO contractors VALUES ('Dave Miller'), ('Eve Torres'), ('Frank Castle'), ('Alice Smith');");
+                }
+            }
+
+            // 4. New Hires
+            stmt.execute("CREATE TABLE IF NOT EXISTS new_hires (name VARCHAR(100), dept VARCHAR(50));");
+            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM new_hires")) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    stmt.execute("INSERT INTO new_hires VALUES ('Grace Hopper', 'IT'), ('Alan Turing', 'IT');");
+                }
+            }
+
+            // 5. Projects
+            stmt.execute("CREATE TABLE IF NOT EXISTS projects (id INT PRIMARY KEY, emp_id INT, name VARCHAR(100));");
+            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM projects")) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    stmt.execute("INSERT INTO projects VALUES (1, 1, 'Cloud Migration'), (2, 2, 'Auth System'), (3, 4, 'Financial Audit');");
+                }
+            }
+
+            // 6. Accounts
+            stmt.execute("CREATE TABLE IF NOT EXISTS accounts (id INT PRIMARY KEY, balance DECIMAL(10,2));");
+            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM accounts")) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    stmt.execute("INSERT INTO accounts VALUES (1, 5000.00), (2, 2500.00);");
+                }
+            }
+
+            // 7. Orders
+            stmt.execute("CREATE TABLE IF NOT EXISTS orders (\n" +
+                         "  id INT PRIMARY KEY,\n" +
+                         "  dept VARCHAR(50),\n" +
+                         "  region VARCHAR(50),\n" +
+                         "  amount DECIMAL(10,2),\n" +
+                         "  sales DECIMAL(10,2),\n" +
+                         "  status VARCHAR(20) DEFAULT 'pending'\n" +
+                         ");");
+            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM orders")) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    stmt.execute("INSERT INTO orders VALUES\n" +
+                                 "(1, 'IT', 'North', 1500.00, 1500.00, 'completed'),\n" +
+                                 "(2, 'IT', 'South', 2200.00, 2200.00, 'completed'),\n" +
+                                 "(3, 'Finance', 'North', 3100.00, 3100.00, 'pending'),\n" +
+                                 "(4, 'Finance', 'West', 4500.00, 4500.00, 'completed'),\n" +
+                                 "(5, 'HR', 'East', 800.00, 800.00, 'pending');");
+                }
+            }
+
+            // 8. Sales
+            stmt.execute("CREATE TABLE IF NOT EXISTS sales (quarter VARCHAR(10), amount DECIMAL(10,2));");
+            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM sales")) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    stmt.execute("INSERT INTO sales VALUES ('Q1', 45000.00), ('Q2', 52000.00), ('Q3', 61000.00), ('Q4', 78000.00);");
+                }
+            }
+
+            // 9. Audit Log
+            stmt.execute("CREATE TABLE IF NOT EXISTS audit_log (\n" +
+                         "  emp_id INT,\n" +
+                         "  old_sal DECIMAL(10,2),\n" +
+                         "  new_sal DECIMAL(10,2),\n" +
+                         "  changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n" +
+                         ");");
+        }
+        clearCache();
     }
 
     private void importSqlDump(String dbFilePath) throws Exception {
@@ -428,8 +649,14 @@ public class DatabaseManager {
         return sb.toString();
     }
 
-            public void executeUpdate(String query, java.util.List<Object> params) throws java.sql.SQLException {
+    public void executeUpdate(String query, java.util.List<Object> params) throws java.sql.SQLException {
         if (connection == null) throw new java.sql.SQLException("Not connected to a database.");
+        try {
+            if (!connection.isValid(2)) {
+                autoReconnect();
+            }
+        } catch (Exception e) {}
+
         long start = System.currentTimeMillis();
         boolean success = false;
         try (java.sql.PreparedStatement pstmt = connection.prepareStatement(query)) {
@@ -438,14 +665,70 @@ public class DatabaseManager {
             }
             pstmt.executeUpdate();
             success = true;
+        } catch (java.sql.SQLException e) {
+            String msg = e.getMessage().toLowerCase();
+            if (msg.contains("closed") || msg.contains("i/o") || msg.contains("broken pipe") || msg.contains("timeout") || msg.contains("connection")) {
+                try {
+                    autoReconnect();
+                    try (java.sql.PreparedStatement pstmt2 = connection.prepareStatement(query)) {
+                        for (int i = 0; i < params.size(); i++) {
+                            pstmt2.setObject(i + 1, params.get(i));
+                        }
+                        pstmt2.executeUpdate();
+                        success = true;
+                    }
+                } catch (Exception ex) {
+                    throw e;
+                }
+            } else {
+                throw e;
+            }
         } finally {
             com.dbtool.util.QueryLogger.log(query, System.currentTimeMillis() - start, success);
         }
     }
 
-            public java.util.Map<String, String[]> getForeignKeys(String table) {
+    public int executeUpdate(String query) throws java.sql.SQLException {
+        if (connection == null) throw new java.sql.SQLException("Not connected to a database.");
+        try {
+            if (!connection.isValid(2)) {
+                autoReconnect();
+            }
+        } catch (Exception ignored) {}
+
+        long start = System.currentTimeMillis();
+        boolean success = false;
+        try (java.sql.Statement stmt = connection.createStatement()) {
+            int count = stmt.executeUpdate(query);
+            success = true;
+            return count;
+        } catch (java.sql.SQLException e) {
+            String msg = e.getMessage().toLowerCase();
+            if (msg.contains("closed") || msg.contains("i/o") || msg.contains("broken pipe") || msg.contains("timeout") || msg.contains("connection")) {
+                try {
+                    autoReconnect();
+                    try (java.sql.Statement stmt2 = connection.createStatement()) {
+                        int count = stmt2.executeUpdate(query);
+                        success = true;
+                        return count;
+                    }
+                } catch (Exception ex) {
+                    throw e;
+                }
+            } else {
+                throw e;
+            }
+        } finally {
+            com.dbtool.util.QueryLogger.log(query, System.currentTimeMillis() - start, success);
+        }
+    }
+
+    public java.util.Map<String, String[]> getForeignKeys(String table) {
+        if (connection == null || table == null) return new java.util.HashMap<>();
+        if (fkCache.containsKey(table)) {
+            return fkCache.get(table);
+        }
         java.util.Map<String, String[]> fkMap = new java.util.HashMap<>();
-        if (connection == null || table == null) return fkMap;
         try {
             java.sql.DatabaseMetaData metaData = connection.getMetaData();
             String schema = null;
@@ -465,18 +748,43 @@ public class DatabaseManager {
         } catch (java.sql.SQLException e) {
             e.printStackTrace();
         }
+        fkCache.put(table, fkMap);
         return fkMap;
     }
 
     public DefaultTableModel executeQuery(String query) throws java.sql.SQLException {
         if (connection == null) throw new java.sql.SQLException("Not connected to a database.");
+        
+        try {
+            if (!connection.isValid(2)) {
+                autoReconnect();
+            }
+        } catch (Exception e) {}
+
         long start = System.currentTimeMillis();
         boolean success = false;
         try (java.sql.Statement stmt = connection.createStatement();
              java.sql.ResultSet rs = stmt.executeQuery(query)) {
-             DefaultTableModel model = buildTableModel(rs);
-             success = true;
-             return model;
+            DefaultTableModel model = buildTableModel(rs);
+            success = true;
+            return model;
+        } catch (java.sql.SQLException e) {
+            String msg = e.getMessage().toLowerCase();
+            if (msg.contains("closed") || msg.contains("i/o") || msg.contains("broken pipe") || msg.contains("timeout") || msg.contains("connection")) {
+                try {
+                    autoReconnect();
+                    try (java.sql.Statement stmt2 = connection.createStatement();
+                         java.sql.ResultSet rs2 = stmt2.executeQuery(query)) {
+                        DefaultTableModel model = buildTableModel(rs2);
+                        success = true;
+                        return model;
+                    }
+                } catch (Exception ex) {
+                    throw e; // throw original
+                }
+            } else {
+                throw e;
+            }
         } finally {
             com.dbtool.util.QueryLogger.log(query, System.currentTimeMillis() - start, success);
         }
@@ -484,6 +792,11 @@ public class DatabaseManager {
 
     public DefaultTableModel executeSearch(String tableName, String keyword, String cols, int limit) throws SQLException {
         if (connection == null) throw new SQLException("Not connected to a database.");
+        try {
+            if (!connection.isValid(2)) {
+                autoReconnect();
+            }
+        } catch (Exception e) {}
 
         List<String> columns = getColumnNames(tableName);
         if (columns.isEmpty()) return new DefaultTableModel();
@@ -498,14 +811,42 @@ public class DatabaseManager {
         }
         query.append(" LIMIT ").append(limit);
 
+        long start = System.currentTimeMillis();
+        boolean success = false;
         try (PreparedStatement pstmt = connection.prepareStatement(query.toString())) {
             String searchPattern = "%" + keyword + "%";
             for (int i = 0; i < columns.size(); i++) {
                 pstmt.setString(i + 1, searchPattern);
             }
             try (ResultSet rs = pstmt.executeQuery()) {
-                return buildTableModel(rs);
+                DefaultTableModel model = buildTableModel(rs);
+                success = true;
+                return model;
             }
+        } catch (SQLException e) {
+            String msg = e.getMessage().toLowerCase();
+            if (msg.contains("closed") || msg.contains("i/o") || msg.contains("broken pipe") || msg.contains("timeout") || msg.contains("connection")) {
+                try {
+                    autoReconnect();
+                    try (PreparedStatement pstmt2 = connection.prepareStatement(query.toString())) {
+                        String searchPattern = "%" + keyword + "%";
+                        for (int i = 0; i < columns.size(); i++) {
+                            pstmt2.setString(i + 1, searchPattern);
+                        }
+                        try (ResultSet rs2 = pstmt2.executeQuery()) {
+                            DefaultTableModel model = buildTableModel(rs2);
+                            success = true;
+                            return model;
+                        }
+                    }
+                } catch (Exception ex) {
+                    throw e;
+                }
+            } else {
+                throw e;
+            }
+        } finally {
+            com.dbtool.util.QueryLogger.log("SEARCH " + tableName + " FOR " + keyword, System.currentTimeMillis() - start, success);
         }
     }
 

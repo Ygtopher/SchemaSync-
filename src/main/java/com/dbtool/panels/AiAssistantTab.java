@@ -3,6 +3,7 @@ package com.dbtool.panels;
 import javax.swing.*;
 import javax.swing.text.html.HTMLDocument;
 import javax.swing.text.html.HTMLEditorKit;
+import javax.swing.text.Element;
 import java.awt.*;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -160,6 +161,130 @@ btnAttach = new JButton("Attach Code...");
     }
 
     
+    
+    private void streamOpenRouter(String apiKey, String[] models, int index, String msgId, Element msgElement, StringBuilder fullResponse, Runnable onComplete) {
+        if (index >= models.length) {
+            SwingUtilities.invokeLater(() -> {
+                try { htmlDoc.setInnerHTML(msgElement, "API Error: All fallback models failed or rate-limited."); } catch (Exception e) {}
+                onComplete.run();
+            });
+            return;
+        }
+        String model = models[index];
+        String endpoint = "https://openrouter.ai/api/v1/chat/completions";
+
+        try {
+            ObjectNode root = mapper.createObjectNode();
+            root.put("model", model);
+            root.put("stream", true);
+            ArrayNode finalMessages = mapper.createArrayNode();
+            ObjectNode sysMsg = mapper.createObjectNode();
+            sysMsg.put("role", "system");
+            sysMsg.put("content", "You are a highly advanced Database Architect and Software Engineer. Provide concise, expert answers.\n\n" + getDatabaseSchemaContext());
+            finalMessages.add(sysMsg);
+            for (JsonNode msg : conversationHistory) {
+                finalMessages.add(msg);
+            }
+            root.set("messages", finalMessages);
+
+            String jsonPayload = mapper.writeValueAsString(root);
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(endpoint))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("HTTP-Referer", "https://github.com/dbtool")
+                    .header("X-Title", "DBTOOL Assistant")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                    .build();
+
+            client.sendAsync(request, HttpResponse.BodyHandlers.ofLines()).thenAccept(response -> {
+                if (response.statusCode() == 429 || response.statusCode() == 502 || response.statusCode() == 503 || response.statusCode() == 504) {
+                    streamOpenRouter(apiKey, models, index + 1, msgId, msgElement, fullResponse, onComplete);
+                    return;
+                } else if (response.statusCode() != 200) {
+                    try {
+                        String errBody = response.body().findFirst().orElse("");
+                        SwingUtilities.invokeLater(() -> {
+                            try { htmlDoc.setInnerHTML(msgElement, "API Error: " + response.statusCode() + " - " + errBody); } catch(Exception e){}
+                            onComplete.run();
+                        });
+                    } catch(Exception e){}
+                    return;
+                }
+
+                StringBuilder reasoningBuffer = new StringBuilder();
+                StringBuilder contentBuffer = new StringBuilder();
+                boolean[] hasChunkError = new boolean[]{false};
+                
+                response.body().forEach(line -> {
+                    if (hasChunkError[0]) return;
+                    if (line.startsWith("data: ")) {
+                        String data = line.substring(6);
+                        if (data.equals("[DONE]")) return;
+                        try {
+                            JsonNode chunk = mapper.readTree(data);
+                            if (chunk.has("error")) {
+                                hasChunkError[0] = true;
+                                streamOpenRouter(apiKey, models, index + 1, msgId, msgElement, fullResponse, onComplete);
+                                return;
+                            }
+                            JsonNode choices = chunk.path("choices");
+                            if (choices.isArray() && choices.size() > 0) {
+                                JsonNode delta = choices.get(0).path("delta");
+                                boolean updated = false;
+                                if (delta.has("reasoning")) {
+                                    reasoningBuffer.append(delta.get("reasoning").asText());
+                                    updated = true;
+                                }
+                                if (delta.has("content")) {
+                                    contentBuffer.append(delta.get("content").asText());
+                                    updated = true;
+                                }
+                                
+                                if (updated) {
+                                    String formatted = "";
+                                    if (reasoningBuffer.length() > 0) {
+                                        formatted += "<div class='reasoning'>[Thinking...]<br>" + reasoningBuffer.toString().replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>") + "</div>";
+                                    }
+                                    formatted += contentBuffer.toString().replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>");
+                                    
+                                    final String safeHtml = formatted;
+                                    SwingUtilities.invokeLater(() -> {
+                                        try { 
+                                            htmlDoc.setInnerHTML(msgElement, safeHtml);
+                                            chatHistory.setCaretPosition(htmlDoc.getLength());
+                                        } catch(Exception e){}
+                                    });
+                                }
+                            }
+                        } catch (Exception e) {}
+                    }
+                });
+                
+                if (!hasChunkError[0]) {
+                    SwingUtilities.invokeLater(() -> {
+                        fullResponse.append(contentBuffer.toString());
+                        onComplete.run();
+                    });
+                }
+            }).exceptionally(ex -> {
+                SwingUtilities.invokeLater(() -> {
+                    try { htmlDoc.setInnerHTML(msgElement, "Network Error: " + ex.getMessage()); } catch(Exception e){}
+                    onComplete.run();
+                });
+                return null;
+            });
+
+        } catch (Exception e) {
+            SwingUtilities.invokeLater(() -> {
+                try { htmlDoc.setInnerHTML(msgElement, "Internal Error: " + e.getMessage()); } catch(Exception ex){}
+                onComplete.run();
+            });
+        }
+    }
+
+
     private String getDatabaseSchemaContext() {
         if (dbManager == null || dbManager.connection == null) return "No database connected.";
         try {
@@ -185,6 +310,19 @@ btnAttach = new JButton("Attach Code...");
             appendMessage("System", "Chat history cleared.", "ai");
         } catch (Exception ex) {
             ex.printStackTrace();
+        }
+    }
+
+    
+    private Element appendStreamingMessagePlaceholder(String msgId) {
+        try {
+            String html = "<div class='message'><div class='sender ai'>AI</div><div id='" + msgId + "'>...</div></div>";
+            htmlKit.insertHTML(htmlDoc, htmlDoc.getLength(), html, 0, 0, null);
+            chatHistory.setCaretPosition(htmlDoc.getLength());
+            return htmlDoc.getElement(msgId);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
         }
     }
 
@@ -273,46 +411,31 @@ String finalMessage = text;
         attachedCodeContext = ""; // Clear after sending
         attachLabel.setText("");
 
+        String msgId = "msg_" + System.currentTimeMillis();
+        Element msgElement = appendStreamingMessagePlaceholder(msgId);
+
         // Add user message to history
         ObjectNode userMsg = mapper.createObjectNode();
         userMsg.put("role", "user");
         userMsg.put("content", finalMessage);
         conversationHistory.add(userMsg);
 
-        CompletableFuture.runAsync(() -> {
-            try {
-                String aiResponse = callOpenRouterWithFallback(apiKey, new String[]{model, "google/gemma-4-31b-it:free", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "cohere/north-mini-code:free", "liquid/lfm-2.5-2.6b:free"}, 0);
-                SwingUtilities.invokeLater(() -> {
-                    if (!aiResponse.startsWith("API Error:")) {
-                        // Extract plain content for history (without HTML reasoning blocks)
-                        String cleanContent = aiResponse;
-                        int noteIdx = cleanContent.indexOf("<i>(Note: Fell back to");
-                        if (noteIdx != -1) {
-                            cleanContent = cleanContent.substring(cleanContent.indexOf("</i><br><br>") + 12);
-                        }
-                        // Strip out HTML thinking blocks
-                        cleanContent = cleanContent.replaceAll("<div class='reasoning'>.*?</div>", "");
-                        cleanContent = cleanContent.replace("&lt;", "<").replace("&gt;", ">").replace("<br>", "\n").replace("<b>", "**").replace("</b>", "**");
-                        
-                        ObjectNode aiMsg = mapper.createObjectNode();
-                        aiMsg.put("role", "assistant");
-                        aiMsg.put("content", cleanContent.trim());
-                        conversationHistory.add(aiMsg);
-                    }
-                    appendMessage("AI", aiResponse, aiResponse.startsWith("API Error:") ? "error" : "ai");
-                    btnSend.setEnabled(true);
-                    btnSend.setText("Send");
-                });
-            } catch (Exception ex) {
-                SwingUtilities.invokeLater(() -> {
-                    appendMessage("Error", "Failed to connect to AI: " + ex.getMessage(), "error");
-                    btnSend.setEnabled(true);
-                    btnSend.setText("Send");
-                });
+        StringBuilder fullResponse = new StringBuilder();
+        
+        streamOpenRouter(apiKey, new String[]{model, "google/gemma-4-31b-it:free", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "cohere/north-mini-code:free", "liquid/lfm-2.5-2.6b:free"}, 0, msgId, msgElement, fullResponse, () -> {
+            btnSend.setEnabled(true);
+            btnSend.setText("Send");
+            
+            String cleanContent = fullResponse.toString().trim();
+            if (!cleanContent.isEmpty()) {
+                ObjectNode aiMsg = mapper.createObjectNode();
+                aiMsg.put("role", "assistant");
+                aiMsg.put("content", cleanContent);
+                conversationHistory.add(aiMsg);
             }
         });
     }
-
+    
     private String callOpenRouterWithFallback(String apiKey, String[] models, int index) throws Exception {
         if (index >= models.length) return "API Error: All fallback models failed or rate-limited.";
         String model = models[index];

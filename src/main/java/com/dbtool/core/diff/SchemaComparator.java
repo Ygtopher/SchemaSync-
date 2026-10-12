@@ -18,10 +18,27 @@ public class SchemaComparator {
     public TableDiff compareTables(TableMetadata source, TableMetadata target) {
         String tableName = source != null ? source.getTableName() : (target != null ? target.getTableName() : "UNKNOWN");
         if (source == null && target == null) return new TableDiff(tableName, DifferenceType.IDENTICAL);
-        if (source == null) return new TableDiff(tableName, DifferenceType.ADDED);
-        if (target == null) return new TableDiff(tableName, DifferenceType.REMOVED);
+        if (source == null) {
+            TableDiff td = new TableDiff(tableName, DifferenceType.ADDED);
+            td.setTargetTable(target);
+            for (ColumnMetadata col : target.getColumns()) {
+                td.addColumnDiff(new ColumnDiff(col.getColumnName(), DifferenceType.ADDED, null, col, "New column in target"));
+            }
+            return td;
+        }
+        if (target == null) {
+            TableDiff td = new TableDiff(tableName, DifferenceType.REMOVED);
+            td.setSourceTable(source);
+            for (ColumnMetadata col : source.getColumns()) {
+                td.addColumnDiff(new ColumnDiff(col.getColumnName(), DifferenceType.REMOVED, col, null, "Column missing in target"));
+            }
+            return td;
+        }
 
         TableDiff tableDiff = new TableDiff(tableName, DifferenceType.IDENTICAL);
+        tableDiff.setSourceTable(source);
+        tableDiff.setTargetTable(target);
+
         for (ColumnMetadata sCol : source.getColumns()) {
             ColumnMetadata tCol = target.findColumn(sCol.getColumnName());
             if (tCol == null) {
@@ -32,6 +49,9 @@ public class SchemaComparator {
                 }
                 if (sCol.isNullable() != tCol.isNullable()) {
                     tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.MODIFIED, sCol, tCol, "Nullability changed: " + sCol.isNullable() + " -> " + tCol.isNullable()));
+                }
+                if (sCol.isPrimaryKey() != tCol.isPrimaryKey()) {
+                    tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.MODIFIED, sCol, tCol, "Primary Key flag changed: " + sCol.isPrimaryKey() + " -> " + tCol.isPrimaryKey()));
                 }
                 if (!options.isIgnoreDefaultValues() && !Objects.equals(sCol.getDefaultValue(), tCol.getDefaultValue())) {
                     tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.MODIFIED, sCol, tCol, "Default value changed: " + sCol.getDefaultValue() + " -> " + tCol.getDefaultValue()));
@@ -44,5 +64,35 @@ public class SchemaComparator {
             }
         }
         return tableDiff;
+    }
+
+    public SchemaDiffResult compareSchemas(java.util.List<TableMetadata> sourceTables, java.util.List<TableMetadata> targetTables) {
+        long start = System.currentTimeMillis();
+        SchemaDiffResult result = new SchemaDiffResult();
+        java.util.Map<String, TableMetadata> targetMap = new java.util.LinkedHashMap<>();
+        if (targetTables != null) {
+            for (TableMetadata tm : targetTables) {
+                if (tm != null && tm.getTableName() != null) {
+                    targetMap.put(tm.getTableName().toLowerCase(), tm);
+                }
+            }
+        }
+
+        if (sourceTables != null) {
+            for (TableMetadata sTable : sourceTables) {
+                if (sTable == null || sTable.getTableName() == null) continue;
+                TableMetadata tTable = targetMap.remove(sTable.getTableName().toLowerCase());
+                TableDiff diff = compareTables(sTable, tTable);
+                result.addTableDiff(diff);
+            }
+        }
+
+        for (TableMetadata tTable : targetMap.values()) {
+            TableDiff diff = compareTables(null, tTable);
+            result.addTableDiff(diff);
+        }
+
+        result.setDurationMs(System.currentTimeMillis() - start);
+        return result;
     }
 }

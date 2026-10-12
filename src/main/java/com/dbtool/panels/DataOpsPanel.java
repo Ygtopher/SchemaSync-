@@ -395,8 +395,14 @@ public class DataOpsPanel extends JPanel {
 
     @SuppressWarnings("unchecked")
     public void refreshTables() {
+        if (dbManager == null || dbManager.connection == null) {
+            for (JComboBox<String> cb : new JComboBox[]{mainTableCb, juJoinCb, updateWhereColCb, deleteColCb, alterOldColCb, indexColCb, juOnMainCb, juOnJoinCb, juWhereTableCb, juWhereColCb}) {
+                cb.removeAllItems();
+            }
+            setStatus("Disconnected.", false);
+            return;
+        }
         List<String> tables = dbManager.getTableNames();
-        if (tables.isEmpty()) return;
         for (JComboBox<String> cb : new JComboBox[]{mainTableCb, juJoinCb}) {
             cb.removeAllItems();
             for (String t : tables) cb.addItem(t);
@@ -513,21 +519,28 @@ public class DataOpsPanel extends JPanel {
     // ── SQL Execution ─────────────────────────────────────────────────
 
     private void runSql(String sql) {
-        if (dbManager.connection == null) { setStatus("Not connected.", false); return; }
+        if (dbManager == null || dbManager.connection == null) { setStatus("Not connected.", false); return; }
         int confirm = JOptionPane.showConfirmDialog(this,
                 "SQL to execute:\n\n" + sql + "\n\nProceed?",
                 "Confirm", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (confirm != JOptionPane.YES_OPTION) return;
-        try (Statement st = dbManager.connection.createStatement()) {
-            int rows = st.executeUpdate(sql);
-            setStatus("Done — " + rows + " row(s) affected.", true);
-            String ts = new SimpleDateFormat("HH:mm:ss").format(new Date());
-            rawHistory.add(0, sql);
-            historyModel.add(0, "[" + ts + "]  " + sql.replaceAll("\\s+", " ").trim());
-        } catch (Exception ex) {
-            setStatus("Error: " + ex.getMessage(), false);
-            JOptionPane.showMessageDialog(this, ex.getMessage(), "SQL Error", JOptionPane.ERROR_MESSAGE);
-        }
+        setStatus("Executing SQL...", true);
+        new Thread(() -> {
+            try {
+                int rows = dbManager.executeUpdate(sql);
+                SwingUtilities.invokeLater(() -> {
+                    setStatus("Done — " + rows + " row(s) affected.", true);
+                    String ts = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                    rawHistory.add(0, sql);
+                    historyModel.add(0, "[" + ts + "]  " + sql.replaceAll("\\s+", " ").trim());
+                });
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> {
+                    setStatus("Error: " + ex.getMessage(), false);
+                    JOptionPane.showMessageDialog(DataOpsPanel.this, ex.getMessage(), "SQL Error", JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        }).start();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────

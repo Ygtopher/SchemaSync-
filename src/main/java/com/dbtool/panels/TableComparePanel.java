@@ -112,6 +112,22 @@ public class TableComparePanel extends JPanel {
         // No-op for query compare panel
     }
 
+    public String getQueryA() {
+        return queryAArea.getText();
+    }
+
+    public void setQueryA(String q) {
+        queryAArea.setText(q != null ? q : "");
+    }
+
+    public String getQueryB() {
+        return queryBArea.getText();
+    }
+
+    public void setQueryB(String q) {
+        queryBArea.setText(q != null ? q : "");
+    }
+
     private void runBothQueries() {
         String qA = queryAArea.getText().trim();
         String qB = queryBArea.getText().trim();

@@ -9,7 +9,7 @@ public class JdbcUrlBuilder {
         }
         switch (config.getType()) {
             case POSTGRESQL:
-                return "jdbc:postgresql://" + config.getHost() + ":" + config.getPort() + "/" + config.getDatabaseName();
+                return "jdbc:postgresql://" + config.getHost() + ":" + config.getPort() + "/" + config.getDatabaseName() + "?tcpKeepAlive=true&gssEncMode=disable";
             case H2:
                 if (config.getFilePath() != null && !config.getFilePath().isEmpty()) {
                     return "jdbc:h2:" + config.getFilePath() + ";AUTO_SERVER=TRUE";

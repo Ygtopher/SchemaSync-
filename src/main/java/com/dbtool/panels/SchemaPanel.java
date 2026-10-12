@@ -117,31 +117,52 @@ public class SchemaPanel extends JPanel {
 
     public void refresh() {
         root.removeAllChildren();
-        if (dbManager.connection == null) {
+        if (dbManager == null || dbManager.connection == null) {
             masterRoot = null;
+            root.setUserObject("Database");
             treeModel.reload();
             return;
         }
-        try {
-            masterRoot = new DefaultMutableTreeNode();
-            String dbName = dbManager.connection.getCatalog();
-            String rootName = dbName != null ? dbName : "Database";
-            masterRoot.setUserObject(rootName);
-            root.setUserObject(rootName);
-            
-            List<String> tables = dbManager.getTableNames();
-            for (String tbl : tables) {
-                DefaultMutableTreeNode tableNode = new DefaultMutableTreeNode(tbl);
-                for (String col : dbManager.getColumnNames(tbl)) {
-                    tableNode.add(new DefaultMutableTreeNode("  " + col));
+        root.setUserObject("Loading schema...");
+        treeModel.reload();
+
+        SwingWorker<DefaultMutableTreeNode, Void> worker = new SwingWorker<DefaultMutableTreeNode, Void>() {
+            @Override
+            protected DefaultMutableTreeNode doInBackground() throws Exception {
+                DefaultMutableTreeNode newMaster = new DefaultMutableTreeNode();
+                String dbName = null;
+                try {
+                    dbName = dbManager.connection.getCatalog();
+                } catch (Exception ignored) {}
+                String rootName = dbName != null ? dbName : "Database";
+                newMaster.setUserObject(rootName);
+
+                dbManager.preloadAllColumns();
+
+                List<String> tables = dbManager.getTableNames();
+                for (String tbl : tables) {
+                    DefaultMutableTreeNode tableNode = new DefaultMutableTreeNode(tbl);
+                    for (String col : dbManager.getColumnNames(tbl)) {
+                        tableNode.add(new DefaultMutableTreeNode("  " + col));
+                    }
+                    newMaster.add(tableNode);
                 }
-                masterRoot.add(tableNode);
+                return newMaster;
             }
-            applyFilter();
-        } catch (Exception ex) {
-            root.setUserObject("Error: " + ex.getMessage());
-            treeModel.reload();
-        }
+
+            @Override
+            protected void done() {
+                try {
+                    masterRoot = get();
+                    root.setUserObject(masterRoot.getUserObject());
+                    applyFilter();
+                } catch (Exception ex) {
+                    root.setUserObject("Error: " + ex.getMessage());
+                    treeModel.reload();
+                }
+            }
+        };
+        worker.execute();
     }
 
     private void filterTree() {
