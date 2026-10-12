@@ -45,7 +45,7 @@ public class DataCompareTabPanel extends JPanel {
     private final JTextField txtLimit = new JTextField("1000", 6);
     private final JTextField txtOffset = new JTextField("", 5);
 
-    // Dynamic Clauses (Where, Join, Order By)
+    // Dynamic Clauses (Where, Join, Order By, Aggregates, Group By, Having, Window Functions)
     private final JPanel clausesContainer = new JPanel();
     private final JPanel joinsContainer = new JPanel();
     private final List<DualJoinRow> joinRows = new ArrayList<>();
@@ -53,6 +53,20 @@ public class DataCompareTabPanel extends JPanel {
     private final List<DualWhereRow> whereRows = new ArrayList<>();
     private final JPanel orderByContainer = new JPanel();
     private final List<DualOrderByRow> orderByRows = new ArrayList<>();
+    private final JPanel aggregateContainer = new JPanel();
+    private final List<DualAggregateRow> aggregateRows = new ArrayList<>();
+    private final JPanel groupByContainer = new JPanel();
+    private final List<DualGroupByRow> groupByRows = new ArrayList<>();
+    private final JPanel havingContainer = new JPanel();
+    private final List<DualHavingRow> havingRows = new ArrayList<>();
+    private final JPanel windowFuncContainer = new JPanel();
+    private final List<DualWindowFuncRow> windowFuncRows = new ArrayList<>();
+    private final JComboBox<String> comboLock = new JComboBox<>(new String[]{
+        "Lock: None", "FOR UPDATE", "FOR UPDATE SKIP LOCKED", "FOR SHARE", "FOR NO KEY UPDATE"
+    });
+    private final JComboBox<String> comboSample = new JComboBox<>(new String[]{
+        "Sample: None", "BERNOULLI (10)", "BERNOULLI (5)", "BERNOULLI (1)", "SYSTEM (10)", "SYSTEM (5)"
+    });
     private final JScrollPane clausesScrollPane = new JScrollPane(clausesContainer);
 
     // Custom SQL Query Editors
@@ -179,6 +193,26 @@ public class DataCompareTabPanel extends JPanel {
         tbClauses.setFloatable(false);
         tbClauses.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
 
+        JButton btnAddAgg = new JButton("+ Add Aggregate");
+        btnAddAgg.setToolTipText("Add aggregate expression (COUNT, SUM, AVG, MIN, MAX) with optional FILTER clause");
+        btnAddAgg.addActionListener(e -> addAggregateRow());
+        tbClauses.add(btnAddAgg);
+
+        JButton btnAddGrp = new JButton("+ Add Group By");
+        btnAddGrp.setToolTipText("Add GROUP BY column");
+        btnAddGrp.addActionListener(e -> addGroupByRow());
+        tbClauses.add(btnAddGrp);
+
+        JButton btnAddHav = new JButton("+ Add Having");
+        btnAddHav.setToolTipText("Add HAVING aggregate condition");
+        btnAddHav.addActionListener(e -> addHavingRow());
+        tbClauses.add(btnAddHav);
+
+        JButton btnAddWin = new JButton("+ Add Window Func");
+        btnAddWin.setToolTipText("Add Window function (OVER partition/order/frame)");
+        btnAddWin.addActionListener(e -> addWindowFuncRow());
+        tbClauses.add(btnAddWin);
+
         JButton btnAddWhere = new JButton("+ Add Where");
         btnAddWhere.setToolTipText("Add a WHERE filtering condition to compare specific subsets of data");
         btnAddWhere.addActionListener(e -> addWhereRow());
@@ -193,6 +227,17 @@ public class DataCompareTabPanel extends JPanel {
         btnAddOrderBy.setToolTipText("Add an ORDER BY sorting clause to control comparison ordering");
         btnAddOrderBy.addActionListener(e -> addOrderByRow());
         tbClauses.add(btnAddOrderBy);
+
+        tbClauses.add(new JLabel(" | "));
+        comboSample.setToolTipText("TABLESAMPLE sampling clause");
+        tbClauses.add(comboSample);
+        comboLock.setToolTipText("Row-level locking clause (FOR UPDATE, SKIP LOCKED)");
+        tbClauses.add(comboLock);
+
+        JButton btnExplain = new JButton("🔍 EXPLAIN ▾");
+        btnExplain.setToolTipText("Inspect execution plan for comparison queries");
+        btnExplain.addActionListener(e -> showExplainMenu(btnExplain));
+        tbClauses.add(btnExplain);
 
         tbClauses.addSeparator();
 
@@ -255,15 +300,23 @@ public class DataCompareTabPanel extends JPanel {
 
         // Row C: Dynamic Clauses Scroll Pane
         clausesContainer.setLayout(new BoxLayout(clausesContainer, BoxLayout.Y_AXIS));
+        aggregateContainer.setLayout(new BoxLayout(aggregateContainer, BoxLayout.Y_AXIS));
+        groupByContainer.setLayout(new BoxLayout(groupByContainer, BoxLayout.Y_AXIS));
+        havingContainer.setLayout(new BoxLayout(havingContainer, BoxLayout.Y_AXIS));
+        windowFuncContainer.setLayout(new BoxLayout(windowFuncContainer, BoxLayout.Y_AXIS));
         joinsContainer.setLayout(new BoxLayout(joinsContainer, BoxLayout.Y_AXIS));
         whereContainer.setLayout(new BoxLayout(whereContainer, BoxLayout.Y_AXIS));
         orderByContainer.setLayout(new BoxLayout(orderByContainer, BoxLayout.Y_AXIS));
 
+        clausesContainer.add(aggregateContainer);
+        clausesContainer.add(groupByContainer);
+        clausesContainer.add(havingContainer);
+        clausesContainer.add(windowFuncContainer);
         clausesContainer.add(joinsContainer);
         clausesContainer.add(whereContainer);
         clausesContainer.add(orderByContainer);
 
-        clausesScrollPane.setPreferredSize(new Dimension(800, 115));
+        clausesScrollPane.setPreferredSize(new Dimension(800, 130));
         clausesScrollPane.getVerticalScrollBar().setUnitIncrement(14);
         clausesScrollPane.setBorder(BorderFactory.createTitledBorder("Active Query Clauses"));
         clausesScrollPane.setVisible(false);
@@ -491,9 +544,14 @@ public class DataCompareTabPanel extends JPanel {
         allCols.addAll(colsB);
 
         List<String> tablesB = (dbB != null && dbB.getDbManager().isConnected()) ? dbB.getDbManager().getTableNames() : Collections.emptyList();
+        List<String> allColsList = new ArrayList<>(allCols);
 
-        for (DualWhereRow wr : whereRows) wr.updateAvailableColumns(new ArrayList<>(allCols));
-        for (DualOrderByRow or : orderByRows) or.updateAvailableColumns(new ArrayList<>(allCols));
+        for (DualWhereRow wr : whereRows) wr.updateAvailableColumns(allColsList);
+        for (DualOrderByRow or : orderByRows) or.updateAvailableColumns(allColsList);
+        for (DualAggregateRow ar : aggregateRows) ar.updateAvailableColumns(allColsList);
+        for (DualGroupByRow gr : groupByRows) gr.updateAvailableColumns(allColsList);
+        for (DualHavingRow hr : havingRows) hr.updateAvailableColumns(allColsList);
+        for (DualWindowFuncRow wr : windowFuncRows) wr.updateAvailableColumns(allColsList);
         for (DualJoinRow jr : joinRows) {
             jr.updateLeftColumns(colsA);
             jr.updateAvailableTables(tablesB);
@@ -526,6 +584,8 @@ public class DataCompareTabPanel extends JPanel {
         selectedDataColumns.clear();
         selectedDataColumns.addAll(other.selectedDataColumns);
         btnSelectCols.setText(other.btnSelectCols.getText());
+        if (other.comboSample.getSelectedItem() != null) comboSample.setSelectedItem(other.comboSample.getSelectedItem());
+        if (other.comboLock.getSelectedItem() != null) comboLock.setSelectedItem(other.comboLock.getSelectedItem());
         queryAArea.setText(other.queryAArea.getText());
         queryBArea.setText(other.queryBArea.getText());
         updateTabTitle();
@@ -534,6 +594,72 @@ public class DataCompareTabPanel extends JPanel {
     // ==========================================
     // Clause Management
     // ==========================================
+    private void addAggregateRow() {
+        DualAggregateRow row = new DualAggregateRow();
+        aggregateRows.add(row);
+        aggregateContainer.add(row);
+        updateClauseDropdowns();
+        clausesScrollPane.setVisible(true);
+        revalidate(); repaint();
+    }
+
+    private void removeAggregateRow(DualAggregateRow row) {
+        aggregateRows.remove(row);
+        aggregateContainer.remove(row);
+        checkClausesVisibility();
+        revalidate(); repaint();
+    }
+
+    private void addGroupByRow() {
+        DualGroupByRow row = new DualGroupByRow();
+        groupByRows.add(row);
+        groupByContainer.add(row);
+        updateClauseDropdowns();
+        clausesScrollPane.setVisible(true);
+        revalidate(); repaint();
+    }
+
+    private void removeGroupByRow(DualGroupByRow row) {
+        groupByRows.remove(row);
+        groupByContainer.remove(row);
+        checkClausesVisibility();
+        revalidate(); repaint();
+    }
+
+    private void addHavingRow() {
+        boolean isFirst = havingRows.isEmpty();
+        DualHavingRow row = new DualHavingRow(isFirst);
+        havingRows.add(row);
+        havingContainer.add(row);
+        updateClauseDropdowns();
+        clausesScrollPane.setVisible(true);
+        revalidate(); repaint();
+    }
+
+    private void removeHavingRow(DualHavingRow row) {
+        havingRows.remove(row);
+        havingContainer.remove(row);
+        if (!havingRows.isEmpty()) havingRows.get(0).setFirst(true);
+        checkClausesVisibility();
+        revalidate(); repaint();
+    }
+
+    private void addWindowFuncRow() {
+        DualWindowFuncRow row = new DualWindowFuncRow();
+        windowFuncRows.add(row);
+        windowFuncContainer.add(row);
+        updateClauseDropdowns();
+        clausesScrollPane.setVisible(true);
+        revalidate(); repaint();
+    }
+
+    private void removeWindowFuncRow(DualWindowFuncRow row) {
+        windowFuncRows.remove(row);
+        windowFuncContainer.remove(row);
+        checkClausesVisibility();
+        revalidate(); repaint();
+    }
+
     private void addWhereRow() {
         boolean isFirst = whereRows.isEmpty();
         DualWhereRow row = new DualWhereRow(isFirst);
@@ -591,13 +717,78 @@ public class DataCompareTabPanel extends JPanel {
         joinsContainer.removeAll();
         orderByRows.clear();
         orderByContainer.removeAll();
+        aggregateRows.clear();
+        aggregateContainer.removeAll();
+        groupByRows.clear();
+        groupByContainer.removeAll();
+        havingRows.clear();
+        havingContainer.removeAll();
+        windowFuncRows.clear();
+        windowFuncContainer.removeAll();
         checkClausesVisibility();
         revalidate(); repaint();
     }
 
     private void checkClausesVisibility() {
-        boolean hasAny = !whereRows.isEmpty() || !joinRows.isEmpty() || !orderByRows.isEmpty();
+        boolean hasAny = !whereRows.isEmpty() || !joinRows.isEmpty() || !orderByRows.isEmpty()
+                || !aggregateRows.isEmpty() || !groupByRows.isEmpty() || !havingRows.isEmpty() || !windowFuncRows.isEmpty();
         clausesScrollPane.setVisible(hasAny);
+    }
+
+    public void showExplainMenu(JComponent invoker) {
+        DatabaseEntry dbA = getSelectedDatabaseA();
+        DatabaseEntry dbB = getSelectedDatabaseB();
+        String tA = (String) comboTableA.getSelectedItem();
+        String tB = (String) comboTableB.getSelectedItem();
+        String keyCol = (String) comboKeyCol.getSelectedItem();
+
+        String sqlA = (dbA != null && tA != null) ? buildQueryForDatabase(dbA.getDbManager(), tA, keyCol) : "";
+        String sqlB = (dbB != null && tB != null) ? buildQueryForDatabase(dbB.getDbManager(), tB, keyCol) : "";
+
+        JPopupMenu menu = new JPopupMenu();
+        String[] options = {
+            "EXPLAIN",
+            "EXPLAIN (ANALYZE, BUFFERS)",
+            "EXPLAIN (FORMAT JSON)",
+            "EXPLAIN (ANALYZE, FORMAT JSON)"
+        };
+        for (String opt : options) {
+            JMenuItem itemA = new JMenuItem("🔍 " + opt + " [Source DB]");
+            itemA.addActionListener(e -> promptExplainAction(opt + " " + sqlA, "Source Database (" + (dbA != null ? dbA.getLabel() : "A") + ")"));
+            menu.add(itemA);
+
+            JMenuItem itemB = new JMenuItem("🔍 " + opt + " [Target DB]");
+            itemB.addActionListener(e -> promptExplainAction(opt + " " + sqlB, "Target Database (" + (dbB != null ? dbB.getLabel() : "B") + ")"));
+            menu.add(itemB);
+            menu.addSeparator();
+        }
+        menu.show(invoker, 0, invoker.getHeight());
+    }
+
+    private void promptExplainAction(String explainSql, String dbLabel) {
+        if (explainSql.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please select tables first.");
+            return;
+        }
+        int choice = JOptionPane.showOptionDialog(this,
+            "Execution Plan Query (" + dbLabel + "):\n\n" + explainSql + "\n\nChoose an action:",
+            "Explain Execution Plan",
+            JOptionPane.YES_NO_CANCEL_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            new String[]{"Load into Custom SQL", "Copy to Clipboard", "Cancel"},
+            "Load into Custom SQL");
+        if (choice == 0) {
+            radioCustomSql.setSelected(true);
+            quickTableContainer.setVisible(false);
+            customSqlPanel.setVisible(true);
+            queryAArea.setText(explainSql);
+            queryBArea.setText(explainSql);
+            revalidate(); repaint();
+        } else if (choice == 1) {
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(explainSql), null);
+            JOptionPane.showMessageDialog(this, "EXPLAIN query copied to clipboard!");
+        }
     }
 
     // ==========================================
@@ -609,18 +800,41 @@ public class DataCompareTabPanel extends JPanel {
         sb.append("SELECT ");
         if (chkDistinct.isSelected()) sb.append("DISTINCT ");
 
-        if (selectedDataColumns.isEmpty()) {
-            sb.append("*");
-        } else {
+        List<String> selectParts = new ArrayList<>();
+        if (!selectedDataColumns.isEmpty()) {
             Set<String> cols = new LinkedHashSet<>();
             if (keyCol != null && !keyCol.isEmpty()) cols.add(keyCol);
             cols.addAll(selectedDataColumns);
-            List<String> qCols = new ArrayList<>();
-            for (String c : cols) qCols.add(dbm.quoteColumnName(c));
-            sb.append(String.join(", ", qCols));
+            for (String c : cols) selectParts.add(dbm.quoteColumnName(c));
+        } else if (!groupByRows.isEmpty()) {
+            for (DualGroupByRow gr : groupByRows) {
+                String g = gr.buildSql(dbm);
+                if (!g.isEmpty() && !selectParts.contains(g)) selectParts.add(g);
+            }
+        }
+
+        for (DualAggregateRow ar : aggregateRows) {
+            String aSql = ar.buildSql(dbm);
+            if (!aSql.isEmpty()) selectParts.add(aSql);
+        }
+
+        for (DualWindowFuncRow wr : windowFuncRows) {
+            String wSql = wr.buildSql(dbm);
+            if (!wSql.isEmpty()) selectParts.add(wSql);
+        }
+
+        if (selectParts.isEmpty()) {
+            sb.append("*");
+        } else {
+            sb.append(String.join(", ", selectParts));
         }
 
         sb.append(" FROM ").append(dbm.quoteTableName(mainTable));
+
+        String sampleChoice = (String) comboSample.getSelectedItem();
+        if (sampleChoice != null && !sampleChoice.equals("Sample: None")) {
+            sb.append(" TABLESAMPLE ").append(sampleChoice.replace("Sample: ", ""));
+        }
 
         for (DualJoinRow jr : joinRows) {
             String jSql = jr.buildSql(dbm, mainTable);
@@ -642,6 +856,26 @@ public class DataCompareTabPanel extends JPanel {
         }
         if (!wList.isEmpty()) sb.append(" WHERE ").append(String.join(" ", wList));
 
+        List<String> gList = new ArrayList<>();
+        for (DualGroupByRow gr : groupByRows) {
+            String gStr = gr.buildSql(dbm);
+            if (!gStr.isEmpty()) gList.add(gStr);
+        }
+        if (!gList.isEmpty()) sb.append(" GROUP BY ").append(String.join(", ", gList));
+
+        List<String> hList = new ArrayList<>();
+        for (DualHavingRow hr : havingRows) {
+            String hStr = hr.buildSql(dbm);
+            if (!hStr.isEmpty()) {
+                if (hList.isEmpty()) {
+                    hList.add(hStr);
+                } else {
+                    hList.add(hr.getLogic() + " " + hStr);
+                }
+            }
+        }
+        if (!hList.isEmpty()) sb.append(" HAVING ").append(String.join(" ", hList));
+
         List<String> oList = new ArrayList<>();
         for (DualOrderByRow or : orderByRows) {
             String oStr = or.buildSql(dbm);
@@ -657,6 +891,12 @@ public class DataCompareTabPanel extends JPanel {
         if (!off.isEmpty()) {
             try { sb.append(" OFFSET ").append(Integer.parseInt(off)); } catch (NumberFormatException ignored) {}
         }
+
+        String lockChoice = (String) comboLock.getSelectedItem();
+        if (lockChoice != null && !lockChoice.equals("Lock: None")) {
+            sb.append(" ").append(lockChoice.replace("Lock: ", ""));
+        }
+
         return sb.toString();
     }
 
@@ -1487,6 +1727,294 @@ public class DataCompareTabPanel extends JPanel {
             String dir = (String) dirCombo.getSelectedItem();
             if (col == null || col.trim().isEmpty()) return "";
             return dbm.quoteColumnName(col) + " " + (dir != null ? dir : "ASC");
+        }
+    }
+
+    class DualAggregateRow extends JPanel {
+        private final JComboBox<String> funcCombo = new JComboBox<>(new String[]{
+            "COUNT(*)", "COUNT(DISTINCT)", "SUM", "AVG", "MIN", "MAX"
+        });
+        private final SearchableComboBox<String> colCombo = new SearchableComboBox<>();
+        private final JTextField aliasField = new JTextField(10);
+        private final JTextField filterField = new JTextField(12);
+        private final JButton delBtn = new JButton("X");
+
+        public DualAggregateRow() {
+            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            funcCombo.setPreferredSize(new Dimension(130, 26));
+            colCombo.setPreferredSize(new Dimension(130, 26));
+            aliasField.setPreferredSize(new Dimension(90, 26));
+            filterField.setPreferredSize(new Dimension(110, 26));
+            filterField.setToolTipText("Optional FILTER clause: e.g. status = 'active' or salary > 50000");
+            delBtn.setPreferredSize(new Dimension(38, 24));
+            delBtn.setMargin(new Insets(1, 4, 1, 4));
+
+            add(new JLabel("Agg: "));
+            add(funcCombo);
+            add(colCombo);
+            add(new JLabel(" AS "));
+            add(aliasField);
+            add(new JLabel(" FILTER (WHERE "));
+            add(filterField);
+            add(new JLabel(") "));
+            add(delBtn);
+
+            funcCombo.addActionListener(e -> {
+                String f = (String) funcCombo.getSelectedItem();
+                colCombo.setEnabled(f != null && !f.equals("COUNT(*)"));
+            });
+            colCombo.setEnabled(false);
+
+            delBtn.addActionListener(e -> removeAggregateRow(this));
+        }
+
+        public void updateAvailableColumns(List<String> cols) {
+            Object cur = colCombo.getSelectedItem();
+            colCombo.setAllItems(cols);
+            if (cur != null && cols.contains(cur)) colCombo.setSelectedItem(cur);
+        }
+
+        public String buildSql(DatabaseManager dbm) {
+            String f = (String) funcCombo.getSelectedItem();
+            if (f == null) return "";
+            StringBuilder sb = new StringBuilder();
+            if (f.equals("COUNT(*)")) {
+                sb.append("COUNT(*)");
+            } else if (f.equals("COUNT(DISTINCT)")) {
+                String c = (String) colCombo.getSelectedItem();
+                if (c == null || c.trim().isEmpty()) return "";
+                sb.append("COUNT(DISTINCT ").append(dbm.quoteColumnName(c)).append(")");
+            } else {
+                String c = (String) colCombo.getSelectedItem();
+                if (c == null || c.trim().isEmpty()) return "";
+                sb.append(f).append("(").append(dbm.quoteColumnName(c)).append(")");
+            }
+            String flt = filterField.getText().trim();
+            if (!flt.isEmpty()) {
+                sb.append(" FILTER (WHERE ").append(flt).append(")");
+            }
+            String al = aliasField.getText().trim();
+            if (!al.isEmpty()) {
+                sb.append(" AS ").append(dbm.quoteColumnName(al));
+            }
+            return sb.toString();
+        }
+    }
+
+    class DualGroupByRow extends JPanel {
+        private final SearchableComboBox<String> colCombo = new SearchableComboBox<>();
+        private final JButton delBtn = new JButton("X");
+
+        public DualGroupByRow() {
+            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            colCombo.setPreferredSize(new Dimension(150, 26));
+            delBtn.setPreferredSize(new Dimension(38, 24));
+            delBtn.setMargin(new Insets(1, 4, 1, 4));
+
+            add(new JLabel("Group By: "));
+            add(colCombo);
+            add(delBtn);
+
+            delBtn.addActionListener(e -> removeGroupByRow(this));
+        }
+
+        public void updateAvailableColumns(List<String> cols) {
+            Object cur = colCombo.getSelectedItem();
+            colCombo.setAllItems(cols);
+            if (cur != null && cols.contains(cur)) colCombo.setSelectedItem(cur);
+        }
+
+        public String buildSql(DatabaseManager dbm) {
+            String c = (String) colCombo.getSelectedItem();
+            return (c != null && !c.trim().isEmpty()) ? dbm.quoteColumnName(c) : "";
+        }
+    }
+
+    class DualHavingRow extends JPanel {
+        private final JComboBox<String> logicCombo = new JComboBox<>(new String[]{"AND", "OR"});
+        private final JComboBox<String> funcCombo = new JComboBox<>(new String[]{
+            "COUNT(*)", "COUNT(col)", "SUM(col)", "AVG(col)", "MIN(col)", "MAX(col)"
+        });
+        private final SearchableComboBox<String> colCombo = new SearchableComboBox<>();
+        private final JComboBox<String> opCombo = new JComboBox<>(new String[]{">", ">=", "<", "<=", "=", "<>"});
+        private final JTextField valField = new JTextField(8);
+        private final JButton delBtn = new JButton("X");
+        private boolean isFirst = false;
+
+        public DualHavingRow(boolean isFirst) {
+            this.isFirst = isFirst;
+            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            logicCombo.setPreferredSize(new Dimension(65, 26));
+            funcCombo.setPreferredSize(new Dimension(105, 26));
+            colCombo.setPreferredSize(new Dimension(120, 26));
+            opCombo.setPreferredSize(new Dimension(60, 26));
+            valField.setPreferredSize(new Dimension(60, 26));
+            delBtn.setPreferredSize(new Dimension(38, 24));
+            delBtn.setMargin(new Insets(1, 4, 1, 4));
+
+            if (!isFirst) add(logicCombo);
+            add(new JLabel("Having: "));
+            add(funcCombo);
+            add(colCombo);
+            add(opCombo);
+            add(valField);
+            add(delBtn);
+
+            funcCombo.addActionListener(e -> {
+                String f = (String) funcCombo.getSelectedItem();
+                colCombo.setEnabled(f != null && !f.equals("COUNT(*)"));
+            });
+            colCombo.setEnabled(false);
+
+            delBtn.addActionListener(e -> removeHavingRow(this));
+        }
+
+        public void setFirst(boolean isFirst) {
+            if (this.isFirst != isFirst) {
+                this.isFirst = isFirst;
+                logicCombo.setVisible(!isFirst);
+            }
+        }
+
+        public String getLogic() { return (String) logicCombo.getSelectedItem(); }
+
+        public void updateAvailableColumns(List<String> cols) {
+            Object cur = colCombo.getSelectedItem();
+            colCombo.setAllItems(cols);
+            if (cur != null && cols.contains(cur)) colCombo.setSelectedItem(cur);
+        }
+
+        public String buildSql(DatabaseManager dbm) {
+            String f = (String) funcCombo.getSelectedItem();
+            String op = (String) opCombo.getSelectedItem();
+            String val = valField.getText().trim();
+            if (f == null || op == null || val.isEmpty()) return "";
+
+            String agg;
+            if (f.equals("COUNT(*)")) {
+                agg = "COUNT(*)";
+            } else {
+                String c = (String) colCombo.getSelectedItem();
+                if (c == null || c.trim().isEmpty()) return "";
+                String baseFunc = f.substring(0, f.indexOf("("));
+                agg = baseFunc + "(" + dbm.quoteColumnName(c) + ")";
+            }
+            return agg + " " + op + " " + val;
+        }
+    }
+
+    class DualWindowFuncRow extends JPanel {
+        private final JComboBox<String> funcCombo = new JComboBox<>(new String[]{
+            "ROW_NUMBER()", "RANK()", "DENSE_RANK()", "SUM(col)", "AVG(col)",
+            "MIN(col)", "MAX(col)", "LAG(col)", "LEAD(col)", "FIRST_VALUE(col)", "LAST_VALUE(col)", "NTILE(4)"
+        });
+        private final SearchableComboBox<String> colCombo = new SearchableComboBox<>();
+        private final SearchableComboBox<String> partCombo = new SearchableComboBox<>();
+        private final SearchableComboBox<String> orderCombo = new SearchableComboBox<>();
+        private final JComboBox<String> dirCombo = new JComboBox<>(new String[]{"ASC", "DESC"});
+        private final JComboBox<String> frameCombo = new JComboBox<>(new String[]{
+            "Frame: Default",
+            "ROWS UNBOUNDED PRECEDING",
+            "ROWS 6 PRECEDING",
+            "ROWS 3 PRECEDING AND 3 FOLLOWING",
+            "ROWS 1 PRECEDING EXCLUDE CURRENT ROW"
+        });
+        private final JTextField aliasField = new JTextField("win_val", 8);
+        private final JButton delBtn = new JButton("X");
+
+        public DualWindowFuncRow() {
+            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            funcCombo.setPreferredSize(new Dimension(115, 26));
+            colCombo.setPreferredSize(new Dimension(110, 26));
+            partCombo.setPreferredSize(new Dimension(110, 26));
+            orderCombo.setPreferredSize(new Dimension(110, 26));
+            dirCombo.setPreferredSize(new Dimension(65, 26));
+            frameCombo.setPreferredSize(new Dimension(145, 26));
+            aliasField.setPreferredSize(new Dimension(75, 26));
+            delBtn.setPreferredSize(new Dimension(38, 24));
+            delBtn.setMargin(new Insets(1, 4, 1, 4));
+
+            add(new JLabel("Window: "));
+            add(funcCombo);
+            add(colCombo);
+            add(new JLabel(" PARTITION: "));
+            add(partCombo);
+            add(new JLabel(" ORDER: "));
+            add(orderCombo);
+            add(dirCombo);
+            add(frameCombo);
+            add(new JLabel(" AS "));
+            add(aliasField);
+            add(delBtn);
+
+            funcCombo.addActionListener(e -> {
+                String f = (String) funcCombo.getSelectedItem();
+                boolean needsCol = f != null && f.contains("(col)");
+                colCombo.setEnabled(needsCol);
+            });
+            colCombo.setEnabled(false);
+
+            delBtn.addActionListener(e -> removeWindowFuncRow(this));
+        }
+
+        public void updateAvailableColumns(List<String> cols) {
+            updateCombo(colCombo, cols);
+            List<String> partCols = new ArrayList<>(cols);
+            partCols.add(0, "-- None --");
+            updateCombo(partCombo, partCols);
+            List<String> orderCols = new ArrayList<>(cols);
+            orderCols.add(0, "-- None --");
+            updateCombo(orderCombo, orderCols);
+        }
+
+        private void updateCombo(SearchableComboBox<String> cb, List<String> items) {
+            Object cur = cb.getSelectedItem();
+            cb.setAllItems(items);
+            if (cur != null && items.contains(cur)) cb.setSelectedItem(cur);
+        }
+
+        public String buildSql(DatabaseManager dbm) {
+            String f = (String) funcCombo.getSelectedItem();
+            if (f == null) return "";
+            StringBuilder expr = new StringBuilder();
+            if (f.contains("(col)")) {
+                String c = (String) colCombo.getSelectedItem();
+                if (c == null || c.trim().isEmpty()) return "";
+                String baseFunc = f.substring(0, f.indexOf("("));
+                expr.append(baseFunc).append("(").append(dbm.quoteColumnName(c)).append(")");
+            } else {
+                expr.append(f);
+            }
+            expr.append(" OVER (");
+            boolean hasPart = false;
+            String partCol = (String) partCombo.getSelectedItem();
+            if (partCol != null && !partCol.equals("-- None --") && !partCol.trim().isEmpty()) {
+                expr.append("PARTITION BY ").append(dbm.quoteColumnName(partCol));
+                hasPart = true;
+            }
+            String ordCol = (String) orderCombo.getSelectedItem();
+            if (ordCol != null && !ordCol.equals("-- None --") && !ordCol.trim().isEmpty()) {
+                if (hasPart) expr.append(" ");
+                expr.append("ORDER BY ").append(dbm.quoteColumnName(ordCol)).append(" ").append(dirCombo.getSelectedItem());
+            }
+            String frame = (String) frameCombo.getSelectedItem();
+            if (frame != null && !frame.equals("Frame: Default")) {
+                if (frame.equals("ROWS UNBOUNDED PRECEDING")) {
+                    expr.append(" ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW");
+                } else if (frame.equals("ROWS 6 PRECEDING")) {
+                    expr.append(" ROWS BETWEEN 6 PRECEDING AND CURRENT ROW");
+                } else if (frame.equals("ROWS 3 PRECEDING AND 3 FOLLOWING")) {
+                    expr.append(" ROWS BETWEEN 3 PRECEDING AND 3 FOLLOWING");
+                } else if (frame.equals("ROWS 1 PRECEDING EXCLUDE CURRENT ROW")) {
+                    expr.append(" ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING EXCLUDE CURRENT ROW");
+                }
+            }
+            expr.append(")");
+            String al = aliasField.getText().trim();
+            if (!al.isEmpty()) {
+                expr.append(" AS ").append(dbm.quoteColumnName(al));
+            }
+            return expr.toString();
         }
     }
 

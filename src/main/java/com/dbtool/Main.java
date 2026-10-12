@@ -39,6 +39,20 @@ public class Main extends JFrame {
     private List<WherePanel> browseWherePanels = new ArrayList<>();
     private JPanel browseOrderByContainer = new JPanel();
     private List<OrderByPanel> browseOrderByPanels = new ArrayList<>();
+    private JPanel browseAggregateContainer = new JPanel();
+    private List<AggregateRowPanel> browseAggregatePanels = new ArrayList<>();
+    private JPanel browseGroupByContainer = new JPanel();
+    private List<GroupByRowPanel> browseGroupByPanels = new ArrayList<>();
+    private JPanel browseHavingContainer = new JPanel();
+    private List<HavingRowPanel> browseHavingPanels = new ArrayList<>();
+    private JPanel browseWindowFuncContainer = new JPanel();
+    private List<WindowFuncRowPanel> browseWindowFuncPanels = new ArrayList<>();
+    private JComboBox<String> browseLockDropdown = new JComboBox<>(new String[]{
+        "Lock: None", "FOR UPDATE", "FOR UPDATE SKIP LOCKED", "FOR SHARE", "FOR NO KEY UPDATE"
+    });
+    private JComboBox<String> browseSampleDropdown = new JComboBox<>(new String[]{
+        "Sample: None", "BERNOULLI (10)", "BERNOULLI (5)", "BERNOULLI (1)", "SYSTEM (10)", "SYSTEM (5)"
+    });
     private String lastExecutedBrowseQuery = "";
     private int browseCurrentOffset = 0;
     private boolean isBrowseLoading = false;
@@ -64,8 +78,24 @@ public class Main extends JFrame {
                 browseWhereContainer.removeAll();
                 browseOrderByPanels.clear();
                 browseOrderByContainer.removeAll();
+                browseAggregatePanels.clear();
+                browseAggregateContainer.removeAll();
+                browseGroupByPanels.clear();
+                browseGroupByContainer.removeAll();
+                browseHavingPanels.clear();
+                browseHavingContainer.removeAll();
+                browseWindowFuncPanels.clear();
+                browseWindowFuncContainer.removeAll();
                 browseWhereContainer.revalidate();
                 browseWhereContainer.repaint();
+                browseAggregateContainer.revalidate();
+                browseAggregateContainer.repaint();
+                browseGroupByContainer.revalidate();
+                browseGroupByContainer.repaint();
+                browseHavingContainer.revalidate();
+                browseHavingContainer.repaint();
+                browseWindowFuncContainer.revalidate();
+                browseWindowFuncContainer.repaint();
                 refreshOrderByDropdown();
                 loadTableData();
             });
@@ -75,8 +105,6 @@ public class Main extends JFrame {
             tbSelect.add(new JLabel(" | "));
             selectColsButton.addActionListener(e -> openColumnSelector());
             tbSelect.add(selectColsButton);
-            
-    
             
             tbSelect.add(new JLabel(" |  Limit: "));
             limitField.setPreferredSize(new Dimension(60, 26));
@@ -88,6 +116,32 @@ public class Main extends JFrame {
             JButton addWhereBtn = new JButton("+ Add Where");
             addWhereBtn.addActionListener(e -> addBrowseWhereRow());
             tbQuery.add(addWhereBtn);
+            
+            JButton addAggBtn = new JButton("+ Add Aggregate");
+            addAggBtn.setToolTipText("Add dynamic aggregate row: COUNT, SUM, AVG, MIN, MAX with optional FILTER clause");
+            addAggBtn.addActionListener(e -> addBrowseAggregateRow());
+            tbQuery.add(addAggBtn);
+
+            JButton addGrpBtn = new JButton("+ Add Group By");
+            addGrpBtn.setToolTipText("Add GROUP BY column row");
+            addGrpBtn.addActionListener(e -> addBrowseGroupByRow());
+            tbQuery.add(addGrpBtn);
+
+            JButton addHavBtn = new JButton("+ Add Having");
+            addHavBtn.setToolTipText("Add HAVING condition row");
+            addHavBtn.addActionListener(e -> addBrowseHavingRow());
+            tbQuery.add(addHavBtn);
+
+            JButton addWinBtn = new JButton("+ Add Window Func");
+            addWinBtn.setToolTipText("Add Window function row (OVER partition/order/frame)");
+            addWinBtn.addActionListener(e -> addBrowseWindowFuncRow());
+            tbQuery.add(addWinBtn);
+
+            tbQuery.add(new JLabel(" | "));
+            browseSampleDropdown.setToolTipText("TABLESAMPLE clause (Bernoulli or System sampling)");
+            tbQuery.add(browseSampleDropdown);
+            browseLockDropdown.setToolTipText("Row-level locking clause (FOR UPDATE, SKIP LOCKED)");
+            tbQuery.add(browseLockDropdown);
             tbQuery.add(new JLabel(" | "));
             tbQuery.add(browseDistinctCheckbox);
             tbQuery.add(new JLabel(" | "));
@@ -95,10 +149,16 @@ public class Main extends JFrame {
             addBrowseOrderBtn.addActionListener(e -> addBrowseOrderByRow());
             tbQuery.add(addBrowseOrderBtn);
             tbQuery.add(new JLabel(" | "));
-            JButton aggregatesBtn = new JButton("📊 Aggregates & Group By");
-            aggregatesBtn.setToolTipText("Compute aggregate metrics (COUNT(*), SUM, AVG, MIN, MAX) and GROUP BY / HAVING summary");
+            JButton aggregatesBtn = new JButton("📊 Aggregates Dialog");
+            aggregatesBtn.setToolTipText("Open full-table aggregate metrics & grouping dialog");
             aggregatesBtn.addActionListener(e -> openBrowseAggregatesDialog());
             tbQuery.add(aggregatesBtn);
+
+            JButton explainBtn = new JButton("🔍 EXPLAIN ▾");
+            explainBtn.setToolTipText("Inspect execution plan for query (EXPLAIN, ANALYZE, BUFFERS)");
+            explainBtn.addActionListener(e -> showExplainMenu(explainBtn, () -> buildCurrentBrowseQuery(false)));
+            tbQuery.add(explainBtn);
+
             JButton applyOrderBtn = new JButton("▶ Run Query");
             applyOrderBtn.setFont(applyOrderBtn.getFont().deriveFont(java.awt.Font.BOLD));
             applyOrderBtn.setForeground(new java.awt.Color(0, 150, 0));
@@ -225,6 +285,11 @@ public class Main extends JFrame {
             browseTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
     
             browseWhereContainer.setLayout(new BoxLayout(browseWhereContainer, BoxLayout.Y_AXIS));
+            browseAggregateContainer.setLayout(new BoxLayout(browseAggregateContainer, BoxLayout.Y_AXIS));
+            browseGroupByContainer.setLayout(new BoxLayout(browseGroupByContainer, BoxLayout.Y_AXIS));
+            browseHavingContainer.setLayout(new BoxLayout(browseHavingContainer, BoxLayout.Y_AXIS));
+            browseWindowFuncContainer.setLayout(new BoxLayout(browseWindowFuncContainer, BoxLayout.Y_AXIS));
+            browseOrderByContainer.setLayout(new BoxLayout(browseOrderByContainer, BoxLayout.Y_AXIS));
             
             JPanel northPanel = new JPanel(new BorderLayout());
             JPanel rowsPanel = new JPanel();
@@ -232,11 +297,14 @@ public class Main extends JFrame {
             rowsPanel.add(tbSelect);
             rowsPanel.add(tbQuery);
             rowsPanel.add(tbActions);
-            browseOrderByContainer.setLayout(new BoxLayout(browseOrderByContainer, BoxLayout.Y_AXIS));
             northPanel.add(rowsPanel, BorderLayout.NORTH);
             JPanel filtersPanel = new JPanel();
             filtersPanel.setLayout(new BoxLayout(filtersPanel, BoxLayout.Y_AXIS));
             filtersPanel.add(browseWhereContainer);
+            filtersPanel.add(browseAggregateContainer);
+            filtersPanel.add(browseGroupByContainer);
+            filtersPanel.add(browseHavingContainer);
+            filtersPanel.add(browseWindowFuncContainer);
             filtersPanel.add(browseOrderByContainer);
             northPanel.add(filtersPanel, BorderLayout.CENTER);
             
@@ -638,40 +706,115 @@ public class Main extends JFrame {
         dialog.setVisible(true);
     }
 
+    private String buildCurrentBrowseQuery(boolean includeLimit) {
+        String selectedTable = (String) browseTableDropdown.getSelectedItem();
+        if (selectedTable == null) return "";
+
+        List<String> selectParts = new ArrayList<>();
+        for (AggregateRowPanel arp : browseAggregatePanels) {
+            String expr = arp.buildExpression(dbManager);
+            if (!expr.isEmpty()) selectParts.add(expr);
+        }
+        for (WindowFuncRowPanel wfp : browseWindowFuncPanels) {
+            String expr = wfp.buildExpression(dbManager);
+            if (!expr.isEmpty()) selectParts.add(expr);
+        }
+
+        List<String> groupByParts = new ArrayList<>();
+        for (GroupByRowPanel grp : browseGroupByPanels) {
+            String colExpr = grp.getColumnExpression(dbManager);
+            if (!colExpr.isEmpty()) {
+                groupByParts.add(colExpr);
+                if (!selectParts.isEmpty() && !selectParts.contains(colExpr)) {
+                    selectParts.add(0, colExpr);
+                }
+            }
+        }
+
+        String cols;
+        if (!selectParts.isEmpty()) {
+            if (!currentSelectedColumns.isEmpty()) {
+                for (String c : currentSelectedColumns) {
+                    String q = dbManager.quoteColumnName(c);
+                    if (!selectParts.contains(q)) selectParts.add(0, q);
+                }
+            }
+            cols = String.join(", ", selectParts);
+        } else if (!currentSelectedColumns.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < currentSelectedColumns.size(); i++) {
+                sb.append(dbManager.quoteColumnName(currentSelectedColumns.get(i)));
+                if (i < currentSelectedColumns.size() - 1) sb.append(", ");
+            }
+            cols = sb.toString();
+        } else {
+            cols = "*";
+        }
+
+        String distinctStr = browseDistinctCheckbox.isSelected() ? "DISTINCT " : "";
+        String sampleStr = "";
+        String sampleChoice = (String) browseSampleDropdown.getSelectedItem();
+        if (sampleChoice != null && !sampleChoice.equals("Sample: None")) {
+            sampleStr = " TABLESAMPLE " + sampleChoice;
+        }
+
+        StringBuilder q = new StringBuilder();
+        q.append("SELECT ").append(distinctStr).append(cols)
+         .append(" FROM ").append(dbManager.quoteTableName(selectedTable))
+         .append(sampleStr);
+
+        q.append(buildBrowseWhereClause());
+
+        if (!groupByParts.isEmpty()) {
+            q.append(" GROUP BY ").append(String.join(", ", groupByParts));
+        }
+
+        if (!browseHavingPanels.isEmpty()) {
+            StringBuilder hsb = new StringBuilder(" HAVING ");
+            int hCount = 0;
+            for (HavingRowPanel hrp : browseHavingPanels) {
+                String clause = hrp.buildClause(dbManager);
+                if (clause.isEmpty()) continue;
+                if (hCount > 0) hsb.append(" ").append(hrp.logicDropdown.getSelectedItem()).append(" ");
+                hsb.append(clause);
+                hCount++;
+            }
+            if (hCount > 0) q.append(hsb.toString());
+        }
+
+        if (!browseOrderByPanels.isEmpty()) {
+            StringBuilder osb = new StringBuilder(" ORDER BY ");
+            for (int i = 0; i < browseOrderByPanels.size(); i++) {
+                OrderByPanel op = browseOrderByPanels.get(i);
+                String col = (String) op.columnDropdown.getSelectedItem();
+                String dir = (String) op.dirDropdown.getSelectedItem();
+                if (col != null) {
+                    osb.append(dbManager.quoteColumnName(col)).append(" ").append(dir);
+                    if (i < browseOrderByPanels.size() - 1) osb.append(", ");
+                }
+            }
+            q.append(osb.toString());
+        }
+
+        if (includeLimit) {
+            String limitStr = limitField.getText().trim();
+            if (!limitStr.isEmpty()) {
+                try { q.append(" LIMIT ").append(Integer.parseInt(limitStr)); } catch (Exception ignored) {}
+            }
+            String lockChoice = (String) browseLockDropdown.getSelectedItem();
+            if (lockChoice != null && !lockChoice.equals("Lock: None")) {
+                q.append(" ").append(lockChoice);
+            }
+        }
+
+        return q.toString();
+    }
+
     private void loadTableData() {
             String selectedTable = (String) browseTableDropdown.getSelectedItem();
             if (selectedTable == null) return;
             
-            String cols = "*";
-            if (!currentSelectedColumns.isEmpty()) {
-                StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < currentSelectedColumns.size(); i++) {
-                    sb.append(dbManager.quoteColumnName(currentSelectedColumns.get(i)));
-                    if (i < currentSelectedColumns.size() - 1) sb.append(", ");
-                }
-                cols = sb.toString();
-            }
-            
-            String orderClause = "";
-            if (!browseOrderByPanels.isEmpty()) {
-                StringBuilder osb = new StringBuilder(" ORDER BY ");
-                for (int i = 0; i < browseOrderByPanels.size(); i++) {
-                    OrderByPanel op = browseOrderByPanels.get(i);
-                    String col = (String) op.columnDropdown.getSelectedItem();
-                    String dir = (String) op.dirDropdown.getSelectedItem();
-                    if (col != null) {
-                        osb.append(dbManager.quoteColumnName(col)).append(" ").append(dir);
-                        if (i < browseOrderByPanels.size() - 1) osb.append(", ");
-                    }
-                }
-                orderClause = osb.toString();
-            }
-            
-            String distinctStr = browseDistinctCheckbox.isSelected() ? "DISTINCT " : "";
-            
-            lastBrowseBaseQuery = "SELECT " + distinctStr + cols + " FROM " + dbManager.quoteTableName(selectedTable)
-                    + buildBrowseWhereClause() + orderClause;
-            
+            lastBrowseBaseQuery = buildCurrentBrowseQuery(false);
             browseCurrentOffset = 0;
             fetchBrowseData(false);
         }
@@ -695,7 +838,9 @@ public class Main extends JFrame {
                 fetchLimit = Math.min(1000, userLimit - browseCurrentOffset);
             }
             
-            String query = lastBrowseBaseQuery + " LIMIT " + fetchLimit + " OFFSET " + browseCurrentOffset;
+            String lockChoice = (String) browseLockDropdown.getSelectedItem();
+            String lockStr = (lockChoice != null && !lockChoice.equals("Lock: None")) ? " " + lockChoice : "";
+            String query = lastBrowseBaseQuery + " LIMIT " + fetchLimit + " OFFSET " + browseCurrentOffset + lockStr;
             
             if (!append) {
                 lastExecutedBrowseQuery = query;
@@ -758,6 +903,47 @@ public class Main extends JFrame {
                 count++;
             }
             return count > 0 ? sb.toString() : "";
+        }
+    private void addBrowseAggregateRow() {
+            String selectedTable = (String) browseTableDropdown.getSelectedItem();
+            List<String> cols = selectedTable != null ? dbManager.getColumnNames(selectedTable) : new ArrayList<>();
+            AggregateRowPanel row = new AggregateRowPanel(false, browseAggregatePanels, browseAggregateContainer);
+            row.updateColumns(cols);
+            browseAggregatePanels.add(row);
+            browseAggregateContainer.add(row);
+            browseAggregateContainer.revalidate();
+            browseAggregateContainer.repaint();
+        }
+    private void addBrowseGroupByRow() {
+            String selectedTable = (String) browseTableDropdown.getSelectedItem();
+            List<String> cols = selectedTable != null ? dbManager.getColumnNames(selectedTable) : new ArrayList<>();
+            GroupByRowPanel row = new GroupByRowPanel(false, browseGroupByPanels, browseGroupByContainer);
+            row.updateColumns(cols);
+            browseGroupByPanels.add(row);
+            browseGroupByContainer.add(row);
+            browseGroupByContainer.revalidate();
+            browseGroupByContainer.repaint();
+        }
+    private void addBrowseHavingRow() {
+            String selectedTable = (String) browseTableDropdown.getSelectedItem();
+            List<String> cols = selectedTable != null ? dbManager.getColumnNames(selectedTable) : new ArrayList<>();
+            boolean isFirst = browseHavingPanels.isEmpty();
+            HavingRowPanel row = new HavingRowPanel(isFirst, false, browseHavingPanels, browseHavingContainer);
+            row.updateColumns(cols);
+            browseHavingPanels.add(row);
+            browseHavingContainer.add(row);
+            browseHavingContainer.revalidate();
+            browseHavingContainer.repaint();
+        }
+    private void addBrowseWindowFuncRow() {
+            String selectedTable = (String) browseTableDropdown.getSelectedItem();
+            List<String> cols = selectedTable != null ? dbManager.getColumnNames(selectedTable) : new ArrayList<>();
+            WindowFuncRowPanel row = new WindowFuncRowPanel(browseWindowFuncPanels, browseWindowFuncContainer);
+            row.updateColumns(cols);
+            browseWindowFuncPanels.add(row);
+            browseWindowFuncContainer.add(row);
+            browseWindowFuncContainer.revalidate();
+            browseWindowFuncContainer.repaint();
         }
     private void addBrowseOrderByRow() {
             String selectedTable = (String) browseTableDropdown.getSelectedItem();
@@ -867,6 +1053,20 @@ public class Main extends JFrame {
     private List<WherePanel> wherePanels = new ArrayList<>();
     private JPanel joinOrderByContainer = new JPanel();
     private List<OrderByPanel> joinOrderByPanels = new ArrayList<>();
+    private JPanel joinAggregateContainer = new JPanel();
+    private List<AggregateRowPanel> joinAggregatePanels = new ArrayList<>();
+    private JPanel joinGroupByContainer = new JPanel();
+    private List<GroupByRowPanel> joinGroupByPanels = new ArrayList<>();
+    private JPanel joinHavingContainer = new JPanel();
+    private List<HavingRowPanel> joinHavingPanels = new ArrayList<>();
+    private JPanel joinWindowFuncContainer = new JPanel();
+    private List<WindowFuncRowPanel> joinWindowFuncPanels = new ArrayList<>();
+    private JComboBox<String> joinLockDropdown = new JComboBox<>(new String[]{
+        "Lock: None", "FOR UPDATE", "FOR UPDATE SKIP LOCKED", "FOR SHARE", "FOR NO KEY UPDATE"
+    });
+    private JComboBox<String> joinSampleDropdown = new JComboBox<>(new String[]{
+        "Sample: None", "BERNOULLI (10)", "BERNOULLI (5)", "BERNOULLI (1)", "SYSTEM (10)", "SYSTEM (5)"
+    });
 
     private JPanel createJoinPanel() {
             JPanel panel = new JPanel(new BorderLayout());
@@ -908,13 +1108,21 @@ public class Main extends JFrame {
             // Dynamic Joins and Where List
             joinsContainer.setLayout(new BoxLayout(joinsContainer, BoxLayout.Y_AXIS));
             whereContainer.setLayout(new BoxLayout(whereContainer, BoxLayout.Y_AXIS));
-            
             implicitTablesContainer.setLayout(new BoxLayout(implicitTablesContainer, BoxLayout.Y_AXIS));
+            joinAggregateContainer.setLayout(new BoxLayout(joinAggregateContainer, BoxLayout.Y_AXIS));
+            joinGroupByContainer.setLayout(new BoxLayout(joinGroupByContainer, BoxLayout.Y_AXIS));
+            joinHavingContainer.setLayout(new BoxLayout(joinHavingContainer, BoxLayout.Y_AXIS));
+            joinWindowFuncContainer.setLayout(new BoxLayout(joinWindowFuncContainer, BoxLayout.Y_AXIS));
+
             JPanel listsPanel = new JPanel();
             listsPanel.setLayout(new BoxLayout(listsPanel, BoxLayout.Y_AXIS));
             listsPanel.add(implicitTablesContainer);
             listsPanel.add(joinsContainer);
             listsPanel.add(whereContainer);
+            listsPanel.add(joinAggregateContainer);
+            listsPanel.add(joinGroupByContainer);
+            listsPanel.add(joinHavingContainer);
+            listsPanel.add(joinWindowFuncContainer);
             
             configPanel.add(new JScrollPane(listsPanel), BorderLayout.CENTER);
             
@@ -927,6 +1135,34 @@ public class Main extends JFrame {
             tbRun.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
             joinSelectColsButton.addActionListener(e -> openJoinColumnSelector());
             tbRun.add(joinSelectColsButton);
+            tbRun.add(new JLabel(" | "));
+            
+            JButton addJoinAggBtn = new JButton("+ Add Aggregate");
+            addJoinAggBtn.setToolTipText("Add dynamic aggregate row (COUNT, SUM, AVG, MIN, MAX) to joined tables");
+            addJoinAggBtn.addActionListener(e -> addJoinAggregateRow());
+            tbRun.add(addJoinAggBtn);
+
+            JButton addJoinGroupBtn = new JButton("+ Add Group By");
+            addJoinGroupBtn.setToolTipText("Add GROUP BY column to joined tables");
+            addJoinGroupBtn.addActionListener(e -> addJoinGroupByRow());
+            tbRun.add(addJoinGroupBtn);
+
+            JButton addJoinHavingBtn = new JButton("+ Add Having");
+            addJoinHavingBtn.setToolTipText("Add HAVING condition to joined tables");
+            addJoinHavingBtn.addActionListener(e -> addJoinHavingRow());
+            tbRun.add(addJoinHavingBtn);
+
+            JButton addJoinWindowBtn = new JButton("+ Add Window Func");
+            addJoinWindowBtn.setToolTipText("Add window function row (OVER partition/order/frame)");
+            addJoinWindowBtn.addActionListener(e -> addJoinWindowFuncRow());
+            tbRun.add(addJoinWindowBtn);
+
+            tbRun.add(new JLabel(" | "));
+            joinSampleDropdown.setToolTipText("TABLESAMPLE on base table (Bernoulli or System sampling)");
+            tbRun.add(joinSampleDropdown);
+            joinLockDropdown.setToolTipText("Row-level locking clause (FOR UPDATE, SKIP LOCKED)");
+            tbRun.add(joinLockDropdown);
+
             tbRun.add(new JLabel(" | "));
             tbRun.add(joinDistinctCheckbox);
             tbRun.add(new JLabel(" |  Limit: "));
@@ -948,10 +1184,15 @@ public class Main extends JFrame {
             addJoinOrderBtn.addActionListener(e -> addJoinOrderByRow());
             tbRun.add(addJoinOrderBtn);
             tbRun.add(new JLabel(" | "));
-            JButton joinAggregatesBtn = new JButton("📊 Aggregates & Group By");
-            joinAggregatesBtn.setToolTipText("Add aggregate metrics (COUNT, SUM, AVG, MIN, MAX) and GROUP BY / HAVING to this join");
+            JButton joinAggregatesBtn = new JButton("📊 Aggregates Dialog");
+            joinAggregatesBtn.setToolTipText("Open full join aggregate metrics & grouping dialog");
             joinAggregatesBtn.addActionListener(e -> openJoinAggregatesDialog());
             tbRun.add(joinAggregatesBtn);
+
+            JButton explainJoinBtn = new JButton("🔍 EXPLAIN ▾");
+            explainJoinBtn.setToolTipText("Inspect join execution plan (EXPLAIN, ANALYZE, BUFFERS)");
+            explainJoinBtn.addActionListener(e -> showExplainMenu(explainJoinBtn, () -> buildCurrentJoinQuery()));
+            tbRun.add(explainJoinBtn);
             
             tbRun.add(new JLabel(" | "));
             JButton runJoinBtn = new JButton("▶ Execute Join");
@@ -1503,6 +1744,84 @@ public class Main extends JFrame {
             whereContainer.repaint();
             updateWhereDropdowns();
         }
+
+    private List<String> getAllJoinTables() {
+            List<String> tables = new ArrayList<>();
+            String baseTable = (String) baseTableDropdown.getSelectedItem();
+            if (baseTable != null && !baseTable.isEmpty()) tables.add(baseTable);
+            for (ImplicitTablePanel itp : implicitTablePanels) {
+                String t = (String) itp.tableDropdown.getSelectedItem();
+                if (t != null && !t.isEmpty() && !tables.contains(t)) tables.add(t);
+            }
+            for (JoinPanel jp : joinPanels) {
+                String t = (String) jp.joinTableDropdown.getSelectedItem();
+                if (t != null && !t.isEmpty() && !tables.contains(t)) tables.add(t);
+            }
+            return tables;
+        }
+
+    private List<String> getAllJoinColumns() {
+            List<String> allCols = new ArrayList<>();
+            for (String tbl : getAllJoinTables()) {
+                for (String col : dbManager.getColumnNames(tbl)) {
+                    allCols.add(tbl + "." + col);
+                }
+            }
+            return allCols;
+        }
+
+    private void addJoinAggregateRow() {
+            AggregateRowPanel row = new AggregateRowPanel(true, joinAggregatePanels, joinAggregateContainer);
+            List<String> tbls = getAllJoinTables();
+            row.updateTables(tbls);
+            if (!tbls.isEmpty()) {
+                row.tableDropdown.setSelectedItem(tbls.get(0));
+                row.updateColumns(dbManager.getColumnNames(tbls.get(0)));
+            }
+            joinAggregatePanels.add(row);
+            joinAggregateContainer.add(row);
+            joinAggregateContainer.revalidate();
+            joinAggregateContainer.repaint();
+        }
+
+    private void addJoinGroupByRow() {
+            GroupByRowPanel row = new GroupByRowPanel(true, joinGroupByPanels, joinGroupByContainer);
+            List<String> tbls = getAllJoinTables();
+            row.updateTables(tbls);
+            if (!tbls.isEmpty()) {
+                row.tableDropdown.setSelectedItem(tbls.get(0));
+                row.updateColumns(dbManager.getColumnNames(tbls.get(0)));
+            }
+            joinGroupByPanels.add(row);
+            joinGroupByContainer.add(row);
+            joinGroupByContainer.revalidate();
+            joinGroupByContainer.repaint();
+        }
+
+    private void addJoinHavingRow() {
+            boolean isFirst = joinHavingPanels.isEmpty();
+            HavingRowPanel row = new HavingRowPanel(isFirst, true, joinHavingPanels, joinHavingContainer);
+            List<String> tbls = getAllJoinTables();
+            row.updateTables(tbls);
+            if (!tbls.isEmpty()) {
+                row.tableDropdown.setSelectedItem(tbls.get(0));
+                row.updateColumns(dbManager.getColumnNames(tbls.get(0)));
+            }
+            joinHavingPanels.add(row);
+            joinHavingContainer.add(row);
+            joinHavingContainer.revalidate();
+            joinHavingContainer.repaint();
+        }
+
+    private void addJoinWindowFuncRow() {
+            WindowFuncRowPanel row = new WindowFuncRowPanel(joinWindowFuncPanels, joinWindowFuncContainer);
+            row.updateColumns(getAllJoinColumns());
+            joinWindowFuncPanels.add(row);
+            joinWindowFuncContainer.add(row);
+            joinWindowFuncContainer.revalidate();
+            joinWindowFuncContainer.repaint();
+        }
+
     private void updateJoinDropdowns() {
             new Thread(() -> {
                 // Collect all available tables from the base table and previous joins to populate the "Left" side of the ON clause
@@ -1511,10 +1830,6 @@ public class Main extends JFrame {
                 String baseTable = (String) baseTableDropdown.getSelectedItem();
                 if (baseTable != null) {
                     availableLeftTables.add(baseTable);
-                }
-                for (ImplicitTablePanel itp : implicitTablePanels) {
-                    String t = (String) itp.tableDropdown.getSelectedItem();
-                    if (t != null && !t.isEmpty()) availableLeftTables.add(t);
                 }
                 for (ImplicitTablePanel itp : implicitTablePanels) {
                     String t = (String) itp.tableDropdown.getSelectedItem();
@@ -1573,6 +1888,15 @@ public class Main extends JFrame {
                         availableLeftTables.add(joinTable);
                     }
                 }
+
+                List<String> allTbls = getAllJoinTables();
+                List<String> allCols = getAllJoinColumns();
+                SwingUtilities.invokeLater(() -> {
+                    for (AggregateRowPanel arp : joinAggregatePanels) arp.updateTables(allTbls);
+                    for (GroupByRowPanel grp : joinGroupByPanels) grp.updateTables(allTbls);
+                    for (HavingRowPanel hrp : joinHavingPanels) hrp.updateTables(allTbls);
+                    for (WindowFuncRowPanel wrp : joinWindowFuncPanels) wrp.updateColumns(allCols);
+                });
             }).start();
         }
     private void updateWhereDropdowns() {
@@ -1697,24 +2021,61 @@ public class Main extends JFrame {
             if (state == null) return;
             restoreJoinState(state);
         }
-    private void executeVisualJoin() {
+    public String buildCurrentJoinQuery() {
             String baseTable = (String) baseTableDropdown.getSelectedItem();
-            if (baseTable == null) return;
+            if (baseTable == null) return "";
     
-            String cols = "*";
-            if (!joinSelectedColumns.isEmpty()) {
+            List<String> selectParts = new ArrayList<>();
+            for (AggregateRowPanel arp : joinAggregatePanels) {
+                String expr = arp.buildExpression(dbManager);
+                if (!expr.isEmpty()) selectParts.add(expr);
+            }
+            for (WindowFuncRowPanel wfp : joinWindowFuncPanels) {
+                String expr = wfp.buildExpression(dbManager);
+                if (!expr.isEmpty()) selectParts.add(expr);
+            }
+
+            List<String> groupByParts = new ArrayList<>();
+            for (GroupByRowPanel grp : joinGroupByPanels) {
+                String colExpr = grp.getColumnExpression(dbManager);
+                if (!colExpr.isEmpty()) {
+                    groupByParts.add(colExpr);
+                    if (!selectParts.isEmpty() && !selectParts.contains(colExpr)) {
+                        selectParts.add(0, colExpr);
+                    }
+                }
+            }
+
+            String cols;
+            if (!selectParts.isEmpty()) {
+                if (!joinSelectedColumns.isEmpty()) {
+                    for (String c : joinSelectedColumns) {
+                        String q = dbManager.quoteColumnName(c);
+                        if (!selectParts.contains(q)) selectParts.add(0, q);
+                    }
+                }
+                cols = String.join(", ", selectParts);
+            } else if (!joinSelectedColumns.isEmpty()) {
                 StringBuilder sb = new StringBuilder();
                 for (int i = 0; i < joinSelectedColumns.size(); i++) {
                     sb.append(dbManager.quoteColumnName(joinSelectedColumns.get(i)));
                     if (i < joinSelectedColumns.size() - 1) sb.append(", ");
                 }
                 cols = sb.toString();
+            } else {
+                cols = "*";
             }
             
             String distinctStr = joinDistinctCheckbox.isSelected() ? "DISTINCT " : "";
             
+            String sampleStr = "";
+            String sampleChoice = (String) joinSampleDropdown.getSelectedItem();
+            if (sampleChoice != null && !sampleChoice.equals("Sample: None")) {
+                sampleStr = " TABLESAMPLE " + sampleChoice;
+            }
+
             StringBuilder sql = new StringBuilder();
-            sql.append("SELECT ").append(distinctStr).append(cols).append(" FROM ").append(dbManager.quoteTableName(baseTable));
+            sql.append("SELECT ").append(distinctStr).append(cols).append(" FROM ").append(dbManager.quoteTableName(baseTable)).append(sampleStr);
             
             for (ImplicitTablePanel itp : implicitTablePanels) {
                 String t = (String) itp.tableDropdown.getSelectedItem();
@@ -1732,11 +2093,6 @@ public class Main extends JFrame {
                 
                 sql.append(" ").append(type).append(" ").append(dbManager.quoteTableName(table)).append(" ");
                 
-                boolean isCrossOrApply = type != null && (type.equalsIgnoreCase("CROSS JOIN")
-                        || type.equalsIgnoreCase("CROSS JOIN LATERAL")
-                        || type.equalsIgnoreCase("CROSS APPLY")
-                        || type.equalsIgnoreCase("OUTER APPLY"));
-
                 for (int i = 0; i < jp.conditionPanels.size(); i++) {
                     JoinConditionPanel cp = jp.conditionPanels.get(i);
                     String leftTable = (String) cp.leftTableDropdown.getSelectedItem();
@@ -1748,9 +2104,6 @@ public class Main extends JFrame {
                         String rightFormatted = dbManager.quoteColumnName(table + "." + rightCol);
                         
                         sql.append(cp.operator).append(" ").append(leftFormatted).append(" = ").append(rightFormatted).append(" ");
-                    } else if (!isCrossOrApply) {
-                        JOptionPane.showMessageDialog(this, "Please make sure both 'Left' and 'Right' columns are selected for the join condition on table: " + table, "Incomplete Join", JOptionPane.WARNING_MESSAGE);
-                        return;
                     }
                 }
             }
@@ -1768,6 +2121,21 @@ public class Main extends JFrame {
                 if (count > 0) {
                     sql.append(wsb.toString());
                 }
+            }
+            if (!groupByParts.isEmpty()) {
+                sql.append(" GROUP BY ").append(String.join(", ", groupByParts));
+            }
+            if (!joinHavingPanels.isEmpty()) {
+                StringBuilder hsb = new StringBuilder(" HAVING ");
+                int hCount = 0;
+                for (HavingRowPanel hrp : joinHavingPanels) {
+                    String clause = hrp.buildClause(dbManager);
+                    if (clause.isEmpty()) continue;
+                    if (hCount > 0) hsb.append(" ").append(hrp.logicDropdown.getSelectedItem()).append(" ");
+                    hsb.append(clause);
+                    hCount++;
+                }
+                if (hCount > 0) sql.append(hsb.toString());
             }
             if (!joinOrderByPanels.isEmpty()) {
                 sql.append(" ORDER BY ");
@@ -1791,8 +2159,18 @@ public class Main extends JFrame {
             if (!limitStr.isEmpty()) {
                 try { sql.append(" LIMIT ").append(Integer.parseInt(limitStr)); } catch (NumberFormatException ignored) {}
             }
-            
-            lastExecutedJoinQuery = sql.toString();
+
+            String lockChoice = (String) joinLockDropdown.getSelectedItem();
+            if (lockChoice != null && !lockChoice.equals("Lock: None")) {
+                sql.append(" ").append(lockChoice);
+            }
+            return sql.toString();
+        }
+
+    private void executeVisualJoin() {
+            String sql = buildCurrentJoinQuery();
+            if (sql.isEmpty()) return;
+            lastExecutedJoinQuery = sql;
             
             System.out.println("Executing JOIN: " + lastExecutedJoinQuery);
             new Thread(() -> {
@@ -2066,7 +2444,64 @@ public class Main extends JFrame {
             joinPanels.clear();
             joinsContainer.revalidate();
             joinsContainer.repaint();
+            joinAggregateContainer.removeAll();
+            joinAggregatePanels.clear();
+            joinAggregateContainer.revalidate();
+            joinAggregateContainer.repaint();
+            joinGroupByContainer.removeAll();
+            joinGroupByPanels.clear();
+            joinGroupByContainer.revalidate();
+            joinGroupByContainer.repaint();
+            joinHavingContainer.removeAll();
+            joinHavingPanels.clear();
+            joinHavingContainer.revalidate();
+            joinHavingContainer.repaint();
+            joinWindowFuncContainer.removeAll();
+            joinWindowFuncPanels.clear();
+            joinWindowFuncContainer.revalidate();
+            joinWindowFuncContainer.repaint();
         }
+    }
+
+    public void showExplainMenu(JComponent invoker, java.util.function.Supplier<String> sqlSupplier) {
+        JPopupMenu menu = new JPopupMenu();
+        String[] options = {
+            "EXPLAIN",
+            "EXPLAIN (ANALYZE, BUFFERS)",
+            "EXPLAIN (ANALYZE, COSTS, VERBOSE)",
+            "EXPLAIN (FORMAT JSON)",
+            "EXPLAIN (ANALYZE, FORMAT JSON)"
+        };
+        for (String opt : options) {
+            JMenuItem item = new JMenuItem("🔍 " + opt);
+            item.addActionListener(e -> {
+                String baseSql = sqlSupplier.get();
+                if (baseSql == null || baseSql.trim().isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Please configure or run a query first.");
+                    return;
+                }
+                String explainSql = opt + " " + baseSql;
+                int choice = JOptionPane.showOptionDialog(this,
+                    "Execution Plan Query:\n\n" + explainSql + "\n\nChoose an action:",
+                    "Explain Execution Plan",
+                    JOptionPane.YES_NO_CANCEL_OPTION,
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    new String[]{"Execute in SQL Editor", "Copy to Clipboard", "Cancel"},
+                    "Execute in SQL Editor");
+                if (choice == 0) {
+                    if (sqlEditorPanel != null) {
+                        sqlEditorPanel.setEditorText(explainSql);
+                        tabbedPane.setSelectedComponent(sqlEditorPanel);
+                    }
+                } else if (choice == 1) {
+                    Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(explainSql), null);
+                    JOptionPane.showMessageDialog(this, "EXPLAIN query copied to clipboard!");
+                }
+            });
+            menu.add(item);
+        }
+        menu.show(invoker, 0, invoker.getHeight());
     }
 
 
@@ -3258,7 +3693,387 @@ public class Main extends JFrame {
 
 
 
-        class OrderByPanel extends JPanel {
+        class AggregateRowPanel extends JPanel {
+        JComboBox<String> funcDropdown = new JComboBox<>(new String[]{
+            "COUNT", "COUNT(DISTINCT)", "SUM", "AVG", "MIN", "MAX"
+        });
+        SearchableComboBox tableDropdown;
+        SearchableComboBox colDropdown = new SearchableComboBox();
+        JTextField aliasField = new JTextField(10);
+        JTextField filterField = new JTextField(12);
+        JButton removeBtn = new JButton("✕");
+
+        public AggregateRowPanel(boolean showTable, List<AggregateRowPanel> ownerList, JPanel container) {
+            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            add(new JLabel("∑"));
+            add(funcDropdown);
+            if (showTable) {
+                tableDropdown = new SearchableComboBox();
+                tableDropdown.setPreferredSize(new Dimension(130, 26));
+                tableDropdown.addActionListener(e -> {
+                    String tbl = (String) tableDropdown.getSelectedItem();
+                    if (tbl != null) {
+                        new Thread(() -> {
+                            List<String> cols = dbManager.getColumnNames(tbl);
+                            SwingUtilities.invokeLater(() -> updateColumns(cols));
+                        }).start();
+                    }
+                });
+                add(tableDropdown);
+            }
+            colDropdown.setPreferredSize(new Dimension(130, 26));
+            add(colDropdown);
+
+            add(new JLabel("AS"));
+            aliasField.setToolTipText("Column alias name");
+            aliasField.setPreferredSize(new Dimension(85, 26));
+            add(aliasField);
+
+            add(new JLabel("FILTER (WHERE:"));
+            filterField.setToolTipText("Optional SQL FILTER predicate, e.g. salary > 100000 or status = 'open'");
+            filterField.setPreferredSize(new Dimension(110, 26));
+            add(filterField);
+            add(new JLabel(")"));
+
+            removeBtn.setMargin(new Insets(1, 4, 1, 4));
+            removeBtn.setForeground(Color.RED);
+            removeBtn.addActionListener(e -> {
+                ownerList.remove(this);
+                container.remove(this);
+                container.revalidate();
+                container.repaint();
+            });
+            add(removeBtn);
+
+            funcDropdown.addActionListener(e -> {
+                String f = (String) funcDropdown.getSelectedItem();
+                String c = (String) colDropdown.getSelectedItem();
+                if (f != null && aliasField.getText().trim().isEmpty() && c != null && !c.isEmpty()) {
+                    String cleanF = f.replace("(DISTINCT)", "_distinct").toLowerCase();
+                    aliasField.setText(cleanF + "_" + (c.equals("*") ? "rows" : c));
+                }
+            });
+        }
+
+        public void updateTables(List<String> tables) {
+            if (tableDropdown != null) {
+                tableDropdown.setAllItems(tables);
+            }
+        }
+
+        public void updateColumns(List<String> cols) {
+            List<String> withStar = new ArrayList<>();
+            withStar.add("*");
+            withStar.addAll(cols);
+            colDropdown.setAllItems(withStar);
+            if (colDropdown.getSelectedItem() == null && !withStar.isEmpty()) {
+                colDropdown.setSelectedItem("*");
+            }
+        }
+
+        public String buildExpression(DatabaseManager dbManager) {
+            String func = (String) funcDropdown.getSelectedItem();
+            if (func == null) return "";
+            String col = (String) colDropdown.getSelectedItem();
+            if (col == null || col.isEmpty()) col = "*";
+
+            String qualifiedCol;
+            if (tableDropdown != null && tableDropdown.getSelectedItem() != null) {
+                String tbl = (String) tableDropdown.getSelectedItem();
+                qualifiedCol = col.equals("*") ? "*" : dbManager.quoteColumnName(tbl + "." + col);
+            } else {
+                qualifiedCol = col.equals("*") ? "*" : dbManager.quoteColumnName(col);
+            }
+
+            String expr = func.equals("COUNT(DISTINCT)")
+                ? "COUNT(DISTINCT " + qualifiedCol + ")"
+                : func + "(" + qualifiedCol + ")";
+
+            String filter = filterField.getText().trim();
+            if (!filter.isEmpty()) {
+                expr += " FILTER (WHERE " + filter + ")";
+            }
+
+            String alias = aliasField.getText().trim();
+            if (!alias.isEmpty()) {
+                expr += " AS " + alias;
+            }
+            return expr;
+        }
+    }
+
+    class GroupByRowPanel extends JPanel {
+        SearchableComboBox tableDropdown;
+        SearchableComboBox colDropdown = new SearchableComboBox();
+        JButton removeBtn = new JButton("✕");
+
+        public GroupByRowPanel(boolean showTable, List<GroupByRowPanel> ownerList, JPanel container) {
+            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            add(new JLabel("GROUP BY:"));
+            if (showTable) {
+                tableDropdown = new SearchableComboBox();
+                tableDropdown.setPreferredSize(new Dimension(130, 26));
+                tableDropdown.addActionListener(e -> {
+                    String tbl = (String) tableDropdown.getSelectedItem();
+                    if (tbl != null) {
+                        new Thread(() -> {
+                            List<String> cols = dbManager.getColumnNames(tbl);
+                            SwingUtilities.invokeLater(() -> updateColumns(cols));
+                        }).start();
+                    }
+                });
+                add(tableDropdown);
+            }
+            colDropdown.setPreferredSize(new Dimension(140, 26));
+            add(colDropdown);
+
+            removeBtn.setMargin(new Insets(1, 4, 1, 4));
+            removeBtn.setForeground(Color.RED);
+            removeBtn.addActionListener(e -> {
+                ownerList.remove(this);
+                container.remove(this);
+                container.revalidate();
+                container.repaint();
+            });
+            add(removeBtn);
+        }
+
+        public void updateTables(List<String> tables) {
+            if (tableDropdown != null) {
+                tableDropdown.setAllItems(tables);
+            }
+        }
+
+        public void updateColumns(List<String> cols) {
+            colDropdown.setAllItems(cols);
+        }
+
+        public String getColumnExpression(DatabaseManager dbManager) {
+            String col = (String) colDropdown.getSelectedItem();
+            if (col == null || col.isEmpty()) return "";
+            if (tableDropdown != null && tableDropdown.getSelectedItem() != null) {
+                return dbManager.quoteColumnName(tableDropdown.getSelectedItem() + "." + col);
+            }
+            return dbManager.quoteColumnName(col);
+        }
+    }
+
+    class HavingRowPanel extends JPanel {
+        JComboBox<String> logicDropdown = new JComboBox<>(new String[]{"AND", "OR"});
+        JComboBox<String> funcDropdown = new JComboBox<>(new String[]{
+            "COUNT(*)", "COUNT", "SUM", "AVG", "MIN", "MAX"
+        });
+        SearchableComboBox tableDropdown;
+        SearchableComboBox colDropdown = new SearchableComboBox();
+        JComboBox<String> operatorDropdown = new JComboBox<>(new String[]{
+            ">", "<", ">=", "<=", "=", "!=", "BETWEEN"
+        });
+        JTextField valueField = new JTextField(10);
+        JButton removeBtn = new JButton("✕");
+
+        public HavingRowPanel(boolean isFirst, boolean showTable, List<HavingRowPanel> ownerList, JPanel container) {
+            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            if (!isFirst) {
+                add(logicDropdown);
+            } else {
+                add(new JLabel("HAVING:"));
+            }
+            add(funcDropdown);
+            if (showTable) {
+                tableDropdown = new SearchableComboBox();
+                tableDropdown.setPreferredSize(new Dimension(130, 26));
+                tableDropdown.addActionListener(e -> {
+                    String tbl = (String) tableDropdown.getSelectedItem();
+                    if (tbl != null) {
+                        new Thread(() -> {
+                            List<String> cols = dbManager.getColumnNames(tbl);
+                            SwingUtilities.invokeLater(() -> updateColumns(cols));
+                        }).start();
+                    }
+                });
+                add(tableDropdown);
+            }
+            colDropdown.setPreferredSize(new Dimension(130, 26));
+            add(colDropdown);
+            add(operatorDropdown);
+            valueField.setPreferredSize(new Dimension(90, 26));
+            add(valueField);
+
+            removeBtn.setMargin(new Insets(1, 4, 1, 4));
+            removeBtn.setForeground(Color.RED);
+            removeBtn.addActionListener(e -> {
+                ownerList.remove(this);
+                container.remove(this);
+                container.revalidate();
+                container.repaint();
+            });
+            add(removeBtn);
+
+            funcDropdown.addActionListener(e -> {
+                String f = (String) funcDropdown.getSelectedItem();
+                colDropdown.setEnabled(f != null && !f.equals("COUNT(*)"));
+            });
+            colDropdown.setEnabled(false);
+        }
+
+        public void updateTables(List<String> tables) {
+            if (tableDropdown != null) {
+                tableDropdown.setAllItems(tables);
+            }
+        }
+
+        public void updateColumns(List<String> cols) {
+            colDropdown.setAllItems(cols);
+        }
+
+        public String buildClause(DatabaseManager dbManager) {
+            String f = (String) funcDropdown.getSelectedItem();
+            String val = valueField.getText().trim();
+            if (f == null || val.isEmpty()) return "";
+
+            String expr;
+            if (f.equals("COUNT(*)")) {
+                expr = "COUNT(*)";
+            } else {
+                String col = (String) colDropdown.getSelectedItem();
+                if (col == null || col.isEmpty()) return "";
+                if (tableDropdown != null && tableDropdown.getSelectedItem() != null) {
+                    expr = f + "(" + dbManager.quoteColumnName(tableDropdown.getSelectedItem() + "." + col) + ")";
+                } else {
+                    expr = f + "(" + dbManager.quoteColumnName(col) + ")";
+                }
+            }
+            String op = (String) operatorDropdown.getSelectedItem();
+            return expr + " " + op + " " + val;
+        }
+    }
+
+    class WindowFuncRowPanel extends JPanel {
+        JComboBox<String> funcDropdown = new JComboBox<>(new String[]{
+            "ROW_NUMBER()", "RANK()", "DENSE_RANK()", "NTILE(4)", "NTILE(10)",
+            "SUM", "AVG", "COUNT", "MIN", "MAX",
+            "FIRST_VALUE", "LAST_VALUE", "LAG", "LEAD"
+        });
+        SearchableComboBox valColDropdown = new SearchableComboBox();
+        SearchableComboBox partitionColDropdown = new SearchableComboBox();
+        SearchableComboBox orderColDropdown = new SearchableComboBox();
+        JComboBox<String> orderDirDropdown = new JComboBox<>(new String[]{"ASC", "DESC"});
+        JComboBox<String> frameDropdown = new JComboBox<>(new String[]{
+            "Default Frame",
+            "ROWS UNBOUNDED PRECEDING AND CURRENT ROW",
+            "ROWS 6 PRECEDING AND CURRENT ROW",
+            "ROWS 3 PRECEDING AND 3 FOLLOWING",
+            "RANGE UNBOUNDED PRECEDING AND CURRENT ROW",
+            "ROWS 2 PRECEDING AND 2 FOLLOWING EXCLUDE CURRENT ROW"
+        });
+        JTextField aliasField = new JTextField(10);
+        JButton removeBtn = new JButton("✕");
+
+        public WindowFuncRowPanel(List<WindowFuncRowPanel> ownerList, JPanel container) {
+            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            add(new JLabel("🪟 OVER:"));
+            add(funcDropdown);
+
+            valColDropdown.setPreferredSize(new Dimension(100, 26));
+            add(new JLabel("Col:"));
+            add(valColDropdown);
+
+            partitionColDropdown.setPreferredSize(new Dimension(110, 26));
+            add(new JLabel("PARTITION BY:"));
+            add(partitionColDropdown);
+
+            orderColDropdown.setPreferredSize(new Dimension(110, 26));
+            add(new JLabel("ORDER BY:"));
+            add(orderColDropdown);
+            add(orderDirDropdown);
+
+            add(new JLabel("Frame:"));
+            add(frameDropdown);
+
+            add(new JLabel("AS:"));
+            aliasField.setPreferredSize(new Dimension(85, 26));
+            add(aliasField);
+
+            removeBtn.setMargin(new Insets(1, 4, 1, 4));
+            removeBtn.setForeground(Color.RED);
+            removeBtn.addActionListener(e -> {
+                ownerList.remove(this);
+                container.remove(this);
+                container.revalidate();
+                container.repaint();
+            });
+            add(removeBtn);
+
+            funcDropdown.addActionListener(e -> {
+                String f = (String) funcDropdown.getSelectedItem();
+                boolean needsCol = f != null && !f.endsWith("()");
+                valColDropdown.setEnabled(needsCol);
+                if (f != null && aliasField.getText().trim().isEmpty()) {
+                    String base = f.replace("()", "").replace("(4)", "_q").replace("(10)", "_dec").toLowerCase();
+                    aliasField.setText(base + "_val");
+                }
+            });
+            valColDropdown.setEnabled(false);
+        }
+
+        public void updateColumns(List<String> cols) {
+            List<String> withNone = new ArrayList<>();
+            withNone.add("-- None --");
+            withNone.addAll(cols);
+
+            valColDropdown.setAllItems(cols);
+            partitionColDropdown.setAllItems(withNone);
+            orderColDropdown.setAllItems(withNone);
+        }
+
+        public String buildExpression(DatabaseManager dbManager) {
+            String f = (String) funcDropdown.getSelectedItem();
+            if (f == null) return "";
+
+            String funcExpr;
+            if (f.endsWith("()") || f.startsWith("NTILE")) {
+                funcExpr = f;
+            } else {
+                String col = (String) valColDropdown.getSelectedItem();
+                if (col == null || col.isEmpty() || col.equals("-- None --")) col = "*";
+                funcExpr = f + "(" + (col.equals("*") ? "*" : dbManager.quoteColumnName(col)) + ")";
+            }
+
+            StringBuilder over = new StringBuilder(" OVER (");
+            boolean hasOverSpec = false;
+
+            String pCol = (String) partitionColDropdown.getSelectedItem();
+            if (pCol != null && !pCol.isEmpty() && !pCol.equals("-- None --")) {
+                over.append("PARTITION BY ").append(dbManager.quoteColumnName(pCol));
+                hasOverSpec = true;
+            }
+
+            String oCol = (String) orderColDropdown.getSelectedItem();
+            if (oCol != null && !oCol.isEmpty() && !oCol.equals("-- None --")) {
+                if (hasOverSpec) over.append(" ");
+                over.append("ORDER BY ").append(dbManager.quoteColumnName(oCol)).append(" ").append(orderDirDropdown.getSelectedItem());
+                hasOverSpec = true;
+            }
+
+            String frame = (String) frameDropdown.getSelectedItem();
+            if (frame != null && !frame.equals("Default Frame")) {
+                if (hasOverSpec) over.append(" ");
+                over.append(frame);
+                hasOverSpec = true;
+            }
+
+            over.append(")");
+
+            String res = funcExpr + over.toString();
+            String al = aliasField.getText().trim();
+            if (!al.isEmpty()) {
+                res += " AS " + al;
+            }
+            return res;
+        }
+    }
+
+    class OrderByPanel extends JPanel {
         SearchableComboBox tableDropdown = new SearchableComboBox();
         SearchableComboBox columnDropdown = new SearchableComboBox();
         JComboBox<String> dirDropdown = new JComboBox<>(new String[]{"ASC", "DESC"});

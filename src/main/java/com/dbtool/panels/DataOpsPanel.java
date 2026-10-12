@@ -22,7 +22,9 @@ public class DataOpsPanel extends JPanel {
 
     // ── Operation / table selectors ───────────────────────────────────
     private final JComboBox<String> operationCb = new JComboBox<>(new String[]{
-        "UPDATE", "UPDATE + JOIN", "DELETE", "ALTER TABLE", "TRUNCATE", "CREATE INDEX"
+        "UPDATE", "UPDATE + JOIN", "DELETE", "ALTER TABLE", "TRUNCATE", "CREATE INDEX",
+        "INSERT / UPSERT", "REFRESH MATERIALIZED VIEW", "VACUUM / ANALYZE",
+        "TRANSACTION ISOLATION", "ADVISORY LOCK", "LISTEN / NOTIFY"
     });
     private final JComboBox<String> mainTableCb = new JComboBox<>();   // target table (universal)
     private final JComboBox<String> juJoinCb    = new JComboBox<>();   // join table (UPDATE+JOIN only)
@@ -64,6 +66,51 @@ public class DataOpsPanel extends JPanel {
     });
     private final JTextField        indexIncludeFld = new JTextField(12);
     private final JTextField        indexWhereFld   = new JTextField(16);
+
+    // ── INSERT / UPSERT ───────────────────────────────────────────────
+    private final JTextField        upsertValuesFld     = new JTextField("(1, 'Sample', 100)", 20);
+    private final JComboBox<String> upsertConflictColCb = new JComboBox<>();
+    private final JComboBox<String> upsertActionCb      = new JComboBox<>(new String[]{
+        "DO UPDATE (Upsert)", "DO NOTHING", "ON DUPLICATE KEY UPDATE (MySQL)"
+    });
+    private final JTextField        upsertSetFld        = new JTextField("updated_at = NOW()", 20);
+
+    // ── REFRESH MATERIALIZED VIEW ─────────────────────────────────────
+    private final JTextField        matViewNameFld        = new JTextField(16);
+    private final JCheckBox         matViewConcurrentlyCb = new JCheckBox("CONCURRENTLY");
+    private final JCheckBox         matViewWithDataCb     = new JCheckBox("WITH DATA", true);
+
+    // ── VACUUM / ANALYZE ──────────────────────────────────────────────
+    private final JComboBox<String> vacuumModeCb  = new JComboBox<>(new String[]{
+        "VACUUM", "VACUUM ANALYZE", "VACUUM FULL", "VACUUM (FREEZE, VERBOSE)", "ANALYZE"
+    });
+    private final JComboBox<String> vacuumScopeCb = new JComboBox<>(new String[]{
+        "Selected Table", "Entire Database"
+    });
+
+    // ── TRANSACTION ISOLATION ─────────────────────────────────────────
+    private final JComboBox<String> isolationLevelCb  = new JComboBox<>(new String[]{
+        "READ COMMITTED (Default)", "REPEATABLE READ", "SERIALIZABLE", "READ UNCOMMITTED"
+    });
+    private final JComboBox<String> isolationAccessCb = new JComboBox<>(new String[]{
+        "READ WRITE", "READ ONLY"
+    });
+    private final JComboBox<String> isolationScopeCb  = new JComboBox<>(new String[]{
+        "TRANSACTION", "SESSION"
+    });
+
+    // ── ADVISORY LOCK ─────────────────────────────────────────────────
+    private final JComboBox<String> advisoryFuncCb = new JComboBox<>(new String[]{
+        "pg_advisory_lock", "pg_try_advisory_lock", "pg_advisory_unlock", "pg_advisory_xact_lock", "pg_try_advisory_xact_lock"
+    });
+    private final JTextField        advisoryKeyFld = new JTextField("42", 10);
+
+    // ── LISTEN / NOTIFY ───────────────────────────────────────────────
+    private final JComboBox<String> pubsubOpCb      = new JComboBox<>(new String[]{
+        "NOTIFY", "LISTEN", "UNLISTEN", "UNLISTEN *"
+    });
+    private final JTextField        pubsubChanFld   = new JTextField("orders_changed", 14);
+    private final JTextField        pubsubPayloadFld = new JTextField("order 123 updated", 16);
 
     // ── SQL preview ───────────────────────────────────────────────────
     private final JTextArea sqlPreview = new JTextArea(5, 80);
@@ -217,6 +264,66 @@ public class DataOpsPanel extends JPanel {
         tbIPanel.add(tbI1);
         tbIPanel.add(tbI2);
         cardPanel.add(tbIPanel, "CREATE INDEX");
+
+        // INSERT / UPSERT
+        JPanel tbUpPanel = new JPanel();
+        tbUpPanel.setLayout(new BoxLayout(tbUpPanel, BoxLayout.Y_AXIS));
+        JToolBar tbUp1 = tb();
+        tbUp1.add(new JLabel(" Values: ")); tbUp1.add(upsertValuesFld);
+        upsertValuesFld.setToolTipText("e.g. (1, 'Alice', 100000) or multi-row: (1, 'A'), (2, 'B')");
+        tbUp1.addSeparator();
+        tbUp1.add(new JLabel("On Conflict Key: ")); tbUp1.add(upsertConflictColCb);
+        tbUp1.add(new JLabel(" Action: ")); tbUp1.add(upsertActionCb);
+
+        JToolBar tbUp2 = tb();
+        tbUp2.add(new JLabel(" DO UPDATE SET: ")); tbUp2.add(upsertSetFld);
+        upsertSetFld.setToolTipText("e.g. salary = EXCLUDED.salary, updated_at = NOW()");
+        tbUpPanel.add(tbUp1);
+        tbUpPanel.add(tbUp2);
+        cardPanel.add(tbUpPanel, "INSERT / UPSERT");
+
+        // REFRESH MATERIALIZED VIEW
+        JToolBar tbM = tb();
+        tbM.add(new JLabel(" View Name: ")); tbM.add(matViewNameFld);
+        matViewNameFld.setToolTipText("Name of the materialized view to refresh");
+        tbM.add(matViewConcurrentlyCb);
+        matViewConcurrentlyCb.setToolTipText("CONCURRENTLY refreshes without locking concurrent reads");
+        tbM.add(matViewWithDataCb);
+        cardPanel.add(tbM, "REFRESH MATERIALIZED VIEW");
+
+        // VACUUM / ANALYZE
+        JToolBar tbV = tb();
+        tbV.add(new JLabel(" Operation: ")); tbV.add(vacuumModeCb);
+        tbV.addSeparator();
+        tbV.add(new JLabel("Target Scope: ")); tbV.add(vacuumScopeCb);
+        cardPanel.add(tbV, "VACUUM / ANALYZE");
+
+        // TRANSACTION ISOLATION
+        JToolBar tbIso = tb();
+        tbIso.add(new JLabel(" Scope: ")); tbIso.add(isolationScopeCb);
+        tbIso.addSeparator();
+        tbIso.add(new JLabel("Isolation Level: ")); tbIso.add(isolationLevelCb);
+        tbIso.addSeparator();
+        tbIso.add(new JLabel("Access Mode: ")); tbIso.add(isolationAccessCb);
+        cardPanel.add(tbIso, "TRANSACTION ISOLATION");
+
+        // ADVISORY LOCK
+        JToolBar tbAdv = tb();
+        tbAdv.add(new JLabel(" Function: ")); tbAdv.add(advisoryFuncCb);
+        advisoryFuncCb.setToolTipText("PostgreSQL advisory locking primitives for distributed synchronization");
+        tbAdv.addSeparator();
+        tbAdv.add(new JLabel("Lock Key (64-bit int): ")); tbAdv.add(advisoryKeyFld);
+        cardPanel.add(tbAdv, "ADVISORY LOCK");
+
+        // LISTEN / NOTIFY
+        JToolBar tbPub = tb();
+        tbPub.add(new JLabel(" Operation: ")); tbPub.add(pubsubOpCb);
+        pubsubOpCb.setToolTipText("PostgreSQL pub-sub messaging");
+        tbPub.addSeparator();
+        tbPub.add(new JLabel("Channel: ")); tbPub.add(pubsubChanFld);
+        tbPub.addSeparator();
+        tbPub.add(new JLabel("Payload: ")); tbPub.add(pubsubPayloadFld);
+        cardPanel.add(tbPub, "LISTEN / NOTIFY");
     }
 
     private void buildSetSection() {
@@ -375,6 +482,8 @@ public class DataOpsPanel extends JPanel {
         if (op == null) return;
         cardLayout.show(cardPanel, op);
         setSection.setVisible("UPDATE".equals(op) || "UPDATE + JOIN".equals(op));
+        boolean tableRequired = !"TRANSACTION ISOLATION".equals(op) && !"ADVISORY LOCK".equals(op) && !"LISTEN / NOTIFY".equals(op);
+        mainTableCb.setEnabled(tableRequired);
         refreshMainTableColumns();
         revalidate();
         repaint();
@@ -391,6 +500,7 @@ public class DataOpsPanel extends JPanel {
         refreshCols(cols, alterOldColCb);
         refreshCols(cols, indexColCb);
         refreshCols(cols, juOnMainCb);
+        refreshCols(cols, upsertConflictColCb);
         refreshJuWhereTables();
         
         // Also update set rows here directly instead of querying DB again
@@ -437,7 +547,7 @@ public class DataOpsPanel extends JPanel {
     @SuppressWarnings("unchecked")
     public void refreshTables() {
         if (dbManager == null || dbManager.connection == null) {
-            for (JComboBox<String> cb : new JComboBox[]{mainTableCb, juJoinCb, updateWhereColCb, deleteColCb, alterOldColCb, indexColCb, juOnMainCb, juOnJoinCb, juWhereTableCb, juWhereColCb}) {
+            for (JComboBox<String> cb : new JComboBox[]{mainTableCb, juJoinCb, updateWhereColCb, deleteColCb, alterOldColCb, indexColCb, juOnMainCb, juOnJoinCb, juWhereTableCb, juWhereColCb, upsertConflictColCb}) {
                 cb.removeAllItems();
             }
             setStatus("Disconnected.", false);
@@ -458,7 +568,8 @@ public class DataOpsPanel extends JPanel {
     private String buildSql() {
         String op  = (String) operationCb.getSelectedItem();
         String tbl = (String) mainTableCb.getSelectedItem();
-        if (tbl == null) { setStatus("Select a table.", false); return null; }
+        boolean tableRequired = !"TRANSACTION ISOLATION".equals(op) && !"ADVISORY LOCK".equals(op) && !"LISTEN / NOTIFY".equals(op);
+        if (tableRequired && tbl == null) { setStatus("Select a table.", false); return null; }
 
         switch (op) {
             case "UPDATE": {
@@ -571,6 +682,77 @@ public class DataOpsPanel extends JPanel {
                     sb.append(whr);
                 }
                 return sb.toString();
+            }
+            case "INSERT / UPSERT": {
+                String vals = upsertValuesFld.getText().trim();
+                if (vals.isEmpty()) { setStatus("Enter VALUES to insert.", false); return null; }
+                if (!vals.startsWith("(")) vals = "(" + vals + ")";
+                String conflictCol = (String) upsertConflictColCb.getSelectedItem();
+                String action = (String) upsertActionCb.getSelectedItem();
+                StringBuilder sb = new StringBuilder();
+                sb.append("INSERT INTO ").append(q(tbl)).append(" VALUES ").append(vals);
+                if (action != null && action.startsWith("DO UPDATE")) {
+                    String setClause = upsertSetFld.getText().trim();
+                    if (setClause.isEmpty()) setClause = "updated_at = NOW()";
+                    sb.append("\nON CONFLICT (").append(conflictCol != null ? q(conflictCol) : "id").append(") DO UPDATE SET ").append(setClause);
+                } else if (action != null && action.startsWith("DO NOTHING")) {
+                    sb.append("\nON CONFLICT (").append(conflictCol != null ? q(conflictCol) : "id").append(") DO NOTHING");
+                } else if (action != null && action.startsWith("ON DUPLICATE")) {
+                    String setClause = upsertSetFld.getText().trim();
+                    sb.append("\nON DUPLICATE KEY UPDATE ").append(setClause.isEmpty() ? "updated_at = NOW()" : setClause);
+                }
+                return sb.toString();
+            }
+            case "REFRESH MATERIALIZED VIEW": {
+                String vName = matViewNameFld.getText().trim();
+                if (vName.isEmpty()) vName = tbl;
+                if (vName == null || vName.isEmpty()) { setStatus("Enter materialized view name.", false); return null; }
+                StringBuilder sb = new StringBuilder("REFRESH MATERIALIZED VIEW ");
+                if (matViewConcurrentlyCb.isSelected()) sb.append("CONCURRENTLY ");
+                sb.append(q(vName));
+                if (!matViewWithDataCb.isSelected()) sb.append(" WITH NO DATA");
+                return sb.toString();
+            }
+            case "VACUUM / ANALYZE": {
+                String mode = (String) vacuumModeCb.getSelectedItem();
+                String scope = (String) vacuumScopeCb.getSelectedItem();
+                StringBuilder sb = new StringBuilder(mode != null ? mode : "VACUUM");
+                if ("Selected Table".equals(scope) && tbl != null) {
+                    sb.append(" ").append(q(tbl));
+                }
+                return sb.toString();
+            }
+            case "TRANSACTION ISOLATION": {
+                String lvl = (String) isolationLevelCb.getSelectedItem();
+                if (lvl != null && lvl.contains(" ")) lvl = lvl.substring(0, lvl.indexOf(" "));
+                String access = (String) isolationAccessCb.getSelectedItem();
+                String scope = (String) isolationScopeCb.getSelectedItem();
+                if ("SESSION".equals(scope)) {
+                    return "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL " + lvl + " " + access + ";";
+                } else {
+                    return "SET TRANSACTION ISOLATION LEVEL " + lvl + " " + access + ";";
+                }
+            }
+            case "ADVISORY LOCK": {
+                String func = (String) advisoryFuncCb.getSelectedItem();
+                String key = advisoryKeyFld.getText().trim();
+                if (key.isEmpty()) key = "42";
+                return "SELECT " + func + "(" + key + ");";
+            }
+            case "LISTEN / NOTIFY": {
+                String pop = (String) pubsubOpCb.getSelectedItem();
+                String ch = pubsubChanFld.getText().trim();
+                if (ch.isEmpty()) ch = "events";
+                if ("NOTIFY".equals(pop)) {
+                    String p = pubsubPayloadFld.getText().trim();
+                    return "NOTIFY " + ch + ", '" + p.replace("'", "''") + "';";
+                } else if ("LISTEN".equals(pop)) {
+                    return "LISTEN " + ch + ";";
+                } else if ("UNLISTEN".equals(pop)) {
+                    return "UNLISTEN " + ch + ";";
+                } else {
+                    return "UNLISTEN *;";
+                }
             }
             default: return null;
         }
