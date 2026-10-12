@@ -4,6 +4,7 @@ import com.dbtool.DatabaseManager;
 import com.dbtool.util.ExportUtil;
 import com.dbtool.util.QueryHistory;
 import com.dbtool.util.SavedQueries;
+import com.dbtool.util.SqlSnippetsLibrary;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.fife.ui.rtextarea.RTextScrollPane;
@@ -53,6 +54,19 @@ public class SqlEditorPanel extends JPanel {
         RTextScrollPane editorScroll = new RTextScrollPane(editor);
         editorScroll.setLineNumbersEnabled(true);
 
+        // Right-click context menu integration
+        JPopupMenu editorPopup = editor.getPopupMenu();
+        if (editorPopup != null) {
+            editorPopup.addSeparator();
+            JMenuItem cheatSheetItem = new JMenuItem("📚 SQL Mastery Reference Library...");
+            cheatSheetItem.addActionListener(e -> openMasteryCheatSheet());
+            editorPopup.add(cheatSheetItem);
+
+            JMenu templatesSubMenu = new JMenu("📝 Insert SQL Template");
+            SqlSnippetsLibrary.populateSubMenu(templatesSubMenu, this::insertSnippet);
+            editorPopup.add(templatesSubMenu);
+        }
+
         // Toolbar
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JButton runBtn = new JButton("▶ Run");
@@ -73,7 +87,7 @@ public class SqlEditorPanel extends JPanel {
             }
         });
         JButton snippetsBtn = new JButton("📝 SQL Templates ▾");
-        snippetsBtn.setToolTipText("Insert SQL templates and query patterns (DQL, DML, DDL, DCL, TCL, Procedures)");
+        snippetsBtn.setToolTipText("Insert SQL templates and query patterns (Core Foundations & Advanced SQL Mastery)");
         snippetsBtn.addActionListener(e -> showSnippetsMenu(snippetsBtn));
         
         JButton sandboxBtn = new JButton("⚡ Sandbox DB");
@@ -881,73 +895,15 @@ public class SqlEditorPanel extends JPanel {
         editor.requestFocusInWindow();
     }
 
-    private void addMenuItem(JMenu parent, String title, String sql) {
-        JMenuItem item = new JMenuItem(title);
-        item.addActionListener(e -> insertSnippet(sql));
-        parent.add(item);
+    public void openMasteryCheatSheet() {
+        Window win = SwingUtilities.getWindowAncestor(this);
+        SqlMasteryReferenceDialog dlg = new SqlMasteryReferenceDialog(win, this::insertSnippet);
+        dlg.setVisible(true);
     }
 
     private void showSnippetsMenu(Component invoker) {
         JPopupMenu menu = new JPopupMenu();
-
-        // 1. DQL
-        JMenu dqlMenu = new JMenu("1. DQL — Data Query Language");
-        addMenuItem(dqlMenu, "Basic SELECT", "SELECT * FROM employees;\nSELECT first_name, last_name FROM employees;\nSELECT DISTINCT department FROM employees;\nSELECT first_name AS fname, salary * 12 AS annual_salary FROM employees;\n");
-        addMenuItem(dqlMenu, "Filtering & Sorting", "SELECT * FROM employees WHERE salary > 50000;\nSELECT * FROM employees WHERE dept = 'IT' AND salary > 60000;\nSELECT * FROM employees WHERE dept IN ('IT', 'HR', 'Finance');\nSELECT * FROM employees WHERE name LIKE 'A%';\nSELECT * FROM employees WHERE salary BETWEEN 40000 AND 80000;\nSELECT * FROM employees WHERE manager_id IS NULL;\nSELECT * FROM employees ORDER BY salary DESC LIMIT 10 OFFSET 5;\n");
-        addMenuItem(dqlMenu, "Aggregation & Grouping", "SELECT dept, COUNT(*), AVG(salary), SUM(salary), MIN(salary), MAX(salary)\nFROM employees\nGROUP BY dept\nHAVING AVG(salary) > 50000;\n");
-        addMenuItem(dqlMenu, "Joins (INNER, LEFT, RIGHT, FULL, CROSS, SELF)", "-- INNER JOIN\nSELECT e.name, d.dept_name\nFROM employees e\nINNER JOIN departments d ON e.dept_id = d.id;\n\n-- LEFT JOIN\nSELECT e.name, d.dept_name\nFROM employees e\nLEFT JOIN departments d ON e.dept_id = d.id;\n\n-- RIGHT JOIN\nSELECT e.name, d.dept_name\nFROM employees e\nRIGHT JOIN departments d ON e.dept_id = d.id;\n\n-- FULL OUTER JOIN\nSELECT e.name, d.dept_name\nFROM employees e\nFULL OUTER JOIN departments d ON e.dept_id = d.id;\n\n-- CROSS JOIN\nSELECT * FROM employees CROSS JOIN departments;\n\n-- SELF JOIN\nSELECT e.name AS employee, m.name AS manager\nFROM employees e\nLEFT JOIN employees m ON e.manager_id = m.id;\n");
-        addMenuItem(dqlMenu, "Subqueries (Scalar, Correlated, IN, EXISTS)", "-- Scalar subquery\nSELECT name FROM employees WHERE salary = (SELECT MAX(salary) FROM employees);\n\n-- Correlated subquery\nSELECT name FROM employees e\nWHERE salary > (SELECT AVG(salary) FROM employees WHERE dept_id = e.dept_id);\n\n-- IN / EXISTS\nSELECT * FROM employees WHERE dept_id IN (SELECT id FROM departments WHERE location = 'NYC');\nSELECT * FROM employees e WHERE EXISTS (SELECT 1 FROM projects p WHERE p.emp_id = e.id);\n");
-        addMenuItem(dqlMenu, "Set Operations (UNION, INTERSECT, EXCEPT)", "SELECT name FROM employees\nUNION\nSELECT name FROM contractors;\n\nSELECT name FROM employees\nUNION ALL\nSELECT name FROM contractors;\n\nSELECT name FROM employees\nINTERSECT\nSELECT name FROM contractors;\n\nSELECT name FROM employees\nEXCEPT\nSELECT name FROM contractors;\n");
-        addMenuItem(dqlMenu, "CTEs & Window Functions", "-- Common Table Expression\nWITH high_earners AS (\n  SELECT * FROM employees WHERE salary > 100000\n)\nSELECT dept, COUNT(*) FROM high_earners GROUP BY dept;\n\n-- Recursive CTE\nWITH RECURSIVE org_chart AS (\n  SELECT id, name, manager_id, 1 AS level FROM employees WHERE manager_id IS NULL\n  UNION ALL\n  SELECT e.id, e.name, e.manager_id, oc.level + 1\n  FROM employees e JOIN org_chart oc ON e.manager_id = oc.id\n)\nSELECT * FROM org_chart;\n\n-- Window functions\nSELECT name, dept, salary,\n  ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary DESC) AS rn,\n  RANK() OVER (PARTITION BY dept ORDER BY salary DESC) AS rnk,\n  DENSE_RANK() OVER (PARTITION BY dept ORDER BY salary DESC) AS drnk,\n  SUM(salary) OVER (PARTITION BY dept) AS dept_total,\n  LAG(salary) OVER (ORDER BY hire_date) AS prev_salary,\n  LEAD(salary) OVER (ORDER BY hire_date) AS next_salary\nFROM employees;\n");
-        addMenuItem(dqlMenu, "Advanced Clauses (CASE, PIVOT, ROLLUP, CUBE, GROUPING SETS)", "SELECT name,\n  CASE\n    WHEN salary < 50000 THEN 'Low'\n    WHEN salary < 100000 THEN 'Medium'\n    ELSE 'High'\n  END AS band\nFROM employees;\n\n-- PIVOT (Quarterly Sales)\nSELECT * FROM sales\nPIVOT (SUM(amount) FOR quarter IN ([Q1],[Q2],[Q3],[Q4])) AS p;\n\n-- ROLLUP, CUBE & GROUPING SETS\nSELECT dept, region, SUM(sales)\nFROM orders\nGROUP BY ROLLUP(dept, region);\n\nSELECT dept, region, SUM(sales)\nFROM orders\nGROUP BY CUBE(dept, region);\n\nSELECT dept, region, SUM(sales)\nFROM orders\nGROUP BY GROUPING SETS ((dept), (region), ());\n");
-        menu.add(dqlMenu);
-
-        // 2. DML
-        JMenu dmlMenu = new JMenu("2. DML — Data Manipulation Language");
-        addMenuItem(dmlMenu, "INSERT Statements", "INSERT INTO employees (name, dept, salary) VALUES ('Alice', 'IT', 75000);\nINSERT INTO employees (name, dept) SELECT name, dept FROM new_hires;\nINSERT INTO employees (id, name) VALUES (1, 'A'), (2, 'B'), (3, 'C');\n");
-        addMenuItem(dmlMenu, "UPDATE Statements", "UPDATE employees SET salary = salary * 1.10 WHERE dept = 'IT';\nUPDATE employees e\nSET salary = (SELECT AVG(salary) FROM employees WHERE dept_id = e.dept_id);\n");
-        addMenuItem(dmlMenu, "DELETE Statements", "DELETE FROM employees WHERE hire_date < '2010-01-01';\nDELETE FROM employees WHERE dept_id IN (SELECT id FROM departments WHERE closed = 1);\n");
-        addMenuItem(dmlMenu, "MERGE & UPSERT Variants", "-- PostgreSQL Upsert\nINSERT INTO employees (id, name, salary) VALUES (1, 'Alice', 80000)\nON CONFLICT (id) DO UPDATE SET salary = EXCLUDED.salary;\n\n-- MySQL Upsert\nINSERT INTO employees (id, name, salary) VALUES (1, 'Alice', 80000)\nON DUPLICATE KEY UPDATE salary = VALUES(salary);\n\n-- ANSI MERGE\nMERGE INTO target t\nUSING source s ON t.id = s.id\nWHEN MATCHED THEN UPDATE SET t.val = s.val\nWHEN NOT MATCHED THEN INSERT (id, val) VALUES (s.id, s.val);\n");
-        menu.add(dmlMenu);
-
-        // 3. DDL
-        JMenu ddlMenu = new JMenu("3. DDL — Data Definition Language");
-        addMenuItem(ddlMenu, "CREATE TABLE & Constraints", "CREATE TABLE employees (\n  id SERIAL PRIMARY KEY,\n  name VARCHAR(100) NOT NULL,\n  email VARCHAR(150) UNIQUE,\n  dept_id INT,\n  salary DECIMAL(10,2) DEFAULT 0,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  FOREIGN KEY (dept_id) REFERENCES departments(id) ON DELETE SET NULL\n);\n");
-        addMenuItem(ddlMenu, "CREATE INDEX / UNIQUE INDEX", "CREATE INDEX idx_emp_dept ON employees(dept_id);\nCREATE UNIQUE INDEX idx_emp_email ON employees(email);\n");
-        addMenuItem(ddlMenu, "CREATE VIEW / MATERIALIZED VIEW", "CREATE VIEW high_earners AS\nSELECT id, name, salary FROM employees WHERE salary > 100000;\n\nCREATE MATERIALIZED VIEW dept_stats AS\nSELECT dept_id, COUNT(*) cnt, AVG(salary) avg_sal FROM employees GROUP BY dept_id;\n");
-        addMenuItem(ddlMenu, "CREATE SCHEMA / DATABASE", "CREATE SCHEMA hr;\nCREATE DATABASE company;\n");
-        addMenuItem(ddlMenu, "ALTER TABLE", "ALTER TABLE employees ADD COLUMN phone VARCHAR(20);\nALTER TABLE employees DROP COLUMN phone;\nALTER TABLE employees ALTER COLUMN name TYPE VARCHAR(200);\nALTER TABLE employees RENAME TO staff;\nALTER TABLE employees ADD CONSTRAINT fk_dept FOREIGN KEY (dept_id) REFERENCES departments(id);\nALTER TABLE employees DROP CONSTRAINT fk_dept;\n");
-        addMenuItem(ddlMenu, "DROP & TRUNCATE", "DROP TABLE IF EXISTS employees CASCADE;\nDROP VIEW IF EXISTS high_earners;\nDROP INDEX IF EXISTS idx_emp_dept;\nTRUNCATE TABLE employees;\n");
-        menu.add(ddlMenu);
-
-        // 4. DCL
-        JMenu dclMenu = new JMenu("4. DCL — Data Control Language");
-        addMenuItem(dclMenu, "GRANT Privileges", "GRANT SELECT, INSERT ON employees TO alice;\nGRANT ALL PRIVILEGES ON DATABASE company TO admin_user;\nGRANT EXECUTE ON PROCEDURE calc_bonus TO hr_role;\n");
-        addMenuItem(dclMenu, "REVOKE Privileges", "REVOKE INSERT ON employees FROM alice;\nREVOKE ALL PRIVILEGES ON DATABASE company FROM admin_user;\n");
-        addMenuItem(dclMenu, "Role Management", "CREATE ROLE analyst;\nGRANT SELECT ON employees TO analyst;\nGRANT analyst TO alice;\n");
-        menu.add(dclMenu);
-
-        // 5. TCL
-        JMenu tclMenu = new JMenu("5. TCL — Transaction Control Language");
-        addMenuItem(tclMenu, "Transaction Block (BEGIN / COMMIT / ROLLBACK)", "BEGIN;\nUPDATE accounts SET balance = balance - 100 WHERE id = 1;\nUPDATE accounts SET balance = balance + 100 WHERE id = 2;\nCOMMIT;\n-- or ROLLBACK;\n");
-        addMenuItem(tclMenu, "SAVEPOINT", "SAVEPOINT sp1;\nUPDATE accounts SET balance = balance - 100 WHERE id = 1;\nROLLBACK TO sp1;\nCOMMIT;\n");
-        addMenuItem(tclMenu, "SET TRANSACTION", "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;\nSET TRANSACTION READ ONLY;\n");
-        menu.add(tclMenu);
-
-        // 6. Procedural
-        JMenu procMenu = new JMenu("6. Procedural & Stored Objects");
-        addMenuItem(procMenu, "Stored Procedure & CALL", "CREATE OR REPLACE PROCEDURE give_raise(emp_id INT, pct NUMERIC)\nLANGUAGE plpgsql AS $$\nBEGIN\n  UPDATE employees SET salary = salary * (1 + pct/100) WHERE id = emp_id;\nEND;\n$$;\n\nCALL give_raise(1, 10);\n");
-        addMenuItem(procMenu, "Stored Function", "CREATE OR REPLACE FUNCTION annual_salary(monthly NUMERIC)\nRETURNS NUMERIC LANGUAGE plpgsql AS $$\nBEGIN\n  RETURN monthly * 12;\nEND;\n$$;\n");
-        addMenuItem(procMenu, "Trigger & Function", "CREATE OR REPLACE FUNCTION trg_audit_fn()\nRETURNS TRIGGER LANGUAGE plpgsql AS $$\nBEGIN\n  INSERT INTO audit_log (emp_id, old_sal, new_sal) VALUES (OLD.id, OLD.salary, NEW.salary);\n  RETURN NEW;\nEND;\n$$;\n\nCREATE TRIGGER trg_audit\nAFTER UPDATE ON employees\nFOR EACH ROW\nEXECUTE FUNCTION trg_audit_fn();\n");
-        menu.add(procMenu);
-
-        // 7. Specialized
-        JMenu specMenu = new JMenu("7. Specialized & Metadata Queries");
-        addMenuItem(specMenu, "EXPLAIN / EXPLAIN ANALYZE", "EXPLAIN SELECT * FROM employees WHERE dept = 'IT';\nEXPLAIN ANALYZE SELECT * FROM employees;\n");
-        addMenuItem(specMenu, "SHOW / DESCRIBE / Catalog Metadata", "SHOW search_path;\nSELECT table_name FROM information_schema.tables WHERE table_schema = 'public';\n");
-        addMenuItem(specMenu, "Prepared Statements", "PREPARE stmt (INT) AS SELECT * FROM employees WHERE id = $1;\nEXECUTE stmt(5);\nDEALLOCATE stmt;\n");
-        menu.add(specMenu);
-
+        SqlSnippetsLibrary.populatePopupMenu(menu, this::insertSnippet, this::openMasteryCheatSheet);
         menu.show(invoker, 0, invoker.getHeight());
     }
 }

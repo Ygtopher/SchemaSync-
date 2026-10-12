@@ -1,6 +1,7 @@
 package com.dbtool.panels;
 
 import com.dbtool.DatabaseManager;
+import com.dbtool.util.SqlSnippetsLibrary;
 
 import javax.swing.*;
 import java.awt.*;
@@ -31,6 +32,27 @@ public class ScriptBuilderPanel extends JPanel {
             btn.addActionListener(e -> addStep(type));
             toolbar.add(btn);
         }
+
+        JButton templatesBtn = new JButton("📝 SQL Templates ▾");
+        templatesBtn.setToolTipText("Add step from SQL Mastery & Production Reference Library");
+        templatesBtn.addActionListener(e -> {
+            JPopupMenu popup = new JPopupMenu();
+            SqlSnippetsLibrary.populatePopupMenu(popup, snippetSql -> {
+                steps.add(snippetSql.trim());
+                stepModel.addElement(getStepPreview(snippetSql.trim()));
+                refreshPreview();
+            }, () -> {
+                Window win = SwingUtilities.getWindowAncestor(this);
+                SqlMasteryReferenceDialog dlg = new SqlMasteryReferenceDialog(win, snippetSql -> {
+                    steps.add(snippetSql.trim());
+                    stepModel.addElement(getStepPreview(snippetSql.trim()));
+                    refreshPreview();
+                });
+                dlg.setVisible(true);
+            });
+            popup.show(templatesBtn, 0, templatesBtn.getHeight());
+        });
+        toolbar.add(templatesBtn);
 
         // Step list (left)
         stepList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);

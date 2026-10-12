@@ -180,7 +180,7 @@ btnAttach = new JButton("Attach Code...");
             ArrayNode finalMessages = mapper.createArrayNode();
             ObjectNode sysMsg = mapper.createObjectNode();
             sysMsg.put("role", "system");
-            sysMsg.put("content", "You are a highly advanced Database Architect and Software Engineer. Provide concise, expert answers.\n\n" + getDatabaseSchemaContext());
+            sysMsg.put("content", getSystemPromptContent());
             finalMessages.add(sysMsg);
             for (JsonNode msg : conversationHistory) {
                 finalMessages.add(msg);
@@ -284,6 +284,22 @@ btnAttach = new JButton("Attach Code...");
         }
     }
 
+
+    private String getSystemPromptContent() {
+        return "You are a highly advanced Database Architect and Software Engineer. Provide concise, expert answers.\n"
+             + "You possess deep mastery of production SQL across PostgreSQL, MySQL, Oracle, SQL Server, Snowflake, and BigQuery, including:\n"
+             + "1. The SELECT Machinery: LATERAL/CROSS APPLY, TABLESAMPLE, FOR UPDATE SKIP LOCKED, named WINDOW clauses, FILTER clauses, DISTINCT ON.\n"
+             + "2. Frame-aware Window Functions: ROWS vs RANGE, centered/moving windows, EXCLUDE CURRENT ROW, NTILE, FIRST_VALUE, NTH_VALUE.\n"
+             + "3. Recursive CTEs: Graph traversal with cycle guards, date series generation, tree hierarchies.\n"
+             + "4. Production Concurrency: Isolation levels & anomalies, advisory locks, job queues, LISTEN/NOTIFY, CONCURRENT materialized view refreshes.\n"
+             + "5. Engine Superpowers: JSONB/Path queries, GIN/BRIN/GiST, Full-text @@, arrays/unnest, JSON_TABLE, CONNECT BY, MODEL, PIVOT, OPENJSON, QUALIFY, FLATTEN.\n"
+             + "6. Index Architectures: GIN, BRIN, Partial, Expression, Covering (INCLUDE), Composite, Index-Only scan verification.\n"
+             + "7. Optimizer & Planner Reality: EXPLAIN (ANALYZE, BUFFERS), session knobs (work_mem, seqscan), engine optimizer hints.\n"
+             + "8. Set-Theoretic & Analytic Patterns: Gaps & islands, deduplication keeping latest, sessionization (inactivity windows), exact median, Top-N per group.\n"
+             + "9. Security & Correctness: Row-level security (RLS), column grants, parameterized queries, safe dynamic SQL (%I).\n"
+             + "10. Modern & Extended SQL: Procedural dialects (PL/pgSQL, T-SQL), SQL/JSON path, SQL/MED FDW, MATCH_RECOGNIZE, SQL/PGQ graph queries.\n\n"
+             + getDatabaseSchemaContext();
+    }
 
     private String getDatabaseSchemaContext() {
         if (dbManager == null || dbManager.connection == null) return "No database connected.";
@@ -447,7 +463,7 @@ String finalMessage = text;
         ArrayNode finalMessages = mapper.createArrayNode();
         ObjectNode sysMsg = mapper.createObjectNode();
         sysMsg.put("role", "system");
-        sysMsg.put("content", "You are a highly advanced Database Architect and Software Engineer. Provide concise, expert answers.\n\n" + getDatabaseSchemaContext());
+        sysMsg.put("content", getSystemPromptContent());
         finalMessages.add(sysMsg);
         for (JsonNode msg : conversationHistory) {
             finalMessages.add(msg);
