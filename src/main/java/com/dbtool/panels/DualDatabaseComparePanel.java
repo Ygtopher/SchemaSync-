@@ -348,6 +348,28 @@ public class DualDatabaseComparePanel extends JPanel {
         tb.add(schemaSearchField);
 
         tb.add(Box.createHorizontalGlue());
+        JButton templatesBtn = new JButton("📝 SQL Templates ▾");
+        templatesBtn.setToolTipText("Browse advanced SQL snippets & templates (Advisory locks, Index schemas, DDL, DCL...)");
+        templatesBtn.addActionListener(e -> {
+            JPopupMenu menu = new JPopupMenu();
+            com.dbtool.util.SqlSnippetsLibrary.populatePopupMenu(menu, sql -> {
+                tableSyncDdlArea.setText(sql);
+            });
+            menu.show(templatesBtn, 0, templatesBtn.getHeight());
+        });
+
+        JButton cheatSheetBtn = new JButton("💡 Cheat Sheet");
+        cheatSheetBtn.setToolTipText("Open interactive Advanced SQL Mastery Cheat Sheet");
+        cheatSheetBtn.addActionListener(e -> {
+            new com.dbtool.panels.SqlMasteryReferenceDialog(SwingUtilities.getWindowAncestor(this), sql -> {
+                tableSyncDdlArea.setText(sql);
+            }).setVisible(true);
+        });
+
+        tb.add(templatesBtn);
+        tb.add(cheatSheetBtn);
+        tb.addSeparator();
+
         generateAllSyncBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
         generateAllSyncBtn.addActionListener(e -> openMigrationDdlDialog());
         generateAllSyncBtn.setEnabled(false);

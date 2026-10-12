@@ -368,6 +368,10 @@ public class SqlSnippetsLibrary {
     /**
      * Builds a comprehensive JPopupMenu with categorized menus and submenus.
      */
+    public static void populatePopupMenu(JPopupMenu menu, Consumer<String> insertAction) {
+        populatePopupMenu(menu, insertAction, null);
+    }
+
     public static void populatePopupMenu(JPopupMenu menu, Consumer<String> insertAction, Runnable openCheatSheetDialog) {
         if (openCheatSheetDialog != null) {
             JMenuItem cheatSheetItem = new JMenuItem("📚 Open Interactive SQL Mastery Cheat Sheet...");

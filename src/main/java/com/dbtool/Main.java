@@ -21,6 +21,8 @@ import java.util.Set;
 import java.util.HashSet;
 import com.dbtool.model.VisualJoinState;
 import com.dbtool.util.VisualJoinProjectManager;
+import com.dbtool.util.SqlSnippetsLibrary;
+import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
     private JTabbedPane tabbedPane;
@@ -175,6 +177,42 @@ public class Main extends JFrame {
             tbActions.add(copyBtn);
             tbActions.add(copySqlBtn);
             tbActions.add(openInSqlBtn);
+            tbActions.addSeparator();
+
+            JButton templatesBtn = new JButton("📝 SQL Templates ▾");
+            templatesBtn.setToolTipText("Browse advanced SQL snippets & templates (LATERAL, Window frames, Recursive CTEs, Advisory locks, Indexes...)");
+            templatesBtn.addActionListener(e -> {
+                JPopupMenu menu = new JPopupMenu();
+                SqlSnippetsLibrary.populatePopupMenu(menu, sql -> {
+                    int opt = JOptionPane.showOptionDialog(this,
+                        "Snippet selected:\n\n" + (sql.length() > 220 ? sql.substring(0, 220) + "..." : sql) + "\n\nWhere would you like to use this snippet?",
+                        "SQL Template Action",
+                        JOptionPane.YES_NO_CANCEL_OPTION,
+                        JOptionPane.QUESTION_MESSAGE,
+                        null,
+                        new String[]{"Open in SQL Editor", "Copy to Clipboard", "Cancel"},
+                        "Open in SQL Editor");
+                    if (opt == 0) {
+                        sqlEditorPanel.setEditorText(sql);
+                        tabbedPane.setSelectedComponent(sqlEditorPanel);
+                    } else if (opt == 1) {
+                        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(sql), null);
+                        JOptionPane.showMessageDialog(this, "Snippet copied to clipboard!");
+                    }
+                });
+                menu.show(templatesBtn, 0, templatesBtn.getHeight());
+            });
+
+            JButton cheatSheetBtn = new JButton("💡 Cheat Sheet");
+            cheatSheetBtn.setToolTipText("Open interactive Advanced SQL Mastery Cheat Sheet");
+            cheatSheetBtn.addActionListener(e -> {
+                new SqlMasteryReferenceDialog(Main.this, sql -> {
+                    sqlEditorPanel.setEditorText(sql);
+                    tabbedPane.setSelectedComponent(sqlEditorPanel);
+                }).setVisible(true);
+            });
+            tbActions.add(templatesBtn);
+            tbActions.add(cheatSheetBtn);
     
             // Enable sorting on browseTable
             browseTable.setAutoCreateRowSorter(true);
@@ -716,6 +754,44 @@ public class Main extends JFrame {
             });
             tbActions.add(loadSqlBtn);
             tbActions.add(openInSqlBtn);
+            tbActions.addSeparator();
+
+            JButton templatesBtn = new JButton("📝 SQL Templates ▾");
+            templatesBtn.setToolTipText("Advanced SQL templates (Correlated LATERAL joins, CROSS APPLY, Window clauses...)");
+            templatesBtn.addActionListener(e -> {
+                JPopupMenu menu = new JPopupMenu();
+                SqlSnippetsLibrary.populatePopupMenu(menu, sql -> {
+                    int opt = JOptionPane.showOptionDialog(this,
+                        "Selected SQL Template:\n\n" + (sql.length() > 220 ? sql.substring(0, 220) + "..." : sql) + "\n\nChoose an action:",
+                        "SQL Template Action",
+                        JOptionPane.YES_NO_CANCEL_OPTION,
+                        JOptionPane.QUESTION_MESSAGE,
+                        null,
+                        new String[]{"Load into Visual Join", "Open in SQL Editor", "Copy to Clipboard"},
+                        "Load into Visual Join");
+                    if (opt == 0) {
+                        loadFromSql(sql);
+                    } else if (opt == 1) {
+                        sqlEditorPanel.setEditorText(sql);
+                        tabbedPane.setSelectedComponent(sqlEditorPanel);
+                    } else if (opt == 2) {
+                        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(sql), null);
+                        JOptionPane.showMessageDialog(this, "Snippet copied to clipboard!");
+                    }
+                });
+                menu.show(templatesBtn, 0, templatesBtn.getHeight());
+            });
+
+            JButton cheatSheetBtn = new JButton("💡 Cheat Sheet");
+            cheatSheetBtn.setToolTipText("Open interactive Advanced SQL Mastery Cheat Sheet");
+            cheatSheetBtn.addActionListener(e -> {
+                new SqlMasteryReferenceDialog(Main.this, sql -> {
+                    sqlEditorPanel.setEditorText(sql);
+                    tabbedPane.setSelectedComponent(sqlEditorPanel);
+                }).setVisible(true);
+            });
+            tbActions.add(templatesBtn);
+            tbActions.add(cheatSheetBtn);
             
             joinOrderByContainer.setLayout(new BoxLayout(joinOrderByContainer, BoxLayout.Y_AXIS));
             bottomOptionsPanel.add(joinOrderByContainer);
@@ -1092,6 +1168,11 @@ public class Main extends JFrame {
                 
                 sql.append(" ").append(type).append(" ").append(dbManager.quoteTableName(table)).append(" ");
                 
+                boolean isCrossOrApply = type != null && (type.equalsIgnoreCase("CROSS JOIN")
+                        || type.equalsIgnoreCase("CROSS JOIN LATERAL")
+                        || type.equalsIgnoreCase("CROSS APPLY")
+                        || type.equalsIgnoreCase("OUTER APPLY"));
+
                 for (int i = 0; i < jp.conditionPanels.size(); i++) {
                     JoinConditionPanel cp = jp.conditionPanels.get(i);
                     String leftTable = (String) cp.leftTableDropdown.getSelectedItem();
@@ -1103,7 +1184,7 @@ public class Main extends JFrame {
                         String rightFormatted = dbManager.quoteColumnName(table + "." + rightCol);
                         
                         sql.append(cp.operator).append(" ").append(leftFormatted).append(" = ").append(rightFormatted).append(" ");
-                    } else {
+                    } else if (!isCrossOrApply) {
                         JOptionPane.showMessageDialog(this, "Please make sure both 'Left' and 'Right' columns are selected for the join condition on table: " + table, "Incomplete Join", JOptionPane.WARNING_MESSAGE);
                         return;
                     }
@@ -1235,7 +1316,10 @@ public class Main extends JFrame {
             }
         }
     class JoinPanel extends JPanel {
-            JComboBox<String> joinTypeDropdown = new JComboBox<>(new String[]{"JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN"});
+            JComboBox<String> joinTypeDropdown = new JComboBox<>(new String[]{
+                "JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN", "FULL OUTER JOIN",
+                "CROSS JOIN", "CROSS JOIN LATERAL", "CROSS APPLY", "OUTER APPLY"
+            });
             SearchableComboBox joinTableDropdown = new SearchableComboBox();
             
             JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -1345,6 +1429,8 @@ public class Main extends JFrame {
                                 if (join.isInner()) jp.joinTypeDropdown.setSelectedItem("INNER JOIN");
                                 else if (join.isLeft()) jp.joinTypeDropdown.setSelectedItem("LEFT JOIN");
                                 else if (join.isRight()) jp.joinTypeDropdown.setSelectedItem("RIGHT JOIN");
+                                else if (join.isFull()) jp.joinTypeDropdown.setSelectedItem("FULL OUTER JOIN");
+                                else if (join.isCross()) jp.joinTypeDropdown.setSelectedItem("CROSS JOIN");
                                 else jp.joinTypeDropdown.setSelectedItem("JOIN");
                                 
                                 net.sf.jsqlparser.schema.Table joinTable = (net.sf.jsqlparser.schema.Table) join.getRightItem();
@@ -1550,6 +1636,15 @@ public class Main extends JFrame {
                 }
             });
             popupMenu.add(exportJsonItem);
+            popupMenu.addSeparator();
+            JMenuItem cheatSheetItem = new JMenuItem("💡 SQL Mastery Reference & Templates...");
+            cheatSheetItem.addActionListener(e -> {
+                new SqlMasteryReferenceDialog(Main.this, sql -> {
+                    sqlEditorPanel.setEditorText(sql);
+                    tabbedPane.setSelectedComponent(sqlEditorPanel);
+                }).setVisible(true);
+            });
+            popupMenu.add(cheatSheetItem);
             this.setComponentPopupMenu(popupMenu);
             
             this.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -3276,14 +3371,6 @@ public class Main extends JFrame {
             JPanel previewCard = new JPanel(new BorderLayout(4, 4));
             previewCard.setBorder(BorderFactory.createTitledBorder("4. Live SQL Preview / Direct Override"));
 
-            JPanel overrideTop = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
-            JCheckBox customOverrideCb = new JCheckBox("Direct SQL Override (edit subquery manually)");
-            customOverrideCb.setSelected(useCustomSubquery);
-            JButton genFromGuiBtn = new JButton("Copy from GUI Clauses");
-            genFromGuiBtn.setEnabled(useCustomSubquery);
-            overrideTop.add(customOverrideCb);
-            overrideTop.add(genFromGuiBtn);
-
             JTextArea sqlArea = new JTextArea(3, 50);
             sqlArea.setLineWrap(true);
             sqlArea.setWrapStyleWord(true);
@@ -3293,6 +3380,27 @@ public class Main extends JFrame {
                 sqlArea.setText(customSubqueryText);
             }
             JScrollPane sqlScroll = new JScrollPane(sqlArea);
+
+            JPanel overrideTop = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
+            JCheckBox customOverrideCb = new JCheckBox("Direct SQL Override (edit subquery manually)");
+            customOverrideCb.setSelected(useCustomSubquery);
+            JButton genFromGuiBtn = new JButton("Copy from GUI Clauses");
+            genFromGuiBtn.setEnabled(useCustomSubquery);
+            JButton insertSnippetBtn = new JButton("📝 Insert Template ▾");
+            insertSnippetBtn.setToolTipText("Insert advanced subquery or query template (LATERAL, Recursive CTE, Window function, etc.)");
+            insertSnippetBtn.addActionListener(e -> {
+                JPopupMenu snippetMenu = new JPopupMenu();
+                SqlSnippetsLibrary.populatePopupMenu(snippetMenu, sql -> {
+                    customOverrideCb.setSelected(true);
+                    sqlArea.setEditable(true);
+                    genFromGuiBtn.setEnabled(true);
+                    sqlArea.setText(sql);
+                });
+                snippetMenu.show(insertSnippetBtn, 0, insertSnippetBtn.getHeight());
+            });
+            overrideTop.add(customOverrideCb);
+            overrideTop.add(genFromGuiBtn);
+            overrideTop.add(insertSnippetBtn);
 
             previewCard.add(overrideTop, BorderLayout.NORTH);
             previewCard.add(sqlScroll, BorderLayout.CENTER);

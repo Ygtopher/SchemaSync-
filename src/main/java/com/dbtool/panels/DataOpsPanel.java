@@ -36,7 +36,7 @@ public class DataOpsPanel extends JPanel {
     private final JTextField        updateWhereValFld = new JTextField(16);
 
     // ── UPDATE + JOIN ─────────────────────────────────────────────────
-    private final JComboBox<String> juTypeCb   = new JComboBox<>(new String[]{"JOIN", "INNER JOIN", "LEFT JOIN"});
+    private final JComboBox<String> juTypeCb   = new JComboBox<>(new String[]{"JOIN", "INNER JOIN", "LEFT JOIN", "CROSS APPLY", "LATERAL"});
     private final JComboBox<String> juOnMainCb = new JComboBox<>();   // target.col
     private final JComboBox<String> juOnJoinCb = new JComboBox<>();   // join.col
     private final JComboBox<String> juWhereTableCb = new JComboBox<>();
@@ -56,9 +56,14 @@ public class DataOpsPanel extends JPanel {
     private final JTextField        alterTypeFld    = new JTextField(12);
 
     // ── CREATE INDEX ──────────────────────────────────────────────────
-    private final JTextField        indexNameFld  = new JTextField(16);
-    private final JComboBox<String> indexColCb    = new JComboBox<>();
-    private final JCheckBox         indexUniqueCb = new JCheckBox("UNIQUE");
+    private final JTextField        indexNameFld    = new JTextField(14);
+    private final JComboBox<String> indexColCb      = new JComboBox<>();
+    private final JCheckBox         indexUniqueCb   = new JCheckBox("UNIQUE");
+    private final JComboBox<String> indexTypeCb     = new JComboBox<>(new String[]{
+        "BTREE (Default)", "GIN (Full-Text/JSONB)", "BRIN (Large Time-Series)", "HASH", "GiST", "SP-GiST"
+    });
+    private final JTextField        indexIncludeFld = new JTextField(12);
+    private final JTextField        indexWhereFld   = new JTextField(16);
 
     // ── SQL preview ───────────────────────────────────────────────────
     private final JTextArea sqlPreview = new JTextArea(5, 80);
@@ -192,13 +197,26 @@ public class DataOpsPanel extends JPanel {
         tbT.add(new JLabel("<html><font color='red'><b>⚠ Warning:</b> TRUNCATE permanently deletes ALL rows from the selected table.</font></html>"));
         cardPanel.add(tbT, "TRUNCATE");
 
-        // CREATE INDEX
-        JToolBar tbI = tb();
-        tbI.add(new JLabel(" Index Name: ")); tbI.add(indexNameFld);
-        tbI.addSeparator();
-        tbI.add(new JLabel("Column: "));      tbI.add(indexColCb);
-        tbI.add(indexUniqueCb);
-        cardPanel.add(tbI, "CREATE INDEX");
+        // CREATE INDEX (two rows to accommodate advanced indexing options)
+        JPanel tbIPanel = new JPanel();
+        tbIPanel.setLayout(new BoxLayout(tbIPanel, BoxLayout.Y_AXIS));
+        JToolBar tbI1 = tb();
+        tbI1.add(new JLabel(" Index Name: ")); tbI1.add(indexNameFld);
+        tbI1.addSeparator();
+        tbI1.add(new JLabel("Column: "));      tbI1.add(indexColCb);
+        tbI1.add(indexUniqueCb);
+        tbI1.addSeparator();
+        tbI1.add(new JLabel("Method: "));      tbI1.add(indexTypeCb);
+
+        JToolBar tbI2 = tb();
+        tbI2.add(new JLabel(" Covering INCLUDE: ")); tbI2.add(indexIncludeFld);
+        indexIncludeFld.setToolTipText("Covering payload columns (e.g. total_amount, order_date)");
+        tbI2.addSeparator();
+        tbI2.add(new JLabel(" Partial WHERE: "));    tbI2.add(indexWhereFld);
+        indexWhereFld.setToolTipText("Predicate for partial index (e.g. status = 'open' or active = true)");
+        tbIPanel.add(tbI1);
+        tbIPanel.add(tbI2);
+        cardPanel.add(tbIPanel, "CREATE INDEX");
     }
 
     private void buildSetSection() {
@@ -248,9 +266,32 @@ public class DataOpsPanel extends JPanel {
             }
         });
 
+        JButton templatesBtn = new JButton("📝 SQL Templates ▾");
+        templatesBtn.setToolTipText("Browse and insert advanced SQL templates (CTEs, Window frames, Indexes, Advisory locks...)");
+        templatesBtn.addActionListener(e -> {
+            JPopupMenu menu = new JPopupMenu();
+            com.dbtool.util.SqlSnippetsLibrary.populatePopupMenu(menu, sql -> {
+                sqlPreview.setText(sql);
+                setStatus("Template loaded into editor.", true);
+            });
+            menu.show(templatesBtn, 0, templatesBtn.getHeight());
+        });
+
+        JButton cheatSheetBtn = new JButton("💡 Cheat Sheet");
+        cheatSheetBtn.setToolTipText("Open interactive Advanced SQL Mastery Cheat Sheet");
+        cheatSheetBtn.addActionListener(e -> {
+            new com.dbtool.panels.SqlMasteryReferenceDialog(SwingUtilities.getWindowAncestor(this), sql -> {
+                sqlPreview.setText(sql);
+                setStatus("Template loaded into editor.", true);
+            }).setVisible(true);
+        });
+
         tb.add(previewBtn);
         tb.add(runBtn);
         tb.add(copyBtn);
+        tb.addSeparator();
+        tb.add(templatesBtn);
+        tb.add(cheatSheetBtn);
         tb.addSeparator();
         tb.add(autoCommitCb);
         tb.add(commitBtn);
@@ -509,8 +550,27 @@ public class DataOpsPanel extends JPanel {
                 String name = indexNameFld.getText().trim();
                 String col  = (String) indexColCb.getSelectedItem();
                 if (name.isEmpty() || col == null) { setStatus("Fill in index name and select column.", false); return null; }
-                return "CREATE " + (indexUniqueCb.isSelected() ? "UNIQUE " : "") + "INDEX " + q(name)
-                     + " ON " + q(tbl) + " (" + q(col) + ")";
+                StringBuilder sb = new StringBuilder("CREATE ");
+                if (indexUniqueCb.isSelected()) sb.append("UNIQUE ");
+                sb.append("INDEX ").append(q(name)).append(" ON ").append(q(tbl));
+                String idxType = (String) indexTypeCb.getSelectedItem();
+                if (idxType != null && !idxType.startsWith("BTREE")) {
+                    String method = idxType.split(" ")[0];
+                    sb.append(" USING ").append(method);
+                }
+                sb.append(" (").append(q(col)).append(")");
+                String inc = indexIncludeFld.getText().trim();
+                if (!inc.isEmpty()) {
+                    if (!inc.startsWith("(") && !inc.endsWith(")")) inc = "(" + inc + ")";
+                    sb.append(" INCLUDE ").append(inc);
+                }
+                String whr = indexWhereFld.getText().trim();
+                if (!whr.isEmpty()) {
+                    if (!whr.toUpperCase().startsWith("WHERE ")) sb.append(" WHERE ");
+                    else sb.append(" ");
+                    sb.append(whr);
+                }
+                return sb.toString();
             }
             default: return null;
         }

@@ -205,6 +205,52 @@ public class DataCompareTabPanel extends JPanel {
         btnClearClauses.addActionListener(e -> clearAllClauses());
         tbClauses.add(btnClearClauses);
 
+        tbClauses.addSeparator();
+
+        JButton templatesBtn = new JButton("📝 SQL Templates ▾");
+        templatesBtn.setToolTipText("Access advanced SQL templates and clauses (Correlated joins, Window frames, CTEs, etc.)");
+        templatesBtn.addActionListener(e -> {
+            JPopupMenu menu = new JPopupMenu();
+            com.dbtool.util.SqlSnippetsLibrary.populatePopupMenu(menu, sql -> {
+                int opt = JOptionPane.showOptionDialog(this,
+                    "Selected SQL Template:\n\n" + (sql.length() > 220 ? sql.substring(0, 220) + "..." : sql) + "\n\nChoose an action:",
+                    "SQL Template Action",
+                    JOptionPane.YES_NO_CANCEL_OPTION,
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    new String[]{"Load into Custom SQL", "Copy to Clipboard", "Cancel"},
+                    "Load into Custom SQL");
+                if (opt == 0) {
+                    radioCustomSql.setSelected(true);
+                    quickTableContainer.setVisible(false);
+                    customSqlPanel.setVisible(true);
+                    queryAArea.setText(sql);
+                    queryBArea.setText(sql);
+                    revalidate(); repaint();
+                } else if (opt == 1) {
+                    Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(sql), null);
+                    JOptionPane.showMessageDialog(this, "Snippet copied to clipboard!");
+                }
+            });
+            menu.show(templatesBtn, 0, templatesBtn.getHeight());
+        });
+
+        JButton cheatSheetBtn = new JButton("💡 Cheat Sheet");
+        cheatSheetBtn.setToolTipText("Open interactive Advanced SQL Mastery Cheat Sheet");
+        cheatSheetBtn.addActionListener(e -> {
+            new com.dbtool.panels.SqlMasteryReferenceDialog(SwingUtilities.getWindowAncestor(this), sql -> {
+                radioCustomSql.setSelected(true);
+                quickTableContainer.setVisible(false);
+                customSqlPanel.setVisible(true);
+                queryAArea.setText(sql);
+                queryBArea.setText(sql);
+                revalidate(); repaint();
+            }).setVisible(true);
+        });
+
+        tbClauses.add(templatesBtn);
+        tbClauses.add(cheatSheetBtn);
+
         quickTableContainer.add(tbClauses);
 
         // Row C: Dynamic Clauses Scroll Pane
@@ -1246,6 +1292,16 @@ public class DataCompareTabPanel extends JPanel {
             dlg.add(form, BorderLayout.CENTER);
 
             JPanel bp = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            JButton insertTplBtn = new JButton("📝 Insert Template ▾");
+            insertTplBtn.setToolTipText("Insert advanced subquery template from SQL Mastery Library");
+            insertTplBtn.addActionListener(e -> {
+                JPopupMenu snippetMenu = new JPopupMenu();
+                com.dbtool.util.SqlSnippetsLibrary.populatePopupMenu(snippetMenu, sql -> {
+                    subWhereField.setText(sql);
+                });
+                snippetMenu.show(insertTplBtn, 0, insertTplBtn.getHeight());
+            });
+            bp.add(insertTplBtn);
             JButton okBtn = new JButton("Apply Subquery");
             okBtn.addActionListener(e -> {
                 subTable = (String) subTblCombo.getSelectedItem();
@@ -1323,7 +1379,8 @@ public class DataCompareTabPanel extends JPanel {
 
     class DualJoinRow extends JPanel {
         private final JComboBox<String> joinTypeCombo = new JComboBox<>(new String[]{
-            "INNER JOIN", "LEFT JOIN", "RIGHT JOIN", "FULL JOIN", "CROSS JOIN"
+            "INNER JOIN", "LEFT JOIN", "RIGHT JOIN", "FULL JOIN", "CROSS JOIN",
+            "CROSS JOIN LATERAL", "CROSS APPLY", "OUTER APPLY"
         });
         private final SearchableComboBox<String> joinTableCombo = new SearchableComboBox<>();
         private final SearchableComboBox<String> leftColCombo = new SearchableComboBox<>();
@@ -1332,7 +1389,7 @@ public class DataCompareTabPanel extends JPanel {
 
         public DualJoinRow() {
             setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
-            joinTypeCombo.setPreferredSize(new Dimension(110, 26));
+            joinTypeCombo.setPreferredSize(new Dimension(150, 26));
             joinTableCombo.setPreferredSize(new Dimension(140, 26));
             leftColCombo.setPreferredSize(new Dimension(130, 26));
             rightColCombo.setPreferredSize(new Dimension(130, 26));
@@ -1381,8 +1438,12 @@ public class DataCompareTabPanel extends JPanel {
             String jType = (String) joinTypeCombo.getSelectedItem();
             String jTable = (String) joinTableCombo.getSelectedItem();
             if (jTable == null || jTable.trim().isEmpty()) return "";
-            if ("CROSS JOIN".equalsIgnoreCase(jType)) {
-                return "CROSS JOIN " + dbm.quoteTableName(jTable);
+            boolean isCrossOrApply = "CROSS JOIN".equalsIgnoreCase(jType)
+                    || "CROSS JOIN LATERAL".equalsIgnoreCase(jType)
+                    || "CROSS APPLY".equalsIgnoreCase(jType)
+                    || "OUTER APPLY".equalsIgnoreCase(jType);
+            if (isCrossOrApply) {
+                return jType + " " + dbm.quoteTableName(jTable);
             }
             String lCol = (String) leftColCombo.getSelectedItem();
             String rCol = (String) rightColCombo.getSelectedItem();
