@@ -158,6 +158,91 @@ public class DiffScriptGenerator {
         return sb.toString();
     }
 
+    /**
+     * Generates a SQL Rollback (UNDO) script to revert changes applied by generateSchemaSyncScript.
+     */
+    public static String generateRollbackScript(SchemaDiffResult diffResult, String sourceDbName, String targetDbName) {
+        StringBuilder sb = new StringBuilder();
+        String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+
+        sb.append("-- ====================================================================\n");
+        sb.append("-- SchemaSync ROLLBACK (UNDO) Script\n");
+        sb.append("-- Generated: ").append(timestamp).append("\n");
+        sb.append("-- Target DB (B): ").append(targetDbName != null ? targetDbName : "Database B").append("\n");
+        sb.append("-- Purpose: Revert changes made during migration back to previous schema state\n");
+        sb.append("-- ====================================================================\n\n");
+
+        if (diffResult == null || diffResult.getTableDiffs().isEmpty()) {
+            sb.append("-- No schema differences detected. No rollback operations required.\n");
+            return sb.toString();
+        }
+
+        List<TableDiff> createdInTarget = new ArrayList<>();
+        List<TableDiff> modifiedTables = new ArrayList<>();
+
+        for (TableDiff td : diffResult.getTableDiffs()) {
+            if (td.getType() == DifferenceType.REMOVED) {
+                // Was missing in B, forward script created it -> Rollback DROPS it
+                createdInTarget.add(td);
+            } else if (td.getType() == DifferenceType.MODIFIED) {
+                modifiedTables.add(td);
+            }
+        }
+
+        // 1. Revert Altered Columns (Restore original Target column definitions)
+        if (!modifiedTables.isEmpty()) {
+            sb.append("-- --------------------------------------------------------------------\n");
+            sb.append("-- 1. REVERT ALTERED TABLES (Drop Added Columns, Restore Original Types)\n");
+            sb.append("-- --------------------------------------------------------------------\n\n");
+            for (TableDiff td : modifiedTables) {
+                sb.append("-- Table: ").append(td.getTableName()).append("\n");
+                for (ColumnDiff cd : td.getColumnDiffs()) {
+                    if (cd.getType() == DifferenceType.REMOVED) {
+                        // Forward script added this column to B -> Rollback DROPS it
+                        ColumnMetadata col = cd.getSourceColumn();
+                        if (col != null) {
+                            sb.append("ALTER TABLE ").append(quote(td.getTableName()))
+                              .append(" DROP COLUMN ").append(quote(col.getColumnName())).append(";\n");
+                        }
+                    } else if (cd.getType() == DifferenceType.MODIFIED) {
+                        // Forward script changed type to Source -> Rollback restores Target type
+                        ColumnMetadata sCol = cd.getSourceColumn();
+                        ColumnMetadata tCol = cd.getTargetColumn();
+                        if (sCol != null && tCol != null) {
+                            if (!sCol.getTypeName().equalsIgnoreCase(tCol.getTypeName())) {
+                                sb.append("ALTER TABLE ").append(quote(td.getTableName()))
+                                  .append(" ALTER COLUMN ").append(quote(tCol.getColumnName()))
+                                  .append(" TYPE ").append(formatColumnType(tCol)).append(";\n");
+                            }
+                            if (sCol.isNullable() != tCol.isNullable()) {
+                                sb.append("ALTER TABLE ").append(quote(td.getTableName()))
+                                  .append(" ALTER COLUMN ").append(quote(tCol.getColumnName()))
+                                  .append(tCol.isNullable() ? " DROP NOT NULL;\n" : " SET NOT NULL;\n");
+                            }
+                        }
+                    }
+                }
+                sb.append("\n");
+            }
+        }
+
+        // 2. Drop Newly Created Tables
+        if (!createdInTarget.isEmpty()) {
+            sb.append("-- --------------------------------------------------------------------\n");
+            sb.append("-- 2. DROP NEWLY CREATED TABLES\n");
+            sb.append("-- --------------------------------------------------------------------\n\n");
+            for (TableDiff td : createdInTarget) {
+                sb.append("DROP TABLE IF EXISTS ").append(quote(td.getTableName())).append(" CASCADE;\n");
+            }
+            sb.append("\n");
+        }
+
+        sb.append("-- ====================================================================\n");
+        sb.append("-- End of Rollback Script\n");
+        sb.append("-- ====================================================================\n");
+        return sb.toString();
+    }
+
     private static String formatColumnType(ColumnMetadata col) {
         String type = col.getTypeName() != null ? col.getTypeName().toUpperCase() : "VARCHAR";
         if (type.equals("VARCHAR") || type.equals("CHAR") || type.equals("CHARACTER VARYING")) {

@@ -132,6 +132,8 @@ public class SqlEditorPanel extends JPanel {
         JButton exportCsvBtn = new JButton("Export CSV");
         JButton exportXlsxBtn = new JButton("Export XLSX");
         JButton exportPdfBtn = new JButton("Export PDF");
+        JButton chartBtn = new JButton("📊 Chart");
+        chartBtn.setToolTipText("Visualize active query results as Bar, Line, or Donut Chart");
         
         JCheckBox autoCommitCheck = new JCheckBox("Auto-Commit", true);
         JButton commitBtn = new JButton("Commit");
@@ -177,6 +179,7 @@ public class SqlEditorPanel extends JPanel {
         toolbar.add(exportCsvBtn);
         toolbar.add(exportPdfBtn);
         toolbar.add(exportXlsxBtn);
+        toolbar.add(chartBtn);
 
         JPanel toolbarWrapper = new JPanel(new BorderLayout());
         toolbarWrapper.add(toolbar, BorderLayout.CENTER);
@@ -340,6 +343,14 @@ public class SqlEditorPanel extends JPanel {
         exportPdfBtn.addActionListener(e -> {
             JTable t = getActiveResultTable();
             if (t != null) ExportUtil.exportPdf(t, this);
+        });
+        chartBtn.addActionListener(e -> {
+            JTable t = getActiveResultTable();
+            if (t != null && t.getRowCount() > 0) {
+                new DataChartDialog((Frame) SwingUtilities.getWindowAncestor(this), t, "SQL Query Results").setVisible(true);
+            } else {
+                JOptionPane.showMessageDialog(this, "No query results to chart. Run a query first.");
+            }
         });
 
         refreshHistory();

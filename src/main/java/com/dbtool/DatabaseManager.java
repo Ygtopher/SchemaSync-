@@ -12,16 +12,19 @@ import javax.swing.filechooser.FileSystemView;
 public class DatabaseManager {
     private String lastHost, lastPort, lastDbName, lastUser, lastPass;
     private String lastDumpFile;
+    private String lastType = "POSTGRESQL";
+
     public void autoReconnect() throws Exception {
-        if (lastHost != null) {
-            if (lastDumpFile == null) {
-                connectExistingPostgres(lastHost, lastPort, lastDbName, lastUser, lastPass);
-            } else {
-                // Skip re-importing the dump file, just connect
-                connectExistingPostgres(lastHost, lastPort, lastDbName, lastUser, lastPass);
-            }
+        if ("MYSQL".equalsIgnoreCase(lastType) && lastHost != null) {
+            connectMySQL(lastHost, lastPort, lastDbName, lastUser, lastPass);
+        } else if ("SQLITE".equalsIgnoreCase(lastType) && (lastDumpFile != null || lastDbName != null)) {
+            connectSQLite(lastDumpFile != null ? lastDumpFile : lastDbName);
+        } else if (lastHost != null) {
+            connectExistingPostgres(lastHost, lastPort, lastDbName, lastUser, lastPass);
         }
     }
+
+    public String getLastType() { return lastType; }
     public String getLastHost() { return lastHost; }
     public String getLastPort() { return lastPort; }
     public String getLastDbName() { return lastDbName; }
@@ -136,16 +139,36 @@ public class DatabaseManager {
             System.out.println("Connecting to MS Access Database...");
             String url = "jdbc:ucanaccess://" + dbFilePath;
             connection = DriverManager.getConnection(url);
+        } else if (dbFilePath.toLowerCase().endsWith(".sqlite") || dbFilePath.toLowerCase().endsWith(".db") || dbFilePath.toLowerCase().endsWith(".sqlite3")) {
+            System.out.println("Connecting to SQLite Database...");
+            connectSQLite(dbFilePath);
         } else {
-            throw new SQLException("Unsupported file format. Please select .accdb, .mdb, .sql, or .sql.gz");
+            throw new SQLException("Unsupported file format. Please select .accdb, .mdb, .sqlite, .db, .sql, or .sql.gz");
         }
     }
 
     public void connectExistingPostgres(String host, String port, String dbName, String user, String pass) throws Exception {
+        this.lastType = "POSTGRESQL";
         this.lastHost = host; this.lastPort = port; this.lastDbName = dbName; this.lastUser = user; this.lastPass = pass; this.lastDumpFile = null;
         clearCache();
         String targetUrl = "jdbc:postgresql://" + host + ":" + port + "/" + dbName + "?tcpKeepAlive=true&gssEncMode=disable&connectTimeout=10&socketTimeout=30";
         connection = DriverManager.getConnection(targetUrl, user, pass);
+    }
+
+    public void connectMySQL(String host, String port, String dbName, String user, String pass) throws Exception {
+        this.lastType = "MYSQL";
+        this.lastHost = host; this.lastPort = port; this.lastDbName = dbName; this.lastUser = user; this.lastPass = pass; this.lastDumpFile = null;
+        clearCache();
+        String targetUrl = "jdbc:mysql://" + host + ":" + port + "/" + dbName + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&connectTimeout=10000";
+        connection = DriverManager.getConnection(targetUrl, user, pass);
+    }
+
+    public void connectSQLite(String dbFilePath) throws Exception {
+        this.lastType = "SQLITE";
+        this.lastHost = null; this.lastPort = null; this.lastDbName = new File(dbFilePath).getName(); this.lastUser = null; this.lastPass = null; this.lastDumpFile = dbFilePath;
+        clearCache();
+        String targetUrl = "jdbc:sqlite:" + dbFilePath;
+        connection = DriverManager.getConnection(targetUrl);
     }
 
     public boolean isPostgres() {
@@ -156,6 +179,35 @@ public class DatabaseManager {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    public boolean isMySQL() {
+        if (connection == null) return false;
+        try {
+            String prod = connection.getMetaData().getDatabaseProductName();
+            return prod != null && (prod.toLowerCase().contains("mysql") || prod.toLowerCase().contains("mariadb"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean isSQLite() {
+        if (connection == null) return false;
+        try {
+            String prod = connection.getMetaData().getDatabaseProductName();
+            return prod != null && prod.toLowerCase().contains("sqlite");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public String getDatabaseType() {
+        if (connection == null) return "NONE";
+        if (isPostgres()) return "POSTGRESQL";
+        if (isMySQL()) return "MYSQL";
+        if (isSQLite()) return "SQLITE";
+        if (isH2()) return "H2";
+        return "GENERIC";
     }
 
     public boolean isH2() {

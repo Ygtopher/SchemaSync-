@@ -114,13 +114,17 @@ public class ConnectionManagerDialog extends JDialog {
     private JTextField userField;
     private JPasswordField passField;
     private JTextField dbNameField;
+    private JComboBox<String> dbTypeCombo = new JComboBox<>(new String[]{"PostgreSQL", "MySQL", "SQLite"});
     
     private boolean isApproved = false;
+    private String selectedType = "PostgreSQL";
     private String selectedHost;
     private String selectedPort;
     private String selectedUser;
     private String selectedPass;
     private String selectedDbName;
+
+    public String getSelectedType() { return selectedType != null ? selectedType : "PostgreSQL"; }
 
     public ConnectionManagerDialog(JFrame parent, DatabaseManager dbManager) {
         super(parent, "Connection Profile Manager", true);
@@ -258,11 +262,36 @@ public class ConnectionManagerDialog extends JDialog {
         passPanel.add(showPassBtn, BorderLayout.EAST);
 
         int row = 0;
+        addFormRow(formPanel, "Database Type:", dbTypeCombo, gbc, row++);
         addFormRow(formPanel, "Host:", hostField, gbc, row++);
         addFormRow(formPanel, "Port:", portField, gbc, row++);
         addFormRow(formPanel, "Database Name:", dbNameField, gbc, row++);
         addFormRow(formPanel, "Username:", userField, gbc, row++);
         addFormRow(formPanel, "Password:", passPanel, gbc, row++);
+
+        dbTypeCombo.addActionListener(e -> {
+            String t = (String) dbTypeCombo.getSelectedItem();
+            if ("MySQL".equalsIgnoreCase(t)) {
+                if (portField.getText().isEmpty() || portField.getText().equals("5432")) portField.setText("3306");
+                if (userField.getText().isEmpty() || userField.getText().equals("postgres")) userField.setText("root");
+                hostField.setEnabled(true);
+                portField.setEnabled(true);
+                userField.setEnabled(true);
+                passField.setEnabled(true);
+            } else if ("SQLite".equalsIgnoreCase(t)) {
+                hostField.setEnabled(false);
+                portField.setEnabled(false);
+                userField.setEnabled(false);
+                passField.setEnabled(false);
+            } else {
+                if (portField.getText().isEmpty() || portField.getText().equals("3306")) portField.setText("5432");
+                if (userField.getText().isEmpty() || userField.getText().equals("root")) userField.setText("postgres");
+                hostField.setEnabled(true);
+                portField.setEnabled(true);
+                userField.setEnabled(true);
+                passField.setEnabled(true);
+            }
+        });
         
         // Push everything up
         gbc.gridy = row;
@@ -447,13 +476,21 @@ public class ConnectionManagerDialog extends JDialog {
             
             testBtn.setEnabled(false);
             testBtn.setText("Testing...");
-            
             new Thread(() -> {
                 long start = System.currentTimeMillis();
                 try {
-                    // Test Postgres Connection
-                    String url = "jdbc:postgresql://" + h + ":" + p + "/" + d + "?connectTimeout=10&socketTimeout=10&tcpKeepAlive=true&gssEncMode=disable";
-                    java.sql.Connection conn = java.sql.DriverManager.getConnection(url, u, pw);
+                    String type = (String) dbTypeCombo.getSelectedItem();
+                    java.sql.Connection conn;
+                    if ("MySQL".equalsIgnoreCase(type)) {
+                        String url = "jdbc:mysql://" + h + ":" + p + "/" + d + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&connectTimeout=5000";
+                        conn = java.sql.DriverManager.getConnection(url, u, pw);
+                    } else if ("SQLite".equalsIgnoreCase(type)) {
+                        String url = "jdbc:sqlite:" + d;
+                        conn = java.sql.DriverManager.getConnection(url);
+                    } else {
+                        String url = "jdbc:postgresql://" + h + ":" + p + "/" + d + "?connectTimeout=10&socketTimeout=10&tcpKeepAlive=true&gssEncMode=disable";
+                        conn = java.sql.DriverManager.getConnection(url, u, pw);
+                    }
                     conn.close();
                     long elapsed = System.currentTimeMillis() - start;
                     SwingUtilities.invokeLater(() -> {
@@ -488,6 +525,7 @@ public class ConnectionManagerDialog extends JDialog {
         });
         
         connectBtn.addActionListener(e -> {
+            selectedType = (String) dbTypeCombo.getSelectedItem();
             selectedHost = hostField.getText().trim();
             selectedPort = portField.getText().trim();
             selectedDbName = dbNameField.getText().trim();

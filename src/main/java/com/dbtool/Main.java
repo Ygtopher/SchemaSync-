@@ -221,11 +221,21 @@ public class Main extends JFrame {
             JButton exportPdfBtn = new JButton("📄 PDF");
             JButton exportXlsxBtn = new JButton("📥 Excel");
             JButton exportInsertBtn = new JButton("📥 SQL Inserts");
+            JButton chartBtn = new JButton("📊 Chart");
+            chartBtn.setToolTipText("Visualize table data as Bar, Line, or Donut Chart");
             JButton copyBtn = new JButton("📋 Copy Data");
             JButton copySqlBtn = new JButton("📋 Copy SQL");
             exportCsvBtn.addActionListener(e -> ExportUtil.exportCsv(browseTable, this));
             exportXlsxBtn.addActionListener(e -> ExportUtil.exportExcel(browseTable, this));
             exportPdfBtn.addActionListener(e -> ExportUtil.exportPdf(browseTable, this));
+            chartBtn.addActionListener(e -> {
+                if (browseTable.getRowCount() == 0) {
+                    JOptionPane.showMessageDialog(this, "No data available to chart. Run a query first.");
+                    return;
+                }
+                String tbl = (String) browseTableDropdown.getSelectedItem();
+                new com.dbtool.panels.DataChartDialog(Main.this, browseTable, tbl).setVisible(true);
+            });
             exportInsertBtn.addActionListener(e -> {
                 String tbl = (String) browseTableDropdown.getSelectedItem();
                 if (tbl != null) ExportUtil.exportSqlInserts(browseTable, tbl, this);
@@ -254,6 +264,7 @@ public class Main extends JFrame {
             tbActions.add(exportPdfBtn);
             tbActions.add(exportXlsxBtn);
             tbActions.add(exportInsertBtn);
+            tbActions.add(chartBtn);
             tbActions.addSeparator();
             tbActions.add(copyBtn);
             tbActions.add(copySqlBtn);
@@ -2958,7 +2969,7 @@ public class Main extends JFrame {
     // Cache for currently loaded tables
     private List<String> loadedTables = new ArrayList<>();
 
-    private JButton loadDbButton = new JButton("Connect & Upload (.accdb, .sql, .sql.gz)");
+    private JButton loadDbButton = new JButton("Open DB File (.sqlite, .db, .accdb, .sql)");
     private JButton connectExistingBtn = new JButton("Connect to Existing DB");
     private JButton sandboxBtn = new JButton("⚡ Sample Sandbox DB");
     private JButton seedSampleBtn = new JButton("🌱 Seed Sample Tables");
@@ -3127,6 +3138,17 @@ public class Main extends JFrame {
         exportDbBtn.setVisible(false);
         topPanel.add(exportDbBtn);
 
+        JButton auditDbBtn = new JButton("🛡 Health Audit");
+        auditDbBtn.setToolTipText("Run 1-Click Database Health & Performance Audit");
+        auditDbBtn.addActionListener(e -> {
+            if (dbManager.connection == null) {
+                JOptionPane.showMessageDialog(this, "Please connect to a database first to run health diagnostics.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            new com.dbtool.panels.DatabaseAuditorDialog(this, dbManager).setVisible(true);
+        });
+        topPanel.add(auditDbBtn);
+
         JButton themeBtn = new JButton("🌙 Dark Mode");
         themeBtn.addActionListener(e -> com.dbtool.util.ThemeManager.toggleTheme(themeBtn));
         topPanel.add(themeBtn);
@@ -3135,6 +3157,11 @@ public class Main extends JFrame {
         aboutBtn.setToolTipText("About SchemaSync & Creator Info");
         aboutBtn.addActionListener(e -> showAboutDialog());
         topPanel.add(aboutBtn);
+
+        JButton updateBtn = new JButton("🔄 Updates");
+        updateBtn.setToolTipText("Check GitHub for SchemaSync updates & new installers");
+        updateBtn.addActionListener(e -> com.dbtool.util.UpdateChecker.checkForUpdates(this, false));
+        topPanel.add(updateBtn);
 
         topPanel.add(statusLabel);
         
@@ -3495,6 +3522,10 @@ public class Main extends JFrame {
 
     private void loadDatabase() {
         JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+            "Supported Database Files (*.sqlite, *.db, *.accdb, *.sql, *.sql.gz)",
+            "sqlite", "db", "sqlite3", "accdb", "mdb", "sql", "gz"
+        ));
         int result = fileChooser.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             File selectedFile = fileChooser.getSelectedFile();
@@ -3538,7 +3569,7 @@ public class Main extends JFrame {
             final String finalPass = pass;
             final String finalDbName = dbName;
             
-            statusLabel.setText("Loading " + selectedFile.getName() + " to PostgreSQL...");
+            statusLabel.setText("Loading " + selectedFile.getName() + "...");
             statusLabel.setForeground(Color.BLUE);
             
             new Thread(() -> {
@@ -3751,18 +3782,25 @@ public class Main extends JFrame {
             return;
         }
 
+        final String finalType = dialog.getSelectedType();
         final String finalHost = dialog.getHost();
         final String finalPort = dialog.getPort();
         final String finalUser = dialog.getUser();
         final String finalPass = dialog.getPass();
         final String finalDbName = dialog.getDbName();
         
-        statusLabel.setText("Connecting to " + finalDbName + "...");
+        statusLabel.setText("Connecting to " + finalDbName + " (" + finalType + ")...");
         statusLabel.setForeground(java.awt.Color.BLUE);
         
         new Thread(() -> {
             try {
-                dbManager.connectExistingPostgres(finalHost, finalPort, finalDbName, finalUser, finalPass);
+                if ("MySQL".equalsIgnoreCase(finalType)) {
+                    dbManager.connectMySQL(finalHost, finalPort, finalDbName, finalUser, finalPass);
+                } else if ("SQLite".equalsIgnoreCase(finalType)) {
+                    dbManager.connectSQLite(finalDbName);
+                } else {
+                    dbManager.connectExistingPostgres(finalHost, finalPort, finalDbName, finalUser, finalPass);
+                }
                 
                 // Pre-fetch caches in background so we don't freeze EDT
                 java.util.List<String> tables = dbManager.getTableNames();

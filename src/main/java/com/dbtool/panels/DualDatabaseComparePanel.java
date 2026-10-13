@@ -808,65 +808,13 @@ public class DualDatabaseComparePanel extends JPanel {
         if (!(tgt instanceof DatabaseEntry)) return;
 
         DatabaseEntry tgtEntry = (DatabaseEntry) tgt;
-        String sql = DiffScriptGenerator.generateSchemaSyncScript(lastSchemaDiffResult, src.getLabel(), tgtEntry.getLabel());
-
-        JDialog dlg = new JDialog((JFrame) SwingUtilities.getWindowAncestor(this), "Migration & Synchronization DDL Script", true);
-        dlg.setSize(750, 520);
-        dlg.setLocationRelativeTo(this);
-        dlg.setLayout(new BorderLayout());
-
-        RSyntaxTextArea area = new RSyntaxTextArea(sql);
-        area.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_SQL);
-        area.setEditable(true);
-        dlg.add(new RTextScrollPane(area), BorderLayout.CENTER);
-
-        JPanel btnP = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 4));
-
-        JButton copyBtn = new JButton("Copy Script");
-        copyBtn.addActionListener(e -> {
-            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(area.getText()), null);
-            JOptionPane.showMessageDialog(dlg, "Migration DDL script copied to clipboard!");
-        });
-        btnP.add(copyBtn);
-
-        JButton executeBtn = new JButton("Execute on " + tgtEntry.getLabel());
-        executeBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        executeBtn.setForeground(ThemeManager.getDangerColor());
-        executeBtn.addActionListener(e -> {
-            int confirm = JOptionPane.showConfirmDialog(dlg,
-                    "Are you sure you want to execute this DDL script on " + tgtEntry.getLabel() + "?\nThis will alter table schemas on target.",
-                    "Confirm Migration Execution", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-            if (confirm == JOptionPane.YES_OPTION) {
-                new Thread(() -> {
-                    try {
-                        String[] statements = area.getText().split(";");
-                        try (Statement stmt = tgtEntry.getDbManager().connection.createStatement()) {
-                            for (String s : statements) {
-                                String tr = s.trim();
-                                if (!tr.isEmpty() && !tr.startsWith("--")) {
-                                    stmt.execute(tr);
-                                }
-                            }
-                        }
-                        tgtEntry.getDbManager().clearCache();
-                        SwingUtilities.invokeLater(() -> {
-                            JOptionPane.showMessageDialog(dlg, "Migration script executed successfully on " + tgtEntry.getLabel() + "!", "Success", JOptionPane.INFORMATION_MESSAGE);
-                            dlg.dispose();
-                            runSchemaComparison();
-                        });
-                    } catch (Exception ex) {
-                        SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(dlg, "Failed to execute script: " + ex.getMessage(), "Execution Error", JOptionPane.ERROR_MESSAGE));
-                    }
-                }).start();
-            }
-        });
-        btnP.add(executeBtn);
-
-        JButton closeBtn = new JButton("Close");
-        closeBtn.addActionListener(e -> dlg.dispose());
-        btnP.add(closeBtn);
-        dlg.add(btnP, BorderLayout.SOUTH);
-
+        MigrationWorkbenchDialog dlg = new MigrationWorkbenchDialog(
+            (Frame) SwingUtilities.getWindowAncestor(this),
+            lastSchemaDiffResult,
+            src != null ? src.getLabel() : "Source DB",
+            tgtEntry,
+            () -> runSchemaComparison()
+        );
         dlg.setVisible(true);
     }
 
