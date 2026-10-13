@@ -27,7 +27,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.2.0";
+    public static final String APP_VERSION = "1.2.1";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -363,7 +363,7 @@ public class Main extends JFrame {
             browseSplit.setBorder(BorderFactory.createEmptyBorder());
             panel.add(browseSplit, BorderLayout.CENTER);
 
-            // Shortcuts (Ctrl+Enter / F5)
+            // Shortcuts (Ctrl+Enter / F5 / Delete)
             KeyStroke ctrlEnter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK);
             KeyStroke f5 = KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0);
             Action runAction = new AbstractAction() {
@@ -372,7 +372,23 @@ public class Main extends JFrame {
             panel.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(ctrlEnter, "runBrowseQuery");
             panel.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(f5, "runBrowseQuery");
             panel.getActionMap().put("runBrowseQuery", runAction);
-            
+
+            KeyStroke delKey = KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0);
+            browseTable.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(delKey, "deleteRowAction");
+            browseTable.getActionMap().put("deleteRowAction", new AbstractAction() {
+                @Override public void actionPerformed(ActionEvent e) { deleteSelectedRow(); }
+            });
+
+            JPopupMenu tableMenu = browseTable.getComponentPopupMenu();
+            if (tableMenu != null) {
+                tableMenu.addSeparator();
+                JMenuItem delMenuItem = new JMenuItem("🗑 Delete Selected Row(s)");
+                delMenuItem.setFont(delMenuItem.getFont().deriveFont(Font.BOLD));
+                delMenuItem.setForeground(new Color(220, 38, 38));
+                delMenuItem.addActionListener(e -> deleteSelectedRow());
+                tableMenu.add(delMenuItem);
+            }
+
             return panel;
         }
     private void refreshOrderByDropdown() {
@@ -383,61 +399,174 @@ public class Main extends JFrame {
             }
         }
     private void openInsertRowDialog() {
-            String tbl = (String) browseTableDropdown.getSelectedItem();
-            if (tbl == null) return;
-            List<String> cols = dbManager.getColumnNames(tbl);
-            JPanel form = new JPanel(new GridLayout(cols.size(), 2, 5, 5));
-            List<JTextField> fields = new ArrayList<>();
-            for (String col : cols) {
-                form.add(new JLabel(col + ":"));
-                JTextField tf = new JTextField(20);
-                fields.add(tf);
-                form.add(tf);
-            }
-            int res = JOptionPane.showConfirmDialog(this, new JScrollPane(form), "Insert Row into " + tbl, JOptionPane.OK_CANCEL_OPTION);
-            if (res != JOptionPane.OK_OPTION) return;
-            StringBuilder sql = new StringBuilder("INSERT INTO " + dbManager.quoteTableName(tbl) + " (");
-            StringBuilder vals = new StringBuilder(") VALUES (");
-            for (int i = 0; i < cols.size(); i++) {
-                sql.append("\"").append(cols.get(i)).append("\"");
-                vals.append("'").append(fields.get(i).getText().replace("'", "''")).append("'");
-                if (i < cols.size() - 1) { sql.append(", "); vals.append(", "); }
-            }
-            try {
-                dbManager.connection.createStatement().executeUpdate(sql.toString() + vals.toString() + ")");
-                JOptionPane.showMessageDialog(this, "Row inserted successfully.");
-                loadTableData();
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this, "Insert failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
+        String tbl = (String) browseTableDropdown.getSelectedItem();
+        if (tbl == null || tbl.trim().isEmpty()) return;
+        List<String> cols = dbManager.getColumnNames(tbl);
+        if (cols.isEmpty()) return;
+
+        JPanel form = new JPanel(new GridLayout(cols.size(), 2, 5, 5));
+        List<JTextField> fields = new ArrayList<>();
+        for (String col : cols) {
+            form.add(new JLabel(col + ":"));
+            JTextField tf = new JTextField(20);
+            fields.add(tf);
+            form.add(tf);
         }
-    private void deleteSelectedRow() {
-            String tbl = (String) browseTableDropdown.getSelectedItem();
-            if (tbl == null) return;
-            int[] rows = browseTable.getSelectedRows();
-            if (rows.length == 0) { JOptionPane.showMessageDialog(this, "Select rows to delete first."); return; }
-            int confirm = JOptionPane.showConfirmDialog(this, "Delete " + rows.length + " selected row(s)?", "Confirm Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-            if (confirm != JOptionPane.YES_OPTION) return;
-            // Build delete using all column values as the key (safest approach without requiring PK)
-            DefaultTableModel model = (DefaultTableModel) browseTable.getModel();
-            int deleted = 0;
-            for (int viewRow : rows) {
-                int modelRow = browseTable.convertRowIndexToModel(viewRow);
-                StringBuilder sql = new StringBuilder("DELETE FROM " + dbManager.quoteTableName(tbl) + " WHERE ");
-                for (int c = 0; c < model.getColumnCount(); c++) {
-                    Object val = model.getValueAt(modelRow, c);
-                    sql.append("\"").append(model.getColumnName(c)).append("\"");
-                    if (val == null) sql.append(" IS NULL");
-                    else sql.append(" = '").append(val.toString().replace("'", "''")).append("'");
-                    if (c < model.getColumnCount() - 1) sql.append(" AND ");
-                }
-                sql.append(" LIMIT 1");
-                try { dbManager.connection.createStatement().executeUpdate(sql.toString()); deleted++; }
-                catch (Exception ex) { System.err.println("Delete failed for row: " + ex.getMessage()); }
+        int res = JOptionPane.showConfirmDialog(this, new JScrollPane(form), "Insert Row into " + tbl, JOptionPane.OK_CANCEL_OPTION);
+        if (res != JOptionPane.OK_OPTION) return;
+
+        StringBuilder sql = new StringBuilder("INSERT INTO " + dbManager.quoteTableName(tbl) + " (");
+        StringBuilder vals = new StringBuilder(") VALUES (");
+        List<Object> params = new ArrayList<>();
+
+        boolean first = true;
+        for (int i = 0; i < cols.size(); i++) {
+            String val = fields.get(i).getText().trim();
+            // If field is left empty, skip to let the database assign default/auto-increment value
+            if (val.isEmpty()) continue;
+
+            if (!first) {
+                sql.append(", ");
+                vals.append(", ");
             }
-            JOptionPane.showMessageDialog(this, deleted + " row(s) deleted.");
+            first = false;
+
+            sql.append(dbManager.quoteColumnName(cols.get(i)));
+            vals.append("?");
+            params.add(val);
+        }
+
+        if (params.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No values were provided to insert.", "Insert Skipped", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        sql.append(vals).append(")");
+        try {
+            dbManager.executeUpdate(sql.toString(), params);
+            JOptionPane.showMessageDialog(this, "Row inserted successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
             loadTableData();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Insert failed:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private void deleteSelectedRow() {
+        String tbl = (String) browseTableDropdown.getSelectedItem();
+        if (tbl == null || tbl.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No table is currently selected.", "Warning", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int[] rows = browseTable.getSelectedRows();
+        if (rows.length == 0) {
+            JOptionPane.showMessageDialog(this, "Please select at least one row from the table to delete.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "Are you sure you want to permanently delete " + rows.length + " selected row(s) from table '" + tbl + "'?",
+            "Confirm Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        DefaultTableModel model = (DefaultTableModel) browseTable.getModel();
+        int totalCols = model.getColumnCount();
+        if (totalCols == 0) return;
+
+        // 1. Detect Primary Key columns for table 'tbl'
+        List<String> pkNames = dbManager.getPrimaryKeys(tbl);
+
+        // 2. Map PK names to model column indices if present in the current view
+        List<Integer> pkColIndices = new ArrayList<>();
+        List<String> matchedPkNames = new ArrayList<>();
+        for (String pk : pkNames) {
+            for (int c = 0; c < totalCols; c++) {
+                String colHeader = model.getColumnName(c);
+                String cleanHeader = colHeader.contains(".") ? colHeader.split("\\.", 2)[1] : colHeader;
+                if (cleanHeader.equalsIgnoreCase(pk)) {
+                    pkColIndices.add(c);
+                    matchedPkNames.add(cleanHeader);
+                    break;
+                }
+            }
+        }
+
+        boolean usePk = !pkNames.isEmpty() && (pkColIndices.size() == pkNames.size());
+
+        int deleted = 0;
+        List<String> errors = new ArrayList<>();
+
+        for (int viewRow : rows) {
+            int modelRow = browseTable.convertRowIndexToModel(viewRow);
+            StringBuilder sql = new StringBuilder("DELETE FROM " + dbManager.quoteTableName(tbl) + " WHERE ");
+            List<Object> params = new ArrayList<>();
+
+            if (usePk) {
+                // Delete specifically by Primary Key(s) - 100% reliable across all database engines
+                for (int i = 0; i < pkColIndices.size(); i++) {
+                    int c = pkColIndices.get(i);
+                    String pkCol = matchedPkNames.get(i);
+                    Object val = model.getValueAt(modelRow, c);
+                    sql.append(dbManager.quoteColumnName(pkCol));
+                    if (val == null) {
+                        sql.append(" IS NULL");
+                    } else {
+                        sql.append(" = ?");
+                        params.add(val);
+                    }
+                    if (i < pkColIndices.size() - 1) {
+                        sql.append(" AND ");
+                    }
+                }
+            } else {
+                // No PK available or PK not visible: match by all visible columns in the row
+                boolean first = true;
+                for (int c = 0; c < totalCols; c++) {
+                    String colHeader = model.getColumnName(c);
+                    String cleanCol = colHeader.contains(".") ? colHeader.split("\\.", 2)[1] : colHeader;
+                    Object val = model.getValueAt(modelRow, c);
+
+                    if (!first) sql.append(" AND ");
+                    first = false;
+
+                    sql.append(dbManager.quoteColumnName(cleanCol));
+                    if (val == null) {
+                        sql.append(" IS NULL");
+                    } else {
+                        sql.append(" = ?");
+                        params.add(val);
+                    }
+                }
+                // Only MySQL supports LIMIT on DELETE; omit on Postgres, SQLite, and Access
+                if (dbManager.isMySQL()) {
+                    sql.append(" LIMIT 1");
+                }
+            }
+
+            try {
+                dbManager.executeUpdate(sql.toString(), params);
+                deleted++;
+            } catch (Exception ex) {
+                String msg = ex.getMessage();
+                if (msg != null && !errors.contains(msg)) {
+                    errors.add(msg);
+                }
+            }
+        }
+
+        if (!errors.isEmpty()) {
+            StringBuilder errMsg = new StringBuilder();
+            errMsg.append("Could not delete ").append(rows.length - deleted).append(" row(s).\n\n");
+            errMsg.append("Reason:\n");
+            for (String err : errors) {
+                errMsg.append("• ").append(err).append("\n");
+            }
+            JOptionPane.showMessageDialog(this, errMsg.toString(), "Delete Error", JOptionPane.ERROR_MESSAGE);
+        } else {
+            JOptionPane.showMessageDialog(this, "Successfully deleted " + deleted + " row(s).", "Delete Success", JOptionPane.INFORMATION_MESSAGE);
+        }
+
+        loadTableData();
+    }
     private void openColumnSelector() {
             String selectedTable = (String) browseTableDropdown.getSelectedItem();
             if (selectedTable == null) return;

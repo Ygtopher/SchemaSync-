@@ -1,6 +1,6 @@
 # SchemaSync
 
-**Version:** 1.2.0  
+**Version:** 1.2.1  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 

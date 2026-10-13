@@ -201,11 +201,22 @@ public class DatabaseManager {
         }
     }
 
+    public boolean isAccess() {
+        if (connection == null) return false;
+        try {
+            String prod = connection.getMetaData().getDatabaseProductName();
+            return prod != null && (prod.toLowerCase().contains("access") || prod.toLowerCase().contains("ucanaccess"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public String getDatabaseType() {
         if (connection == null) return "NONE";
         if (isPostgres()) return "POSTGRESQL";
         if (isMySQL()) return "MYSQL";
         if (isSQLite()) return "SQLITE";
+        if (isAccess()) return "ACCESS";
         if (isH2()) return "H2";
         return "GENERIC";
     }
@@ -218,6 +229,68 @@ public class DatabaseManager {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    public List<String> getPrimaryKeys(String tableName) {
+        List<String> pks = new ArrayList<>();
+        if (connection == null || tableName == null) return pks;
+        try {
+            DatabaseMetaData meta = connection.getMetaData();
+            String rawTable = tableName;
+            String schema = null;
+            if (tableName.contains(".")) {
+                String[] parts = tableName.split("\\.", 2);
+                schema = parts[0];
+                rawTable = parts[1];
+            }
+            // 1. Try with schema
+            try (ResultSet rs = meta.getPrimaryKeys(null, schema, rawTable)) {
+                while (rs.next()) {
+                    String col = rs.getString("COLUMN_NAME");
+                    if (col != null && !pks.contains(col)) pks.add(col);
+                }
+            }
+            // 2. Try without schema
+            if (pks.isEmpty()) {
+                try (ResultSet rs = meta.getPrimaryKeys(null, null, rawTable)) {
+                    while (rs.next()) {
+                        String col = rs.getString("COLUMN_NAME");
+                        if (col != null && !pks.contains(col)) pks.add(col);
+                    }
+                }
+            }
+            // 3. Try uppercase
+            if (pks.isEmpty()) {
+                try (ResultSet rs = meta.getPrimaryKeys(null, null, rawTable.toUpperCase())) {
+                    while (rs.next()) {
+                        String col = rs.getString("COLUMN_NAME");
+                        if (col != null && !pks.contains(col)) pks.add(col);
+                    }
+                }
+            }
+            // 4. Try lowercase
+            if (pks.isEmpty()) {
+                try (ResultSet rs = meta.getPrimaryKeys(null, null, rawTable.toLowerCase())) {
+                    while (rs.next()) {
+                        String col = rs.getString("COLUMN_NAME");
+                        if (col != null && !pks.contains(col)) pks.add(col);
+                    }
+                }
+            }
+            // 5. Special check for SQLite: PRAGMA table_info
+            if (pks.isEmpty() && isSQLite()) {
+                try (Statement stmt = connection.createStatement();
+                     ResultSet rs = stmt.executeQuery("PRAGMA table_info(" + quoteTableName(tableName) + ")")) {
+                    while (rs.next()) {
+                        if (rs.getInt("pk") > 0) {
+                            String col = rs.getString("name");
+                            if (col != null && !pks.contains(col)) pks.add(col);
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return pks;
     }
 
     public void connectSandbox() throws Exception {
@@ -675,8 +748,14 @@ public class DatabaseManager {
 
     private String quoteIfNecessary(String identifier) {
         if (identifier == null) return "";
-        if (identifier.matches("^[a-z_][a-z0-9_]*$") && !SQL_KEYWORDS.contains(identifier)) {
+        if (identifier.matches("^[a-z_][a-z0-9_]*$") && !SQL_KEYWORDS.contains(identifier.toLowerCase())) {
             return identifier;
+        }
+        if (isMySQL()) {
+            return "`" + identifier.replace("`", "``") + "`";
+        }
+        if (isAccess()) {
+            return "[" + identifier.replace("]", "]]") + "]";
         }
         return "\"" + identifier.replace("\"", "\"\"") + "\"";
     }
