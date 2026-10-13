@@ -5503,7 +5503,17 @@ public class Main extends JFrame {
         }
     }
 
+    private static void setWindowsAppUserModelID() {
+        if (System.getProperty("os.name", "").toLowerCase().contains("win")) {
+            try {
+                com.sun.jna.platform.win32.Shell32.INSTANCE.SetCurrentProcessExplicitAppUserModelID(new com.sun.jna.WString("SchemaSync.DatabaseTool"));
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
     public static void main(String[] args) {
+        setWindowsAppUserModelID();
         com.dbtool.util.ThemeManager.init(null);
         SwingUtilities.invokeLater(() -> {
             com.dbtool.ui.SplashScreen splash = new com.dbtool.ui.SplashScreen(() -> {
