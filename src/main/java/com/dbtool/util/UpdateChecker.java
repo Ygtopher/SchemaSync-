@@ -13,7 +13,7 @@ import java.net.URL;
 
 public class UpdateChecker {
 
-    public static final String CURRENT_VERSION = "1.1.0";
+    public static final String CURRENT_VERSION = com.dbtool.Main.APP_VERSION;
     public static final String GITHUB_REPO = "Ygtopher/SchemaSync-";
     private static final String API_URL = "https://api.github.com/repos/" + GITHUB_REPO + "/releases/latest";
 

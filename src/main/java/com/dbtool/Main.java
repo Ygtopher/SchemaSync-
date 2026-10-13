@@ -27,6 +27,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
+    public static final String APP_VERSION = "1.2.0";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -3013,7 +3014,7 @@ public class Main extends JFrame {
         textPanel.add(titleLbl);
         textPanel.add(Box.createVerticalStrut(4));
 
-        JLabel verLbl = new JLabel("Version 1.1.0");
+        JLabel verLbl = new JLabel("Version " + APP_VERSION);
         verLbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         textPanel.add(verLbl);
         textPanel.add(Box.createVerticalStrut(10));
