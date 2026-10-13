@@ -186,10 +186,16 @@ public class Main extends JFrame {
             tbActions.setFloatable(false);
             tbActions.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
             JButton insertRowBtn = new JButton("➕ Insert Row");
+            JButton updateRowBtn = new JButton("✏️ Update Row");
             JButton deleteRowBtn = new JButton("🗑 Delete Row");
+            insertRowBtn.setToolTipText("Insert a new record into the current table");
+            updateRowBtn.setToolTipText("Edit & update the selected table row in a dialog (or double-click row)");
+            deleteRowBtn.setToolTipText("Permanently delete selected row(s) (or press Delete key)");
             insertRowBtn.addActionListener(e -> openInsertRowDialog());
+            updateRowBtn.addActionListener(e -> openUpdateRowDialog());
             deleteRowBtn.addActionListener(e -> deleteSelectedRow());
             tbActions.add(insertRowBtn);
+            tbActions.add(updateRowBtn);
             tbActions.add(deleteRowBtn);
             tbActions.addSeparator();
             
@@ -382,12 +388,26 @@ public class Main extends JFrame {
             JPopupMenu tableMenu = browseTable.getComponentPopupMenu();
             if (tableMenu != null) {
                 tableMenu.addSeparator();
+                JMenuItem editMenuItem = new JMenuItem("✏️ Update Selected Row...");
+                editMenuItem.setFont(editMenuItem.getFont().deriveFont(Font.BOLD));
+                editMenuItem.addActionListener(e -> openUpdateRowDialog());
+                tableMenu.add(editMenuItem);
+
                 JMenuItem delMenuItem = new JMenuItem("🗑 Delete Selected Row(s)");
                 delMenuItem.setFont(delMenuItem.getFont().deriveFont(Font.BOLD));
                 delMenuItem.setForeground(new Color(220, 38, 38));
                 delMenuItem.addActionListener(e -> deleteSelectedRow());
                 tableMenu.add(delMenuItem);
             }
+
+            browseTable.addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseClicked(java.awt.event.MouseEvent e) {
+                    if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
+                        openUpdateRowDialog();
+                    }
+                }
+            });
 
             return panel;
         }
@@ -448,6 +468,135 @@ public class Main extends JFrame {
             loadTableData();
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Insert failed:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void openUpdateRowDialog() {
+        String tbl = (String) browseTableDropdown.getSelectedItem();
+        if (tbl == null || tbl.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No table is currently selected.", "Warning", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int viewRow = browseTable.getSelectedRow();
+        if (viewRow < 0) {
+            JOptionPane.showMessageDialog(this, "Please select a row from the table to update.", "No Row Selected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int modelRow = browseTable.convertRowIndexToModel(viewRow);
+        DefaultTableModel model = (DefaultTableModel) browseTable.getModel();
+        int totalCols = model.getColumnCount();
+        if (totalCols == 0) return;
+
+        List<String> pks = dbManager.getPrimaryKeys(tbl);
+
+        JPanel form = new JPanel(new GridLayout(totalCols, 2, 6, 6));
+        List<JTextField> fields = new ArrayList<>();
+        List<Object> oldValues = new ArrayList<>();
+        List<String> colNames = new ArrayList<>();
+
+        for (int c = 0; c < totalCols; c++) {
+            String colName = model.getColumnName(c);
+            String cleanCol = colName.contains(".") ? colName.split("\\.", 2)[1] : colName;
+            colNames.add(cleanCol);
+
+            boolean isPk = false;
+            for (String pk : pks) {
+                if (pk.equalsIgnoreCase(cleanCol)) { isPk = true; break; }
+            }
+
+            JLabel lbl = new JLabel(cleanCol + (isPk ? " (PK):" : ":"));
+            if (isPk) {
+                lbl.setFont(lbl.getFont().deriveFont(Font.BOLD));
+                lbl.setForeground(new Color(16, 185, 129));
+            }
+            form.add(lbl);
+
+            Object currentVal = model.getValueAt(modelRow, c);
+            oldValues.add(currentVal);
+
+            JTextField tf = new JTextField(currentVal != null ? currentVal.toString() : "", 22);
+            fields.add(tf);
+            form.add(tf);
+        }
+
+        int res = JOptionPane.showConfirmDialog(this, new JScrollPane(form), "✏️ Update Row in " + tbl, JOptionPane.OK_CANCEL_OPTION);
+        if (res != JOptionPane.OK_OPTION) return;
+
+        // Collect changed fields
+        List<String> changedCols = new ArrayList<>();
+        List<Object> newValues = new ArrayList<>();
+        for (int c = 0; c < totalCols; c++) {
+            String oldValStr = oldValues.get(c) != null ? oldValues.get(c).toString() : "";
+            String newValStr = fields.get(c).getText().trim();
+            if (!newValStr.equals(oldValStr)) {
+                changedCols.add(colNames.get(c));
+                newValues.add(newValStr.isEmpty() ? null : newValStr);
+            }
+        }
+
+        if (changedCols.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No columns were modified.", "Notice", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        StringBuilder sql = new StringBuilder("UPDATE " + dbManager.quoteTableName(tbl) + " SET ");
+        List<Object> params = new ArrayList<>();
+        for (int i = 0; i < changedCols.size(); i++) {
+            sql.append(dbManager.quoteColumnName(changedCols.get(i))).append(" = ?");
+            params.add(newValues.get(i));
+            if (i < changedCols.size() - 1) sql.append(", ");
+        }
+
+        sql.append(" WHERE ");
+
+        // Primary key targeting
+        List<Integer> pkIndices = new ArrayList<>();
+        List<String> matchedPks = new ArrayList<>();
+        for (String pk : pks) {
+            for (int c = 0; c < totalCols; c++) {
+                if (colNames.get(c).equalsIgnoreCase(pk)) {
+                    pkIndices.add(c);
+                    matchedPks.add(colNames.get(c));
+                    break;
+                }
+            }
+        }
+
+        if (!pks.isEmpty() && pkIndices.size() == pks.size()) {
+            for (int i = 0; i < pkIndices.size(); i++) {
+                int c = pkIndices.get(i);
+                Object val = oldValues.get(c);
+                sql.append(dbManager.quoteColumnName(matchedPks.get(i)));
+                if (val == null) {
+                    sql.append(" IS NULL");
+                } else {
+                    sql.append(" = ?");
+                    params.add(val);
+                }
+                if (i < pkIndices.size() - 1) sql.append(" AND ");
+            }
+        } else {
+            boolean first = true;
+            for (int c = 0; c < totalCols; c++) {
+                Object val = oldValues.get(c);
+                if (!first) sql.append(" AND ");
+                first = false;
+                sql.append(dbManager.quoteColumnName(colNames.get(c)));
+                if (val == null) {
+                    sql.append(" IS NULL");
+                } else {
+                    sql.append(" = ?");
+                    params.add(val);
+                }
+            }
+        }
+
+        try {
+            dbManager.executeUpdate(sql.toString(), params);
+            JOptionPane.showMessageDialog(this, "Row updated successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+            loadTableData();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Update failed:\n" + ex.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -2997,7 +3146,10 @@ public class Main extends JFrame {
         @Override
         public boolean editCellAt(int row, int column, java.util.EventObject e) {
             if (e instanceof java.awt.event.MouseEvent) {
-                return false;
+                java.awt.event.MouseEvent me = (java.awt.event.MouseEvent) e;
+                if (me.getClickCount() < 2) {
+                    return false;
+                }
             }
             return super.editCellAt(row, column, e);
         }
@@ -3040,31 +3192,59 @@ public class Main extends JFrame {
                 
                 List<Object> params = new ArrayList<>();
                 params.add(aValue);
-                
-                boolean first = true;
-                for (int c = 0; c < getColumnCount(); c++) {
-                    String currentHeader = getColumnName(c);
-                    String curTable = tableName;
-                    String curCol = currentHeader;
-                    if (currentHeader.contains(".")) {
-                        String[] parts = currentHeader.split("\\.");
-                        if (parts.length == 2) {
+
+                List<String> pks = dbManager.getPrimaryKeys(actualTable);
+                List<Integer> pkIndices = new ArrayList<>();
+                List<String> matchedPks = new ArrayList<>();
+                for (String pk : pks) {
+                    for (int c = 0; c < getColumnCount(); c++) {
+                        String currentHeader = getColumnName(c);
+                        String curCol = currentHeader.contains(".") ? currentHeader.split("\\.", 2)[1] : currentHeader;
+                        if (curCol.equalsIgnoreCase(pk)) {
+                            pkIndices.add(c);
+                            matchedPks.add(curCol);
+                            break;
+                        }
+                    }
+                }
+
+                if (!pks.isEmpty() && pkIndices.size() == pks.size()) {
+                    for (int i = 0; i < pkIndices.size(); i++) {
+                        int c = pkIndices.get(i);
+                        Object val = (c == column) ? oldValue : getValueAt(row, c);
+                        sql.append(dbManager.quoteColumnName(matchedPks.get(i)));
+                        if (val == null) {
+                            sql.append(" IS NULL");
+                        } else {
+                            sql.append(" = ?");
+                            params.add(val);
+                        }
+                        if (i < pkIndices.size() - 1) sql.append(" AND ");
+                    }
+                } else {
+                    boolean first = true;
+                    for (int c = 0; c < getColumnCount(); c++) {
+                        String currentHeader = getColumnName(c);
+                        String curTable = tableName;
+                        String curCol = currentHeader;
+                        if (currentHeader.contains(".")) {
+                            String[] parts = currentHeader.split("\\.", 2);
                             curTable = parts[0];
                             curCol = parts[1];
                         }
-                    }
-                    if (!curTable.equals(actualTable)) continue;
-                    
-                    if (!first) sql.append(" AND ");
-                    first = false;
-                    
-                    Object val = (c == column) ? oldValue : getValueAt(row, c);
-                    sql.append(dbManager.quoteColumnName(curCol));
-                    if (val == null) {
-                        sql.append(" IS NULL");
-                    } else {
-                        sql.append(" = ?");
-                        params.add(val);
+                        if (!curTable.equals(actualTable)) continue;
+                        
+                        if (!first) sql.append(" AND ");
+                        first = false;
+                        
+                        Object val = (c == column) ? oldValue : getValueAt(row, c);
+                        sql.append(dbManager.quoteColumnName(curCol));
+                        if (val == null) {
+                            sql.append(" IS NULL");
+                        } else {
+                            sql.append(" = ?");
+                            params.add(val);
+                        }
                     }
                 }
                 

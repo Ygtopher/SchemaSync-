@@ -91,9 +91,18 @@ public class UpdateChecker {
                 } else {
                     if (!silentIfUpToDate) {
                         SwingUtilities.invokeLater(() -> {
-                            JOptionPane.showMessageDialog(parent,
-                                "✅ You're up to date!\n\nSchemaSync v" + CURRENT_VERSION + " is the latest version available.",
-                                "SchemaSync Up to Date", JOptionPane.INFORMATION_MESSAGE);
+                            Object[] options = {"🌐 View on GitHub", "OK"};
+                            int choice = JOptionPane.showOptionDialog(parent,
+                                "✅ You're up to date!\n\nSchemaSync v" + CURRENT_VERSION + " is the latest version available.\n\nLatest GitHub Release: " + tagName,
+                                "SchemaSync Up to Date",
+                                JOptionPane.YES_NO_OPTION,
+                                JOptionPane.INFORMATION_MESSAGE,
+                                null, options, options[1]);
+                            if (choice == 0) {
+                                try {
+                                    Desktop.getDesktop().browse(new URI(htmlUrl));
+                                } catch (Exception ignored) {}
+                            }
                         });
                     }
                 }
@@ -101,9 +110,18 @@ public class UpdateChecker {
             } catch (Exception ex) {
                 if (!silentIfUpToDate) {
                     SwingUtilities.invokeLater(() -> {
-                        JOptionPane.showMessageDialog(parent,
-                            "Could not check for updates:\n" + ex.getMessage(),
-                            "Update Check", JOptionPane.WARNING_MESSAGE);
+                        Object[] options = {"🌐 Open GitHub Releases", "OK"};
+                        int choice = JOptionPane.showOptionDialog(parent,
+                            "Could not connect to GitHub API:\n" + ex.getMessage() + "\n\nWould you like to open the GitHub releases page in your browser?",
+                            "Update Check",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.WARNING_MESSAGE,
+                            null, options, options[1]);
+                        if (choice == 0) {
+                            try {
+                                Desktop.getDesktop().browse(new URI("https://github.com/" + GITHUB_REPO + "/releases"));
+                            } catch (Exception ignored) {}
+                        }
                     });
                 }
             }
