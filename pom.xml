@@ -214,6 +214,7 @@
                             <headerType>gui</headerType>
                             <jar>${project.build.directory}/${project.build.finalName}.jar</jar>
                             <outfile>${project.basedir}/release/${project.build.finalName}.exe</outfile>
+                            <icon>${project.basedir}/src/main/resources/icons/app.ico</icon>
                             <downloadUrl>https://adoptium.net/</downloadUrl>
                             <jre>
                                 <minVersion>11</minVersion>

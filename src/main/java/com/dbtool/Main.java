@@ -2965,12 +2965,31 @@ public class Main extends JFrame {
     private JButton disconnectDbButton = new JButton("Disconnect DB");
     private JButton exportDbBtn = new JButton("Export DB");
     private JButton autoSaveIndicatorBtn = new JButton("💾 Auto-Saved");
+
+    private void loadAppIcons() {
+        try {
+            List<Image> icons = new ArrayList<>();
+            String[] iconPaths = {"/icons/app-icon-16.png", "/icons/app-icon-32.png", "/icons/app-icon-64.png", "/icons/app-icon.png"};
+            for (String p : iconPaths) {
+                java.net.URL url = getClass().getResource(p);
+                if (url != null) {
+                    icons.add(new ImageIcon(url).getImage());
+                }
+            }
+            if (!icons.isEmpty()) {
+                setIconImages(icons);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     public Main() {
         setTitle("SchemaSync");
         setSize(1280, 800);
         setMinimumSize(new Dimension(850, 600));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
+        loadAppIcons();
 
         // Initialize new panels
         schemaPanel = new SchemaPanel(dbManager);
