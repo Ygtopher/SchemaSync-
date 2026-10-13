@@ -56,6 +56,7 @@ public class DependencyGraphPanel extends JPanel {
         // Toolbar
         JToolBar toolbar = new JToolBar();
         toolbar.setFloatable(false);
+        toolbar.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
         JButton refreshBtn = new JButton("Load Dependencies");
         refreshBtn.addActionListener(e -> loadData());
         

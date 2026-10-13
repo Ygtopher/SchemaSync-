@@ -66,7 +66,7 @@ public class Main extends JFrame {
             
             JToolBar tbSelect = new JToolBar();
             tbSelect.setFloatable(false);
-            tbSelect.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            tbSelect.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
     
             
             tbSelect.add(new JLabel(" |  Table: "));
@@ -121,7 +121,7 @@ public class Main extends JFrame {
             
             JToolBar tbQuery = new JToolBar();
             tbQuery.setFloatable(false);
-            tbQuery.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            tbQuery.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
             JButton applyOrderBtn = new JButton("▶ Run Query");
             applyOrderBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -161,7 +161,7 @@ public class Main extends JFrame {
 
             JToolBar tbAdvanced = new JToolBar();
             tbAdvanced.setFloatable(false);
-            tbAdvanced.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            tbAdvanced.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
             browseSampleDropdown.setToolTipText("TABLESAMPLE clause (Bernoulli or System sampling)");
             tbAdvanced.add(browseSampleDropdown);
@@ -183,7 +183,7 @@ public class Main extends JFrame {
             
             JToolBar tbActions = new JToolBar();
             tbActions.setFloatable(false);
-            tbActions.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            tbActions.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
             JButton insertRowBtn = new JButton("➕ Insert Row");
             JButton deleteRowBtn = new JButton("🗑 Delete Row");
             insertRowBtn.addActionListener(e -> openInsertRowDialog());
@@ -325,7 +325,12 @@ public class Main extends JFrame {
             filtersPanel.add(browseOrderByContainer);
             northPanel.add(filtersPanel, BorderLayout.CENTER);
             
-            panel.add(northPanel, BorderLayout.NORTH);
+            JScrollPane northScroll = new JScrollPane(northPanel);
+            northScroll.setBorder(BorderFactory.createEmptyBorder());
+            northScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+            northScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+            northScroll.getVerticalScrollBar().setUnitIncrement(16);
+
             JScrollPane browseScroll = new JScrollPane(browseTable);
             browseScroll.getVerticalScrollBar().addAdjustmentListener(e -> {
                 if (!e.getValueIsAdjusting()) {
@@ -339,7 +344,12 @@ public class Main extends JFrame {
                     }
                 }
             });
-            panel.add(browseScroll, BorderLayout.CENTER);
+
+            JSplitPane browseSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, northScroll, browseScroll);
+            browseSplit.setResizeWeight(0.25);
+            browseSplit.setDividerSize(5);
+            browseSplit.setBorder(BorderFactory.createEmptyBorder());
+            panel.add(browseSplit, BorderLayout.CENTER);
 
             // Shortcuts (Ctrl+Enter / F5)
             KeyStroke ctrlEnter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK);
@@ -1103,7 +1113,7 @@ public class Main extends JFrame {
             // Base Table Selection
             JToolBar tbBase = new JToolBar();
             tbBase.setFloatable(false);
-            tbBase.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            tbBase.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
             tbBase.add(new JLabel(" Base Table: "));
             baseTableDropdown.addActionListener(e -> {
                 joinSelectedColumns.clear();
@@ -1168,7 +1178,7 @@ public class Main extends JFrame {
             // Primary execution & query building toolbar
             JToolBar tbRun = new JToolBar();
             tbRun.setFloatable(false);
-            tbRun.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            tbRun.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
             JButton runJoinBtn = new JButton("▶ Run Query");
             runJoinBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -1214,7 +1224,7 @@ public class Main extends JFrame {
             // Advanced clauses and analysis toolbar
             JToolBar tbClauses = new JToolBar();
             tbClauses.setFloatable(false);
-            tbClauses.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            tbClauses.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
             joinSampleDropdown.setToolTipText("TABLESAMPLE on base table (Bernoulli or System sampling)");
             tbClauses.add(joinSampleDropdown);
@@ -1242,7 +1252,7 @@ public class Main extends JFrame {
             
             JToolBar tbActions = new JToolBar();
             tbActions.setFloatable(false);
-            tbActions.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            tbActions.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
             JButton exportCsvBtn = new JButton("📥 CSV");
             JButton exportPdfBtn = new JButton("📥 PDF");
             JButton exportXlsxBtn = new JButton("📥 Excel");
@@ -1342,8 +1352,17 @@ public class Main extends JFrame {
             bottomOptionsPanel.add(tbActions);
             configPanel.add(bottomOptionsPanel, BorderLayout.SOUTH);
             
-            panel.add(configPanel, BorderLayout.NORTH);
-            panel.add(new JScrollPane(joinResultTable), BorderLayout.CENTER);
+            JScrollPane configScroll = new JScrollPane(configPanel);
+            configScroll.setBorder(BorderFactory.createEmptyBorder());
+            configScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+            configScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+            configScroll.getVerticalScrollBar().setUnitIncrement(16);
+
+            JSplitPane joinSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, configScroll, new JScrollPane(joinResultTable));
+            joinSplit.setResizeWeight(0.38);
+            joinSplit.setDividerSize(5);
+            joinSplit.setBorder(BorderFactory.createEmptyBorder());
+            panel.add(joinSplit, BorderLayout.CENTER);
 
             // Shortcuts (Ctrl+Enter / F5)
             KeyStroke ctrlEnter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK);
@@ -2259,7 +2278,7 @@ public class Main extends JFrame {
             
             public JoinConditionPanel(String operator, boolean isFirst, JoinPanel parent) {
                 this.operator = operator;
-                setLayout(new FlowLayout(FlowLayout.LEFT, 2, 0));
+                setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 2, 0));
                 add(new JLabel(" " + operator + " "));
                 
                 leftTableDropdown.addActionListener(e -> {
@@ -2314,7 +2333,7 @@ public class Main extends JFrame {
             });
             SearchableComboBox joinTableDropdown = new SearchableComboBox();
             
-            JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            JPanel headerPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
             JPanel conditionsContainer = new JPanel();
             java.util.List<JoinConditionPanel> conditionPanels = new ArrayList<>();
     
@@ -2949,6 +2968,7 @@ public class Main extends JFrame {
     public Main() {
         setTitle("SchemaSync");
         setSize(1280, 800);
+        setMinimumSize(new Dimension(850, 600));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
@@ -2994,7 +3014,7 @@ public class Main extends JFrame {
         });
 
         // Top Panel
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel topPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 6, 3));
         loadDbButton.addActionListener(e -> loadDatabase());
         topPanel.add(loadDbButton);
         
@@ -3055,6 +3075,8 @@ public class Main extends JFrame {
         add(topPanel, BorderLayout.NORTH);
 
         tabbedPane = new JTabbedPane();
+        tabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+        tabbedPane.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
         browseTabContainer = new com.dbtool.panels.MultiTabContainer<>("Browse", () -> {
             BrowseTab tab = new BrowseTab();
             tab.refreshTables();
@@ -3103,6 +3125,8 @@ public class Main extends JFrame {
         centerSplit.setResizeWeight(0.8);
         
         JTabbedPane leftSidebarTabs = new JTabbedPane();
+        leftSidebarTabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+        leftSidebarTabs.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
         leftSidebarTabs.addTab("Schema", schemaPanel);
         
         com.dbtool.panels.WorkspacesPanel workspacesPanel = new com.dbtool.panels.WorkspacesPanel();
@@ -3754,7 +3778,7 @@ public class Main extends JFrame {
         JButton removeBtn = new JButton("✕");
 
         public AggregateRowPanel(boolean showTable, List<AggregateRowPanel> ownerList, JPanel container) {
-            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
             add(new JLabel("∑"));
             add(funcDropdown);
             if (showTable) {
@@ -3858,7 +3882,7 @@ public class Main extends JFrame {
         JButton removeBtn = new JButton("✕");
 
         public GroupByRowPanel(boolean showTable, List<GroupByRowPanel> ownerList, JPanel container) {
-            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
             add(new JLabel("GROUP BY:"));
             if (showTable) {
                 tableDropdown = new SearchableComboBox();
@@ -3922,7 +3946,7 @@ public class Main extends JFrame {
         JButton removeBtn = new JButton("✕");
 
         public HavingRowPanel(boolean isFirst, boolean showTable, List<HavingRowPanel> ownerList, JPanel container) {
-            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
             if (!isFirst) {
                 add(logicDropdown);
             } else {
@@ -4020,7 +4044,7 @@ public class Main extends JFrame {
         JButton removeBtn = new JButton("✕");
 
         public WindowFuncRowPanel(List<WindowFuncRowPanel> ownerList, JPanel container) {
-            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
             add(new JLabel("🪟 OVER:"));
             add(funcDropdown);
 
@@ -4129,7 +4153,7 @@ public class Main extends JFrame {
         JComboBox<String> dirDropdown = new JComboBox<>(new String[]{"ASC", "DESC"});
 
         public OrderByPanel(boolean showTable, List<OrderByPanel> ownerList, JPanel ownerContainer) {
-            setLayout(new FlowLayout(FlowLayout.LEFT));
+            setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
             
             if (showTable) {
                 tableDropdown.addActionListener(e -> {
@@ -4241,7 +4265,7 @@ public class Main extends JFrame {
         private List<String> cachedDistinctValues = new ArrayList<>();
 
         public WherePanel(boolean isFirst, List<WherePanel> ownerList, JPanel ownerContainer) {
-            setLayout(new FlowLayout(FlowLayout.LEFT, 3, 2));
+            setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 3, 2));
 
             if (!isFirst) {
                 add(logicDropdown);

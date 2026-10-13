@@ -25,7 +25,7 @@ public class ErDiagramPanel extends JPanel {
         setLayout(new BorderLayout());
         
         // Toolbar
-        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel toolbar = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
         toolbar.add(new JLabel(" Focus on Table: "));
         
         searchDropdown = new JComboBox<>();

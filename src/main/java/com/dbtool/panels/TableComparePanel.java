@@ -52,7 +52,7 @@ public class TableComparePanel extends JPanel {
         // Toolbars
         JToolBar tbRun = new JToolBar();
         tbRun.setFloatable(false);
-        tbRun.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        tbRun.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
         JButton runQueriesBtn = new JButton("▶ Execute Both Queries");
         runQueriesBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
         runQueriesBtn.setForeground(new Color(0, 102, 51));
@@ -79,6 +79,8 @@ public class TableComparePanel extends JPanel {
 
         // Results tabs
         JTabbedPane resultTabs = new JTabbedPane();
+        resultTabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+        resultTabs.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
         
         JScrollPane scrollA = new JScrollPane(dataTableA);
         JScrollPane scrollB = new JScrollPane(dataTableB);

@@ -147,7 +147,7 @@ public class SshSessionPanel extends JPanel {
         });
 
         // --- Top connection bar ---
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        JPanel topPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
         JButton toggleTreeBtn = new JButton("☰");
         toggleTreeBtn.setToolTipText("Toggle File Browser");
@@ -590,6 +590,8 @@ public class SshSessionPanel extends JPanel {
         dockerPanel.add(new JScrollPane(dockerTable), BorderLayout.CENTER);
         
         // Add all to right tabbed pane
+        rightTabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+        rightTabbedPane.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
         rightTabbedPane.addTab("Notes", notesPanel);
         rightTabbedPane.addTab("Metrics", metricsPanel);
         rightTabbedPane.addTab("Docker", dockerPanel);

@@ -21,8 +21,11 @@ public class SshTerminalPanel extends JPanel {
         this.dbManager = dbManager;
         setLayout(new BorderLayout());
 
+        tabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+        tabbedPane.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
+
         // Top control bar
-        JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        JPanel topBar = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 6, 4));
         JButton newTabBtn = new JButton("➕ New Terminal Tab");
         newTabBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
         newTabBtn.setToolTipText("Open another SSH terminal session (concurrent connection)");

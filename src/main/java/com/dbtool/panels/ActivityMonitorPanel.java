@@ -24,6 +24,7 @@ public class ActivityMonitorPanel extends JPanel {
         // Toolbar
         JToolBar toolbar = new JToolBar();
         toolbar.setFloatable(false);
+        toolbar.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
         JButton refreshBtn = new JButton("Refresh Now");
         autoRefreshCheck = new JCheckBox("Auto-Refresh (10s)", false);
         killBtn = new JButton("Kill Selected Process");

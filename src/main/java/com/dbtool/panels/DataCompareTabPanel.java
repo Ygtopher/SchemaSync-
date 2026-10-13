@@ -114,7 +114,7 @@ public class DataCompareTabPanel extends JPanel {
         topConfigPanel.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
 
         // 1. Mode Switcher
-        JPanel modeSwitcherPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 2));
+        JPanel modeSwitcherPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 10, 2));
         ButtonGroup modeBg = new ButtonGroup();
         modeBg.add(radioQuickTable); modeBg.add(radioCustomSql);
         modeSwitcherPanel.add(new JLabel("Mode: "));
@@ -126,7 +126,7 @@ public class DataCompareTabPanel extends JPanel {
         quickTableContainer.setLayout(new BoxLayout(quickTableContainer, BoxLayout.Y_AXIS));
 
         // Row A: Database Selectors & Tables
-        JPanel rowDbAndTable = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        JPanel rowDbAndTable = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
         rowDbAndTable.add(new JLabel("Source DB: "));
         comboDbA.setPreferredSize(new Dimension(150, 26));
@@ -191,7 +191,7 @@ public class DataCompareTabPanel extends JPanel {
         // Row B: Clauses Toolbar
         JToolBar tbClauses = new JToolBar();
         tbClauses.setFloatable(false);
-        tbClauses.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        tbClauses.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
         JButton btnAddAgg = new JButton("+ Add Aggregate");
         btnAddAgg.setToolTipText("Add aggregate expression (COUNT, SUM, AVG, MIN, MAX) with optional FILTER clause");
@@ -354,7 +354,7 @@ public class DataCompareTabPanel extends JPanel {
         // 4. Execution & Filters Toolbar
         JToolBar tbData = new JToolBar();
         tbData.setFloatable(false);
-        tbData.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        tbData.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
         executeDataDiffBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
         executeDataDiffBtn.setForeground(ThemeManager.getSuccessColor());
@@ -398,9 +398,16 @@ public class DataCompareTabPanel extends JPanel {
         tbData.add(exportPdfBtn);
 
         topConfigPanel.add(tbData, BorderLayout.SOUTH);
-        add(topConfigPanel, BorderLayout.NORTH);
+
+        JScrollPane configScroll = new JScrollPane(topConfigPanel);
+        configScroll.setBorder(BorderFactory.createEmptyBorder());
+        configScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        configScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+        configScroll.getVerticalScrollBar().setUnitIncrement(16);
 
         // 5. Result Views (Unified Diff vs Side-by-Side)
+        dataViewsTabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+        dataViewsTabbedPane.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
         unifiedDiffTable.setDefaultRenderer(Object.class, new DiffTableCellRenderer());
         unifiedDiffTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         JScrollPane unifiedScroll = new JScrollPane(unifiedDiffTable);
@@ -417,7 +424,11 @@ public class DataCompareTabPanel extends JPanel {
         sideSplit.setResizeWeight(0.5);
         dataViewsTabbedPane.addTab("Side-by-Side View", sideSplit);
 
-        add(dataViewsTabbedPane, BorderLayout.CENTER);
+        JSplitPane dataCompareSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, configScroll, dataViewsTabbedPane);
+        dataCompareSplit.setResizeWeight(0.35);
+        dataCompareSplit.setDividerSize(5);
+        dataCompareSplit.setBorder(BorderFactory.createEmptyBorder());
+        add(dataCompareSplit, BorderLayout.CENTER);
 
         dataStatusLabel.setBorder(BorderFactory.createEmptyBorder(3, 6, 3, 6));
         add(dataStatusLabel, BorderLayout.SOUTH);

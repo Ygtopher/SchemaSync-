@@ -41,7 +41,7 @@ public class NetworkScannerPanel extends JPanel {
     public NetworkScannerPanel() {
         setLayout(new BorderLayout());
 
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        JPanel topPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 8, 4));
         topPanel.add(new JLabel("Subnet (e.g., 192.168.1):"));
         
         String defaultSubnet = guessLocalSubnet();

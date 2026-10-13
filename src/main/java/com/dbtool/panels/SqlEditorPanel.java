@@ -67,8 +67,11 @@ public class SqlEditorPanel extends JPanel {
             editorPopup.add(templatesSubMenu);
         }
 
+        resultTabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+        resultTabs.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
+
         // Toolbar
-        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel toolbar = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
         JButton runBtn = new JButton("▶ Run");
         runBtn.setToolTipText("Run current statement or selection (Ctrl+Enter / F5)");
         JButton runAllBtn = new JButton("▶▶ Run All");
@@ -189,7 +192,7 @@ public class SqlEditorPanel extends JPanel {
         
         progressBar.setIndeterminate(true);
         progressBar.setVisible(false);
-        JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel statusPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
         statusPanel.add(statusLabel);
         statusPanel.add(progressBar);
         topSection.add(statusPanel, BorderLayout.SOUTH);

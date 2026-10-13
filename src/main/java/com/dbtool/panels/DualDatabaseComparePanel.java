@@ -35,7 +35,7 @@ public class DualDatabaseComparePanel extends JPanel {
 
     // Database Pool (A, B, C, D...)
     private final List<DatabaseEntry> databaseEntries = new ArrayList<>();
-    private final JPanel dbCardsContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+    private final JPanel dbCardsContainer = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 8, 4));
     private final JScrollPane dbCardsScrollPane = new JScrollPane(dbCardsContainer);
 
     // Sub-Tabs
@@ -96,6 +96,8 @@ public class DualDatabaseComparePanel extends JPanel {
         add(buildConnectionHeaderPanel(), BorderLayout.NORTH);
 
         // 2. Build Sub-Tabs (Schema Diff & Data Diff)
+        subTabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+        subTabbedPane.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
         subTabbedPane.addTab("🏗️ Schema Diff (Structure & Metadata)", buildSchemaDiffPanel());
         subTabbedPane.addTab("📊 Data Diff (Table & Query Rows)", buildDataDiffContainerPanel());
         add(subTabbedPane, BorderLayout.CENTER);
@@ -135,7 +137,7 @@ public class DualDatabaseComparePanel extends JPanel {
 
         rebuildDatabaseCardsUI();
 
-        JPanel rightActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 4));
+        JPanel rightActions = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.RIGHT, 4, 4));
         btnAddDatabase.setFont(new Font("Segoe UI", Font.BOLD, 12));
         btnAddDatabase.setForeground(ThemeManager.getPrimaryActionColor());
         btnAddDatabase.setToolTipText("Add a 3rd or additional database to compare (Database C, D, etc.)");
@@ -270,7 +272,7 @@ public class DualDatabaseComparePanel extends JPanel {
         // Top Toolbar
         JToolBar tb = new JToolBar();
         tb.setFloatable(false);
-        tb.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        tb.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
         compareSchemasBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
         compareSchemasBtn.setForeground(ThemeManager.getSuccessColor());
@@ -877,7 +879,7 @@ public class DualDatabaseComparePanel extends JPanel {
         // Top Toolbar for adding/managing compare tabs
         JToolBar tbTabs = new JToolBar();
         tbTabs.setFloatable(false);
-        tbTabs.setLayout(new FlowLayout(FlowLayout.LEFT, 6, 2));
+        tbTabs.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 6, 2));
 
         btnNewTab.setFont(new Font("Segoe UI", Font.BOLD, 12));
         btnNewTab.setForeground(ThemeManager.getSuccessColor());
@@ -892,6 +894,9 @@ public class DualDatabaseComparePanel extends JPanel {
         tbTabs.add(Box.createHorizontalGlue());
         tipLabel.setForeground(ThemeManager.getMutedTextColor());
         tbTabs.add(tipLabel);
+
+        dataCompareTabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+        dataCompareTabbedPane.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
 
         panel.add(tbTabs, BorderLayout.NORTH);
         panel.add(dataCompareTabbedPane, BorderLayout.CENTER);

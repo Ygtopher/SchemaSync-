@@ -18,7 +18,10 @@ public class MultiTabContainer<T extends JPanel> extends JPanel {
         this.tabFactory = tabFactory;
         setLayout(new BorderLayout());
         
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        tabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+        tabbedPane.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
+        
+        JPanel topPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
         JButton addBtn = new JButton("+ New " + baseTitle);
         addBtn.addActionListener(e -> addNewTab());
         topPanel.add(addBtn);

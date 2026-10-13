@@ -24,7 +24,7 @@ public class ScriptBuilderPanel extends JPanel {
         setLayout(new BorderLayout());
 
         // Step types toolbar
-        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel toolbar = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 3, 2));
         toolbar.add(new JLabel("Add Step:"));
         String[] stepTypes = {"SELECT", "INSERT", "UPDATE", "DELETE", "UPSERT", "CREATE TABLE", "CREATE VIEW", "CREATE INDEX", "TRUNCATE", "DROP TABLE", "GRANT", "BEGIN", "COMMIT", "ROLLBACK", "PROCEDURE", "FUNCTION", "TRIGGER", "Get Sequence", "Set Variable", "Echo", "Custom SQL"};
         for (String type : stepTypes) {
@@ -89,7 +89,7 @@ public class ScriptBuilderPanel extends JPanel {
         mainSplit.setResizeWeight(0.22);
 
         // Action buttons
-        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel actionPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.RIGHT, 4, 2));
         JButton generateBtn = new JButton("Generate Script");
         JButton runBtn = new JButton("▶ Run Script");
         JButton saveBtn = new JButton("Save .sql");

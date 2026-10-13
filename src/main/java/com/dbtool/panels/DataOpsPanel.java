@@ -147,6 +147,7 @@ public class DataOpsPanel extends JPanel {
         sqlPreview.setEditable(false);
 
         // Assemble north toolbar stack
+        // Assemble north toolbar stack wrapped in scroll pane to prevent vertical/horizontal overflow
         JPanel north = new JPanel();
         north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
         north.add(buildMainToolbar());      // Operation + Table
@@ -155,6 +156,12 @@ public class DataOpsPanel extends JPanel {
         buildSetSection();
         north.add(setSection);              // SET rows (UPDATE and UPDATE+JOIN)
         north.add(buildRunToolbar());       // Preview / Run / Copy / Commit / Rollback
+
+        JScrollPane northScroll = new JScrollPane(north);
+        northScroll.setBorder(BorderFactory.createEmptyBorder());
+        northScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        northScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+        northScroll.getVerticalScrollBar().setUnitIncrement(16);
 
         // Center: SQL Preview above, History below
         JPanel previewPanel = new JPanel(new BorderLayout());
@@ -165,8 +172,11 @@ public class DataOpsPanel extends JPanel {
         centerSplit.setResizeWeight(0.38);
         centerSplit.setDividerSize(6);
 
-        add(north, BorderLayout.NORTH);
-        add(centerSplit, BorderLayout.CENTER);
+        JSplitPane dataOpsSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, northScroll, centerSplit);
+        dataOpsSplit.setResizeWeight(0.32);
+        dataOpsSplit.setDividerSize(5);
+        dataOpsSplit.setBorder(BorderFactory.createEmptyBorder());
+        add(dataOpsSplit, BorderLayout.CENTER);
 
         statusLbl.setBorder(BorderFactory.createEmptyBorder(4, 10, 4, 10));
         add(statusLbl, BorderLayout.SOUTH);
@@ -830,7 +840,7 @@ public class DataOpsPanel extends JPanel {
     private JToolBar tb() {
         JToolBar tb = new JToolBar();
         tb.setFloatable(false);
-        tb.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 3));
+        tb.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 5, 3));
         return tb;
     }
 
@@ -849,7 +859,7 @@ public class DataOpsPanel extends JPanel {
         final JTextField        valFld = new JTextField(16);
 
         SetRow() {
-            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 1));
+            setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 1));
             setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
 
             String tbl = (String) mainTableCb.getSelectedItem();
