@@ -1,8 +1,9 @@
 #define MyAppName "SchemaSync"
 #define MyAppVersion "1.1.0"
-#define MyAppPublisher "SchemaSync"
+#define MyAppPublisher "NSENGIYUMVA Christophe"
 #define MyAppURL "https://github.com/Ygtopher/SchemaSync-"
 #define MyAppExeName "SchemaSync.exe"
+#define MyAppCopyright "Copyright (C) 2026 NSENGIYUMVA Christophe. All rights reserved."
 
 [Setup]
 AppId={{D37E8A61-2F19-4C98-8AA2-892D014F91CE}
@@ -12,6 +13,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
+AppCopyright={#MyAppCopyright}
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=d:\projects\DBTOOL\release

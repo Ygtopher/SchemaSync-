@@ -14,6 +14,17 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <developers>
+        <developer>
+            <id>ygtopher</id>
+            <name>NSENGIYUMVA Christophe</name>
+            <roles>
+                <role>Creator</role>
+                <role>Lead Architect</role>
+            </roles>
+        </developer>
+    </developers>
+
     <dependencies>
         <!-- JSqlParser for SQL to Visual Builder -->
         <dependency>
@@ -226,7 +237,8 @@
                                 <fileVersion>1.1.0.0</fileVersion>
                                 <txtFileVersion>1.1.0</txtFileVersion>
                                 <fileDescription>SchemaSync Database Tool</fileDescription>
-                                <copyright>SchemaSync</copyright>
+                                <copyright>Copyright (C) 2026 NSENGIYUMVA Christophe. All rights reserved.</copyright>
+                                <companyName>NSENGIYUMVA Christophe</companyName>
                                 <productVersion>1.1.0.0</productVersion>
                                 <txtProductVersion>1.1.0</txtProductVersion>
                                 <productName>SchemaSync</productName>

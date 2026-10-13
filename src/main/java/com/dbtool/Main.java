@@ -2983,8 +2983,52 @@ public class Main extends JFrame {
         }
     }
 
+    private void showAboutDialog() {
+        JPanel panel = new JPanel(new BorderLayout(16, 16));
+        panel.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
+
+        JLabel iconLbl = new JLabel();
+        java.net.URL iconUrl = getClass().getResource("/icons/app-icon-64.png");
+        if (iconUrl != null) {
+            iconLbl.setIcon(new ImageIcon(iconUrl));
+        }
+        panel.add(iconLbl, BorderLayout.WEST);
+
+        JPanel textPanel = new JPanel();
+        textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+
+        JLabel titleLbl = new JLabel("SchemaSync");
+        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        textPanel.add(titleLbl);
+        textPanel.add(Box.createVerticalStrut(4));
+
+        JLabel verLbl = new JLabel("Version 1.1.0");
+        verLbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        textPanel.add(verLbl);
+        textPanel.add(Box.createVerticalStrut(10));
+
+        JLabel creatorLbl = new JLabel("Created & Developed by: NSENGIYUMVA Christophe");
+        creatorLbl.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        creatorLbl.setForeground(new Color(16, 185, 129));
+        textPanel.add(creatorLbl);
+        textPanel.add(Box.createVerticalStrut(6));
+
+        JLabel copyLbl = new JLabel("Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.");
+        copyLbl.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        textPanel.add(copyLbl);
+        textPanel.add(Box.createVerticalStrut(6));
+
+        JLabel descLbl = new JLabel("Multi-Database Synchronization, Visual Query Builder & Data Operations");
+        descLbl.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+        textPanel.add(descLbl);
+
+        panel.add(textPanel, BorderLayout.CENTER);
+
+        JOptionPane.showMessageDialog(this, panel, "About SchemaSync", JOptionPane.PLAIN_MESSAGE);
+    }
+
     public Main() {
-        setTitle("SchemaSync");
+        setTitle("SchemaSync - by NSENGIYUMVA Christophe");
         setSize(1280, 800);
         setMinimumSize(new Dimension(850, 600));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -3086,6 +3130,11 @@ public class Main extends JFrame {
         JButton themeBtn = new JButton("🌙 Dark Mode");
         themeBtn.addActionListener(e -> com.dbtool.util.ThemeManager.toggleTheme(themeBtn));
         topPanel.add(themeBtn);
+
+        JButton aboutBtn = new JButton("ℹ About");
+        aboutBtn.setToolTipText("About SchemaSync & Creator Info");
+        aboutBtn.addActionListener(e -> showAboutDialog());
+        topPanel.add(aboutBtn);
 
         topPanel.add(statusLabel);
         
