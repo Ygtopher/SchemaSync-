@@ -706,10 +706,35 @@ public class Main extends JFrame {
             StringBuilder errMsg = new StringBuilder();
             errMsg.append("Could not delete ").append(rows.length - deleted).append(" row(s).\n\n");
             errMsg.append("Reason:\n");
+            String childTable = null;
+            boolean isFkViolation = false;
             for (String err : errors) {
                 errMsg.append("• ").append(err).append("\n");
+                if (err.toLowerCase().contains("foreign key constraint") || err.toLowerCase().contains("clé étrangère") || err.contains("23503")) {
+                    isFkViolation = true;
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:table [«\"]|from table [«\"])([^»\"]+)[»\"]").matcher(err);
+                    if (m.find()) {
+                        childTable = m.group(1);
+                    }
+                }
             }
-            JOptionPane.showMessageDialog(this, errMsg.toString(), "Delete Error", JOptionPane.ERROR_MESSAGE);
+
+            if (isFkViolation && childTable != null && loadedTables.contains(childTable)) {
+                final String targetChildTable = childTable;
+                Object[] options = {"🔍 View Child Rows in '" + childTable + "'", "OK"};
+                int choice = JOptionPane.showOptionDialog(this,
+                    errMsg.toString() + "\n💡 Tip: Relational integrity requires deleting or reassigning the referencing records in '" + childTable + "' first.",
+                    "Foreign Key Constraint Blocked Delete",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE,
+                    null, options, options[0]);
+
+                if (choice == 0) {
+                    browseTableDropdown.setSelectedItem(targetChildTable);
+                }
+            } else {
+                JOptionPane.showMessageDialog(this, errMsg.toString(), "Delete Error", JOptionPane.ERROR_MESSAGE);
+            }
         } else {
             JOptionPane.showMessageDialog(this, "Successfully deleted " + deleted + " row(s).", "Delete Success", JOptionPane.INFORMATION_MESSAGE);
         }
