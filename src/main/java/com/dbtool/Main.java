@@ -11,6 +11,8 @@ import com.dbtool.util.ExportUtil;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.io.File;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -101,6 +103,13 @@ public class Main extends JFrame {
             });
             browseTableDropdown.setPreferredSize(new Dimension(200, 26));
             tbSelect.add(browseTableDropdown);
+
+            JButton runBrowseTopBtn = new JButton("▶ Run Query");
+            runBrowseTopBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            runBrowseTopBtn.setForeground(new Color(0, 150, 0));
+            runBrowseTopBtn.setToolTipText("Execute query for selected table (Ctrl+Enter / F5)");
+            runBrowseTopBtn.addActionListener(e -> loadTableData());
+            tbSelect.add(runBrowseTopBtn);
             
             tbSelect.add(new JLabel(" | "));
             selectColsButton.addActionListener(e -> openColumnSelector());
@@ -113,6 +122,15 @@ public class Main extends JFrame {
             JToolBar tbQuery = new JToolBar();
             tbQuery.setFloatable(false);
             tbQuery.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+
+            JButton applyOrderBtn = new JButton("▶ Run Query");
+            applyOrderBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            applyOrderBtn.setForeground(new java.awt.Color(0, 150, 0));
+            applyOrderBtn.setToolTipText("Execute query (Ctrl+Enter / F5)");
+            applyOrderBtn.addActionListener(e -> loadTableData());
+            tbQuery.add(applyOrderBtn);
+            tbQuery.add(new JLabel(" | "));
+
             JButton addWhereBtn = new JButton("+ Add Where");
             addWhereBtn.addActionListener(e -> addBrowseWhereRow());
             tbQuery.add(addWhereBtn);
@@ -137,33 +155,31 @@ public class Main extends JFrame {
             addWinBtn.addActionListener(e -> addBrowseWindowFuncRow());
             tbQuery.add(addWinBtn);
 
-            tbQuery.add(new JLabel(" | "));
-            browseSampleDropdown.setToolTipText("TABLESAMPLE clause (Bernoulli or System sampling)");
-            tbQuery.add(browseSampleDropdown);
-            browseLockDropdown.setToolTipText("Row-level locking clause (FOR UPDATE, SKIP LOCKED)");
-            tbQuery.add(browseLockDropdown);
-            tbQuery.add(new JLabel(" | "));
-            tbQuery.add(browseDistinctCheckbox);
-            tbQuery.add(new JLabel(" | "));
             JButton addBrowseOrderBtn = new JButton("+ Add Order By");
             addBrowseOrderBtn.addActionListener(e -> addBrowseOrderByRow());
             tbQuery.add(addBrowseOrderBtn);
-            tbQuery.add(new JLabel(" | "));
+
+            JToolBar tbAdvanced = new JToolBar();
+            tbAdvanced.setFloatable(false);
+            tbAdvanced.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+
+            browseSampleDropdown.setToolTipText("TABLESAMPLE clause (Bernoulli or System sampling)");
+            tbAdvanced.add(browseSampleDropdown);
+            browseLockDropdown.setToolTipText("Row-level locking clause (FOR UPDATE, SKIP LOCKED)");
+            tbAdvanced.add(browseLockDropdown);
+            tbAdvanced.add(new JLabel(" | "));
+            tbAdvanced.add(browseDistinctCheckbox);
+            tbAdvanced.add(new JLabel(" | "));
+
             JButton aggregatesBtn = new JButton("📊 Aggregates Dialog");
             aggregatesBtn.setToolTipText("Open full-table aggregate metrics & grouping dialog");
             aggregatesBtn.addActionListener(e -> openBrowseAggregatesDialog());
-            tbQuery.add(aggregatesBtn);
+            tbAdvanced.add(aggregatesBtn);
 
             JButton explainBtn = new JButton("🔍 EXPLAIN ▾");
             explainBtn.setToolTipText("Inspect execution plan for query (EXPLAIN, ANALYZE, BUFFERS)");
             explainBtn.addActionListener(e -> showExplainMenu(explainBtn, () -> buildCurrentBrowseQuery(false)));
-            tbQuery.add(explainBtn);
-
-            JButton applyOrderBtn = new JButton("▶ Run Query");
-            applyOrderBtn.setFont(applyOrderBtn.getFont().deriveFont(java.awt.Font.BOLD));
-            applyOrderBtn.setForeground(new java.awt.Color(0, 150, 0));
-            applyOrderBtn.addActionListener(e -> loadTableData());
-            tbQuery.add(applyOrderBtn);
+            tbAdvanced.add(explainBtn);
             
             JToolBar tbActions = new JToolBar();
             tbActions.setFloatable(false);
@@ -296,6 +312,7 @@ public class Main extends JFrame {
             rowsPanel.setLayout(new BoxLayout(rowsPanel, BoxLayout.Y_AXIS));
             rowsPanel.add(tbSelect);
             rowsPanel.add(tbQuery);
+            rowsPanel.add(tbAdvanced);
             rowsPanel.add(tbActions);
             northPanel.add(rowsPanel, BorderLayout.NORTH);
             JPanel filtersPanel = new JPanel();
@@ -323,6 +340,16 @@ public class Main extends JFrame {
                 }
             });
             panel.add(browseScroll, BorderLayout.CENTER);
+
+            // Shortcuts (Ctrl+Enter / F5)
+            KeyStroke ctrlEnter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK);
+            KeyStroke f5 = KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0);
+            Action runAction = new AbstractAction() {
+                @Override public void actionPerformed(ActionEvent e) { loadTableData(); }
+            };
+            panel.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(ctrlEnter, "runBrowseQuery");
+            panel.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(f5, "runBrowseQuery");
+            panel.getActionMap().put("runBrowseQuery", runAction);
             
             return panel;
         }
@@ -1086,6 +1113,14 @@ public class Main extends JFrame {
             });
             baseTableDropdown.setPreferredSize(new Dimension(200, 26));
             tbBase.add(baseTableDropdown);
+
+            JButton runJoinTopBtn = new JButton("▶ Run Query");
+            runJoinTopBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            runJoinTopBtn.setForeground(new Color(0, 150, 0));
+            runJoinTopBtn.setToolTipText("Execute the Visual Join query (or press Ctrl+Enter / F5)");
+            runJoinTopBtn.addActionListener(e -> executeVisualJoin());
+            tbBase.add(runJoinTopBtn);
+
             tbBase.add(new JLabel(" | "));
             JButton addTableBtn = new JButton("+ Table");
             addTableBtn.addActionListener(e -> {
@@ -1130,13 +1165,28 @@ public class Main extends JFrame {
             JPanel bottomOptionsPanel = new JPanel();
             bottomOptionsPanel.setLayout(new BoxLayout(bottomOptionsPanel, BoxLayout.Y_AXIS));
             
+            // Primary execution & query building toolbar
             JToolBar tbRun = new JToolBar();
             tbRun.setFloatable(false);
             tbRun.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+
+            JButton runJoinBtn = new JButton("▶ Run Query");
+            runJoinBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            runJoinBtn.setForeground(new Color(0, 150, 0));
+            runJoinBtn.setToolTipText("Execute the Visual Join query (Ctrl+Enter / F5)");
+            runJoinBtn.addActionListener(e -> executeVisualJoin());
+            tbRun.add(runJoinBtn);
+            tbRun.add(new JLabel(" | "));
+
             joinSelectColsButton.addActionListener(e -> openJoinColumnSelector());
             tbRun.add(joinSelectColsButton);
+            tbRun.add(new JLabel(" | Limit: "));
+            joinLimitField.setToolTipText("Limit (empty for none)");
+            joinLimitField.setPreferredSize(new Dimension(60, 26));
+            tbRun.add(joinLimitField);
+            tbRun.add(joinDistinctCheckbox);
             tbRun.add(new JLabel(" | "));
-            
+
             JButton addJoinAggBtn = new JButton("+ Add Aggregate");
             addJoinAggBtn.setToolTipText("Add dynamic aggregate row (COUNT, SUM, AVG, MIN, MAX) to joined tables");
             addJoinAggBtn.addActionListener(e -> addJoinAggregateRow());
@@ -1157,49 +1207,38 @@ public class Main extends JFrame {
             addJoinWindowBtn.addActionListener(e -> addJoinWindowFuncRow());
             tbRun.add(addJoinWindowBtn);
 
-            tbRun.add(new JLabel(" | "));
-            joinSampleDropdown.setToolTipText("TABLESAMPLE on base table (Bernoulli or System sampling)");
-            tbRun.add(joinSampleDropdown);
-            joinLockDropdown.setToolTipText("Row-level locking clause (FOR UPDATE, SKIP LOCKED)");
-            tbRun.add(joinLockDropdown);
-
-            tbRun.add(new JLabel(" | "));
-            tbRun.add(joinDistinctCheckbox);
-            tbRun.add(new JLabel(" |  Limit: "));
-            joinLimitField.setToolTipText("Limit (empty for none)");
-            joinLimitField.setPreferredSize(new Dimension(60, 26));
-            tbRun.add(joinLimitField);
-            
-            tbRun.add(new JLabel(" | "));
-    
-            tbRun.add(new JSeparator(SwingConstants.VERTICAL));
-            JButton saveJoinBtn = new JButton("💾 Save Project");
-            JButton loadJoinBtn = new JButton("📂 Load Project");
-            saveJoinBtn.addActionListener(e -> saveVisualJoinProject());
-            loadJoinBtn.addActionListener(e -> loadVisualJoinProject());
-            tbRun.add(saveJoinBtn);
-            tbRun.add(loadJoinBtn);
-            tbRun.add(new JLabel(" | "));
             JButton addJoinOrderBtn = new JButton("+ Add Order By");
             addJoinOrderBtn.addActionListener(e -> addJoinOrderByRow());
             tbRun.add(addJoinOrderBtn);
-            tbRun.add(new JLabel(" | "));
+
+            // Advanced clauses and analysis toolbar
+            JToolBar tbClauses = new JToolBar();
+            tbClauses.setFloatable(false);
+            tbClauses.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+
+            joinSampleDropdown.setToolTipText("TABLESAMPLE on base table (Bernoulli or System sampling)");
+            tbClauses.add(joinSampleDropdown);
+            joinLockDropdown.setToolTipText("Row-level locking clause (FOR UPDATE, SKIP LOCKED)");
+            tbClauses.add(joinLockDropdown);
+            tbClauses.add(new JLabel(" | "));
+
             JButton joinAggregatesBtn = new JButton("📊 Aggregates Dialog");
             joinAggregatesBtn.setToolTipText("Open full join aggregate metrics & grouping dialog");
             joinAggregatesBtn.addActionListener(e -> openJoinAggregatesDialog());
-            tbRun.add(joinAggregatesBtn);
+            tbClauses.add(joinAggregatesBtn);
 
             JButton explainJoinBtn = new JButton("🔍 EXPLAIN ▾");
             explainJoinBtn.setToolTipText("Inspect join execution plan (EXPLAIN, ANALYZE, BUFFERS)");
             explainJoinBtn.addActionListener(e -> showExplainMenu(explainJoinBtn, () -> buildCurrentJoinQuery()));
-            tbRun.add(explainJoinBtn);
-            
-            tbRun.add(new JLabel(" | "));
-            JButton runJoinBtn = new JButton("▶ Execute Join");
-            runJoinBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
-            runJoinBtn.setForeground(new Color(0, 102, 51));
-            runJoinBtn.addActionListener(e -> executeVisualJoin());
-            tbRun.add(runJoinBtn);
+            tbClauses.add(explainJoinBtn);
+            tbClauses.add(new JLabel(" | "));
+
+            JButton saveJoinBtn = new JButton("💾 Save Project");
+            JButton loadJoinBtn = new JButton("📂 Load Project");
+            saveJoinBtn.addActionListener(e -> saveVisualJoinProject());
+            loadJoinBtn.addActionListener(e -> loadVisualJoinProject());
+            tbClauses.add(saveJoinBtn);
+            tbClauses.add(loadJoinBtn);
             
             JToolBar tbActions = new JToolBar();
             tbActions.setFloatable(false);
@@ -1299,11 +1338,22 @@ public class Main extends JFrame {
             joinOrderByContainer.setLayout(new BoxLayout(joinOrderByContainer, BoxLayout.Y_AXIS));
             bottomOptionsPanel.add(joinOrderByContainer);
             bottomOptionsPanel.add(tbRun);
+            bottomOptionsPanel.add(tbClauses);
             bottomOptionsPanel.add(tbActions);
             configPanel.add(bottomOptionsPanel, BorderLayout.SOUTH);
             
             panel.add(configPanel, BorderLayout.NORTH);
             panel.add(new JScrollPane(joinResultTable), BorderLayout.CENTER);
+
+            // Shortcuts (Ctrl+Enter / F5)
+            KeyStroke ctrlEnter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK);
+            KeyStroke f5 = KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0);
+            Action runAction = new AbstractAction() {
+                @Override public void actionPerformed(ActionEvent e) { executeVisualJoin(); }
+            };
+            panel.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(ctrlEnter, "runVisualJoin");
+            panel.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(f5, "runVisualJoin");
+            panel.getActionMap().put("runVisualJoin", runAction);
             
             return panel;
         }
