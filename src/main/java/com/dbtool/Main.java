@@ -5506,7 +5506,10 @@ public class Main extends JFrame {
     public static void main(String[] args) {
         com.dbtool.util.ThemeManager.init(null);
         SwingUtilities.invokeLater(() -> {
-            new Main().setVisible(true);
+            com.dbtool.ui.SplashScreen splash = new com.dbtool.ui.SplashScreen(() -> {
+                new Main().setVisible(true);
+            });
+            splash.start();
         });
     }
 
