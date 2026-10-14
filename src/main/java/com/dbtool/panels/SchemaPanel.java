@@ -276,6 +276,29 @@ public class SchemaPanel extends JPanel {
         statsItem.addActionListener(ev -> showTableStats(tbl));
         menu.add(openItem);
         menu.add(statsItem);
+        menu.addSeparator();
+
+        JMenuItem codeGenItem = new JMenuItem("💻 Generate Entity / ORM Code...");
+        codeGenItem.addActionListener(ev -> {
+            Frame owner = (Frame) SwingUtilities.getWindowAncestor(this);
+            new EntityCodeGeneratorDialog(owner, dbManager, tbl).setVisible(true);
+        });
+        menu.add(codeGenItem);
+
+        JMenuItem mockDataItem = new JMenuItem("🧪 Generate Mock Test Data...");
+        mockDataItem.addActionListener(ev -> {
+            Frame owner = (Frame) SwingUtilities.getWindowAncestor(this);
+            new MockDataGeneratorDialog(owner, dbManager, tbl, this::refresh).setVisible(true);
+        });
+        menu.add(mockDataItem);
+
+        JMenuItem importItem = new JMenuItem("📥 Import Data (CSV / Excel)...");
+        importItem.addActionListener(ev -> {
+            Frame owner = (Frame) SwingUtilities.getWindowAncestor(this);
+            new DataImporterDialog(owner, dbManager, tbl, this::refresh).setVisible(true);
+        });
+        menu.add(importItem);
+
         menu.show(tree, e.getX(), e.getY());
     }
 }

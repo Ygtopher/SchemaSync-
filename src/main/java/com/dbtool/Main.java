@@ -28,7 +28,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.3.0";
+    public static final String APP_VERSION = "1.4.0";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -202,6 +202,20 @@ public class Main extends JFrame {
             tbActions.add(updateRowBtn);
             tbActions.add(deleteRowBtn);
             tbActions.add(cascadeDeleteBtn);
+            tbActions.addSeparator();
+
+            JButton importDataBtn = new JButton("📥 Import Data");
+            JButton mockDataBtn = new JButton("🧪 Mock Data");
+            JButton codeGenBtn = new JButton("💻 Generate Code");
+            importDataBtn.setToolTipText("Import data from CSV, TSV, or Excel (.xlsx) file into this table");
+            mockDataBtn.setToolTipText("Generate realistic synthetic test data respecting foreign keys");
+            codeGenBtn.setToolTipText("Generate Spring Boot JPA, TypeScript, Python, or C# model code for this table");
+            importDataBtn.addActionListener(e -> openDataImportDialog());
+            mockDataBtn.addActionListener(e -> openMockDataDialog());
+            codeGenBtn.addActionListener(e -> openCodeGenDialog());
+            tbActions.add(importDataBtn);
+            tbActions.add(mockDataBtn);
+            tbActions.add(codeGenBtn);
             tbActions.addSeparator();
             
             JCheckBox autoCommitCheck = new JCheckBox("Auto-Commit", true);
@@ -409,6 +423,19 @@ public class Main extends JFrame {
                 cascadeDelMenuItem.setForeground(new Color(234, 88, 12));
                 cascadeDelMenuItem.addActionListener(e -> openCascadeDeleteDialog());
                 tableMenu.add(cascadeDelMenuItem);
+
+                tableMenu.addSeparator();
+                JMenuItem codeGenMenuItem = new JMenuItem("💻 Generate Entity / ORM Code...");
+                codeGenMenuItem.addActionListener(e -> openCodeGenDialog());
+                tableMenu.add(codeGenMenuItem);
+
+                JMenuItem mockDataMenuItem = new JMenuItem("🧪 Generate Mock Test Data...");
+                mockDataMenuItem.addActionListener(e -> openMockDataDialog());
+                tableMenu.add(mockDataMenuItem);
+
+                JMenuItem importDataMenuItem = new JMenuItem("📥 Import Data (CSV / Excel)...");
+                importDataMenuItem.addActionListener(e -> openDataImportDialog());
+                tableMenu.add(importDataMenuItem);
             }
 
             browseTable.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -799,6 +826,30 @@ public class Main extends JFrame {
             JOptionPane.showMessageDialog(this, "Failed to inspect foreign key dependencies:\n" + ex.getMessage(), "Inspection Error", JOptionPane.ERROR_MESSAGE);
         }
     }
+
+    private void openCodeGenDialog() {
+        String tbl = (String) browseTableDropdown.getSelectedItem();
+        if (tbl == null || tbl.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No table is currently selected.", "Warning", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        new com.dbtool.panels.EntityCodeGeneratorDialog(Main.this, dbManager, tbl).setVisible(true);
+    }
+
+    private void openMockDataDialog() {
+        String tbl = (String) browseTableDropdown.getSelectedItem();
+        if (tbl == null || tbl.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No table is currently selected.", "Warning", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        new com.dbtool.panels.MockDataGeneratorDialog(Main.this, dbManager, tbl, this::loadTableData).setVisible(true);
+    }
+
+    private void openDataImportDialog() {
+        String tbl = (String) browseTableDropdown.getSelectedItem();
+        new com.dbtool.panels.DataImporterDialog(Main.this, dbManager, tbl, this::loadTableData).setVisible(true);
+    }
+
     private void openColumnSelector() {
             String selectedTable = (String) browseTableDropdown.getSelectedItem();
             if (selectedTable == null) return;

@@ -626,6 +626,141 @@ public class DatabaseManager {
         return columns;
     }
 
+    public static class ColumnDefinition {
+        public String name;
+        public int dataType;
+        public String typeName;
+        public int size;
+        public int decimalDigits;
+        public boolean isNullable;
+        public boolean isPrimaryKey;
+        public boolean isAutoIncrement;
+        public String remarks;
+        public String foreignKeyRef;
+
+        public String getFriendlyType() {
+            if (typeName != null) {
+                String t = typeName.toLowerCase();
+                if (t.contains("int")) return "Integer";
+                if (t.contains("char") || t.contains("text")) return "String";
+                if (t.contains("numeric") || t.contains("decimal")) return "Decimal";
+                if (t.contains("bool")) return "Boolean";
+                if (t.contains("date")) return "Date";
+                if (t.contains("time")) return "DateTime";
+                if (t.contains("uuid")) return "UUID";
+            }
+            return typeName != null ? typeName : "Object";
+        }
+    }
+
+    public List<ColumnDefinition> getDetailedColumns(String tableName) {
+        List<ColumnDefinition> list = new ArrayList<>();
+        if (connection == null || tableName == null) return list;
+
+        String schema = null;
+        String rawTable = tableName;
+        if (tableName.contains(".")) {
+            String[] parts = tableName.split("\\.", 2);
+            schema = parts[0];
+            rawTable = parts[1];
+        }
+
+        try {
+            DatabaseMetaData metaData = connection.getMetaData();
+            List<String> pks = getPrimaryKeys(tableName);
+            Map<String, String[]> fks = getForeignKeys(tableName);
+
+            String escape = metaData.getSearchStringEscape();
+            String escapedTableName = rawTable;
+            if (escape != null && !escape.isEmpty()) {
+                escapedTableName = escapedTableName.replace("_", escape + "_").replace("%", escape + "%");
+            }
+
+            final String finalRawTable = rawTable;
+            java.util.function.Consumer<ResultSet> processor = (rs) -> {
+                try {
+                    while (rs.next()) {
+                        String tblName = rs.getString("TABLE_NAME");
+                        if (finalRawTable.equalsIgnoreCase(tblName)) {
+                            ColumnDefinition cd = new ColumnDefinition();
+                            cd.name = rs.getString("COLUMN_NAME");
+                            cd.dataType = rs.getInt("DATA_TYPE");
+                            cd.typeName = rs.getString("TYPE_NAME");
+                            cd.size = rs.getInt("COLUMN_SIZE");
+                            cd.decimalDigits = rs.getInt("DECIMAL_DIGITS");
+                            cd.isNullable = rs.getInt("NULLABLE") != DatabaseMetaData.columnNoNulls;
+                            try {
+                                String autoInc = rs.getString("IS_AUTOINCREMENT");
+                                cd.isAutoIncrement = "YES".equalsIgnoreCase(autoInc);
+                            } catch (Exception ignored) {}
+                            try {
+                                cd.remarks = rs.getString("REMARKS");
+                            } catch (Exception ignored) {}
+
+                            for (String pk : pks) {
+                                if (pk.equalsIgnoreCase(cd.name)) {
+                                    cd.isPrimaryKey = true;
+                                    break;
+                                }
+                            }
+
+                            for (Map.Entry<String, String[]> fkEntry : fks.entrySet()) {
+                                if (fkEntry.getKey().equalsIgnoreCase(cd.name)) {
+                                    String[] ref = fkEntry.getValue();
+                                    cd.foreignKeyRef = ref[0] + "." + ref[1];
+                                    break;
+                                }
+                            }
+
+                            list.add(cd);
+                        }
+                    }
+                } catch (Exception e) {}
+            };
+
+            // 1. Standard search
+            try (ResultSet rs = metaData.getColumns(null, schema, escapedTableName, "%")) {
+                processor.accept(rs);
+            }
+
+            // 2. Fallback uppercase
+            if (list.isEmpty()) {
+                String upper = rawTable.toUpperCase();
+                if (escape != null && !escape.isEmpty()) upper = upper.replace("_", escape + "_").replace("%", escape + "%");
+                try (ResultSet rs = metaData.getColumns(null, schema, upper, "%")) {
+                    processor.accept(rs);
+                }
+            }
+
+            // 3. Fallback lowercase
+            if (list.isEmpty()) {
+                String lower = rawTable.toLowerCase();
+                if (escape != null && !escape.isEmpty()) lower = lower.replace("_", escape + "_").replace("%", escape + "%");
+                try (ResultSet rs = metaData.getColumns(null, schema, lower, "%")) {
+                    processor.accept(rs);
+                }
+            }
+
+            // 4. Fallback SQLite via PRAGMA table_info
+            if (list.isEmpty() && isSQLite()) {
+                try (Statement stmt = connection.createStatement();
+                     ResultSet rs = stmt.executeQuery("PRAGMA table_info(" + quoteTableName(tableName) + ")")) {
+                    while (rs.next()) {
+                        ColumnDefinition cd = new ColumnDefinition();
+                        cd.name = rs.getString("name");
+                        cd.typeName = rs.getString("type");
+                        cd.isPrimaryKey = rs.getInt("pk") > 0;
+                        cd.isNullable = rs.getInt("notnull") == 0;
+                        list.add(cd);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
     public void learnJoin(String tableA, String colA, String tableB, String colB) {
         if (tableA == null || colA == null || tableB == null || colB == null) return;
         

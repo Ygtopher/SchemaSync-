@@ -1,6 +1,6 @@
 # SchemaSync
 
-**Version:** 1.3.0  
+**Version:** 1.4.0  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -9,6 +9,9 @@ SchemaSync is a high-performance, lightweight Java database synchronization and 
 ## Key Features
 
 * **Multi-Database Support:** Connect directly to **PostgreSQL**, **MySQL**, **SQLite** (.sqlite / .db), **MS Access** (.accdb), or standard SQL dump files.
+* **💻 Instant ORM & Entity Code Generator:** Right-click any table or click 'Generate Code' to instantly produce production-ready backend models for **Spring Boot JPA (`@Entity`)**, **Java Records (17/21)**, **TypeScript Prisma Schema**, **TypeScript Drizzle ORM**, **Python SQLAlchemy**, **Python Pydantic (v2)**, and **C# .NET EF Core**.
+* **📥 Smart Drag-and-Drop CSV & Excel Importer:** Drag & drop or browse `.csv`, `.tsv`, or `.xlsx` files with automatic column mapping, first-20-rows preview, batch inserts, and single-transaction rollback safety.
+* **🧪 Synthetic Realistic Mock Data Generator:** Generate 10 to 10,000 realistic sample records (Names, Emails, Phones, Dates, Balances, UUIDs) that automatically sample valid foreign keys from referenced parent tables to prevent constraint violations.
 * **⚡ Recursive Foreign Key Dependency Inspector & Safe Cascade Delete:** Inspect child and grandchild referencing records down all relationship depths in an interactive visual tree, preview ordered reverse-topological deletion scripts, and execute safe cascade deletes inside an atomic rollback transaction.
 * **🔍 Global Database OmniSearch (Spotlight Search, `Ctrl+Shift+F`):** Rapidly scan all tables and columns across the entire database in background streaming mode, with live match filtering and 1-click navigation to jump directly to any matched table record.
 * **⚡ One-Click Schema Migration & Rollback Generator:** Compare any two schemas and automatically generate:
