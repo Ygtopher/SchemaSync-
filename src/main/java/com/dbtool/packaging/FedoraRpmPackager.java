@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
  */
 public class FedoraRpmPackager {
 
-    public static final String VERSION = "1.6.3";
+    public static final String VERSION = "1.6.4";
     public static final String RELEASE = "1.fc44";
     public static final String PACKAGE_NAME = "schemasync";
 
@@ -57,7 +57,7 @@ public class FedoraRpmPackager {
                     + "fi\n\n"
                     + "# FlatLaf / Linux Wayland and HiDPI font rendering settings\n"
                     + "export _JAVA_AWT_WM_NONREPARENTING=1\n"
-                    + "JAVA_OPTS=\"-Dawt.useSystemAAFontSettings=on -Dswing.aatext=true -Dsun.java2d.uiScale.enabled=true -Djdk.gtk.version=3\"\n\n"
+                    + "JAVA_OPTS=\"--add-opens java.desktop/sun.awt.X11=ALL-UNNAMED -Dawt.useSystemAAFontSettings=on -Dswing.aatext=true -Dsun.java2d.uiScale.enabled=true -Djdk.gtk.version=3\"\n\n"
                     + "JAR_PATH=\"/usr/share/schemasync/SchemaSync.jar\"\n\n"
                     + "if [ ! -f \"$JAR_PATH\" ]; then\n"
                     + "    echo \"Error: SchemaSync JAR not found at $JAR_PATH\" >&2\n"
@@ -81,7 +81,7 @@ public class FedoraRpmPackager {
                     + "Icon=schemasync\n"
                     + "Terminal=false\n"
                     + "StartupNotify=true\n"
-                    + "StartupWMClass=com-dbtool-Main\n"
+                    + "StartupWMClass=schemasync\n"
                     + "Categories=Development;Database;IDE;\n"
                     + "MimeType=application/sql;application/x-sqlite3;\n"
                     + "Keywords=database;sql;postgres;mysql;sqlite;schema;diff;sync;\n";
@@ -98,7 +98,7 @@ public class FedoraRpmPackager {
 
             // Post-install script: refresh desktop & icon caches in Fedora GNOME / KDE
             String postInstallScript = "if [ -x /usr/bin/update-desktop-database ]; then\n"
-                    + "    /usr/bin/update-desktop-database &> /dev/null || :\n"
+                    + "    /usr/bin/update-desktop-database /usr/share/applications &> /dev/null || :\n"
                     + "fi\n"
                     + "if [ -x /usr/bin/gtk-update-icon-cache ]; then\n"
                     + "    /usr/bin/gtk-update-icon-cache -f -t /usr/share/icons/hicolor &> /dev/null || :\n"
@@ -106,7 +106,7 @@ public class FedoraRpmPackager {
 
             // Post-uninstall script
             String postUninstallScript = "if [ -x /usr/bin/update-desktop-database ]; then\n"
-                    + "    /usr/bin/update-desktop-database &> /dev/null || :\n"
+                    + "    /usr/bin/update-desktop-database /usr/share/applications &> /dev/null || :\n"
                     + "fi\n"
                     + "if [ -x /usr/bin/gtk-update-icon-cache ]; then\n"
                     + "    /usr/bin/gtk-update-icon-cache -f -t /usr/share/icons/hicolor &> /dev/null || :\n"
@@ -143,6 +143,7 @@ public class FedoraRpmPackager {
 
             if (icon512.exists()) {
                 builder.addFile("/usr/share/icons/hicolor/512x512/apps/schemasync.png", icon512, 0644);
+                builder.addFile("/usr/share/pixmaps/schemasync.png", icon512, 0644);
             }
             if (icon64.exists()) {
                 builder.addFile("/usr/share/icons/hicolor/64x64/apps/schemasync.png", icon64, 0644);

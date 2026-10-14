@@ -1,6 +1,6 @@
 # SchemaSync — Codebase, Feature & Technology Architecture Map
 
-**Version:** 1.6.3  
+**Version:** 1.6.4  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -68,7 +68,7 @@ D:\projects\DBTOOL\
 ├── README.md                                 # Official product documentation & features
 ├── CODEBASE_MAP.md                           # This architecture and feature mapping document
 ├── release\                                  # Build output folder
-│   ├── schemasync-1.6.3-1.fc44.noarch.rpm    # Fedora 44 Linux RPM Package (Redline RPM)
+│   ├── schemasync-1.6.4-1.fc44.noarch.rpm    # Fedora 44 Linux RPM Package (Redline RPM)
 │   ├── SchemaSync-Setup.exe                  # Windows Setup Installer (Inno Setup)
 │   ├── SchemaSync.exe                        # Windows Standalone Native Executable (Launch4j)
 │   └── SchemaSync.jar                        # Shaded Cross-Platform Fat JAR
@@ -170,7 +170,7 @@ D:\projects\DBTOOL\
 | **🌙 Dark / Light FlatLaf Theme Engine** | `ThemeManager.java` | `toggleTheme()`, `init()`, `applyTheme()`, `isDarkMode()` | `src/main/java/com/dbtool/util/ThemeManager.java:1-115`<br>`Main.java:3720` |
 | **📁 Saved Connections Manager** | `ConnectionManagerDialog.java` | `loadProfiles()`, `saveProfiles()`, `testConnection()`, Vault integration | `src/main/java/com/dbtool/panels/ConnectionManagerDialog.java:1-480`<br>`Main.java:3640` |
 | **🛡 1-Click Health & Diagnostics Audit** | `DatabaseAuditorDialog.java` | `runDiagnostics()`, `checkMissingPrimaryKeys()`, `checkIndexBloat()` | `src/main/java/com/dbtool/panels/DatabaseAuditorDialog.java:1-340`<br>`Main.java:3667` |
-| **🐧 Fedora 44 RPM Package Engine** | `FedoraRpmPackager.java` | `buildRpm()`, launcher script, `.desktop` menu integration, hicolor icons, Java dependency | `src/main/java/com/dbtool/packaging/FedoraRpmPackager.java:1-170` |
+| **🐧 Fedora 44 RPM Package Engine & Wayland Dock Integration** | `FedoraRpmPackager.java`<br>`Main.java` | `buildRpm()`, launcher script with `--add-opens java.desktop/sun.awt.X11=ALL-UNNAMED`, `setLinuxAppId()`, `awtAppClassName="schemasync"`, `StartupWMClass=schemasync`, `.desktop` menu integration, `/usr/share/pixmaps` and hicolor icons, Java dependency | `src/main/java/com/dbtool/packaging/FedoraRpmPackager.java:1-185`<br>`Main.java:6259-6275` |
 
 ---
 

@@ -1,14 +1,14 @@
 # SchemaSync
 
-**Version:** 1.6.3  
+**Version:** 1.6.4  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
-SchemaSync is a high-performance, lightweight Java database synchronization and management tool for **PostgreSQL, MySQL, SQLite, MS Access, and H2**. It features a modern Dark Mode UI, 1-Click Schema Migration & Rollback generation, Database Health Diagnostics, Interactive Visual Data Charting, a Visual Join Builder, live Schema & Data diffing, an SSH Terminal, in-app update checks, and native Fedora 44 RPM packaging.
+SchemaSync is a high-performance, lightweight Java database synchronization and management tool for **PostgreSQL, MySQL, SQLite, MS Access, and H2**. It features a modern Dark Mode UI, 1-Click Schema Migration & Rollback generation, Database Health Diagnostics, Interactive Visual Data Charting, a Visual Join Builder, live Schema & Data diffing, an SSH Terminal, in-app update checks, and native Fedora 44 RPM packaging with full Wayland dock icon binding.
 
 ## Key Features
 
-* **🐧 Native Fedora 44 RPM Package (`.rpm`):** Full native integration for Fedora 44 (and compatible RPM-based Linux distributions). Installs seamlessly via `sudo dnf install ./schemasync-1.6.3-1.fc44.noarch.rpm` with automatic OpenJDK dependency resolution (`java-headless >= 11`), `/usr/bin/schemasync` system command launcher, GNOME/KDE `.desktop` application grid integration, Wayland/HiDPI optimizations, and system hicolor icons.
+* **🐧 Native Fedora 44 RPM Package (`.rpm`) & Wayland Dock Integration:** Full native integration for Fedora 44 (and compatible RPM-based Linux distributions). Installs seamlessly via `sudo dnf install ./schemasync-1.6.4-1.fc44.noarch.rpm` with automatic OpenJDK dependency resolution (`java-headless >= 11`), `/usr/bin/schemasync` system command launcher, GNOME/KDE `.desktop` application grid integration, automatic Wayland dock icon binding via `--add-opens` and X11/Wayland `awtAppClassName` matching, system `/usr/share/pixmaps` fallbacks, and multi-resolution hicolor icons.
 * **📝 Automatic SQL Editor Session Recovery (Draft Persistence):** Never lose your work across app updates or reboots. Automatically saves the active SQL editor buffer into `Documents/SchemaSyncSaves/sql_editor_draft.sql` with real-time keystroke debouncing, instant execution saving, and graceful shutdown hooks, automatically restoring your draft upon launch.
 * **📜 Persistent & Isolated Query History:** Relocates Query History and Saved Queries to `Documents/SchemaSyncSaves/` with automatic legacy migration, expanded 100-query capacity, thread-safe asynchronous execution, and complete test isolation.
 * **⚡ 1-Click In-App Auto-Updater & Silent Restarter:** Automatic background update checks on launch, interactive What's New changelog viewer, live-streamed download progress bar, and 1-click automated silent installation & seamless application restart (with permanent options for direct installer downloads and GitHub release navigation).
@@ -82,7 +82,7 @@ This will generate a self-contained executable JAR in the `target/` directory.
 ### Fedora 44 Linux (RPM Package)
 Install SchemaSync natively on Fedora 44 with automatic Java dependency resolution:
 ```bash
-sudo dnf install ./schemasync-1.6.3-1.fc44.noarch.rpm
+sudo dnf install ./schemasync-1.6.4-1.fc44.noarch.rpm
 ```
 Launch directly from the GNOME/KDE App Menu or from terminal:
 ```bash

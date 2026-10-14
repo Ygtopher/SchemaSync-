@@ -28,7 +28,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.6.3";
+    public static final String APP_VERSION = "1.6.4";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -6256,6 +6256,22 @@ public class Main extends JFrame {
         }
     }
 
+    private static void setLinuxAppId() {
+        String os = System.getProperty("os.name", "").toLowerCase();
+        if (!os.contains("win") && !os.contains("mac")) {
+            try {
+                Toolkit toolkit = Toolkit.getDefaultToolkit();
+                Class<?> toolkitClass = toolkit.getClass();
+                if ("sun.awt.X11.XToolkit".equals(toolkitClass.getName())) {
+                    java.lang.reflect.Field field = toolkitClass.getDeclaredField("awtAppClassName");
+                    field.setAccessible(true);
+                    field.set(null, "schemasync");
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
     private static void setWindowsAppUserModelID() {
         if (System.getProperty("os.name", "").toLowerCase().contains("win")) {
             try {
@@ -6266,6 +6282,7 @@ public class Main extends JFrame {
     }
 
     public static void main(String[] args) {
+        setLinuxAppId();
         setWindowsAppUserModelID();
         com.dbtool.util.ThemeManager.init(null);
         SwingUtilities.invokeLater(() -> {
