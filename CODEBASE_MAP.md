@@ -1,6 +1,6 @@
 # SchemaSync — Codebase, Feature & Technology Architecture Map
 
-**Version:** 1.6.2  
+**Version:** 1.6.3  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -68,6 +68,7 @@ D:\projects\DBTOOL\
 ├── README.md                                 # Official product documentation & features
 ├── CODEBASE_MAP.md                           # This architecture and feature mapping document
 ├── release\                                  # Build output folder
+│   ├── schemasync-1.6.3-1.fc44.noarch.rpm    # Fedora 44 Linux RPM Package (Redline RPM)
 │   ├── SchemaSync-Setup.exe                  # Windows Setup Installer (Inno Setup)
 │   ├── SchemaSync.exe                        # Windows Standalone Native Executable (Launch4j)
 │   └── SchemaSync.jar                        # Shaded Cross-Platform Fat JAR
@@ -122,7 +123,8 @@ D:\projects\DBTOOL\
     │       │   ├── DatabaseAuditorDialog.java # 1-Click Health & Performance Diagnostic Audit
     │       │   ├── RecoveryDialog.java       # Crash recovery & session restoration prompt
     │       │   ├── MultiTabContainer.java    # Reusable multi-tab pane for Browse and Join tabs
-    │       │   └── terminal\                 # DynamicSettingsProvider, JSchTtyConnector
+    │       ├── packaging\                    # Native Linux packaging engines
+    │       │   └── FedoraRpmPackager.java    # Pure Java Fedora 44 RPM builder with .desktop and icon integration
     │       │
     │       ├── ui\                           # Reusable UI widgets and renderers
     │       │   ├── SplashScreen.java         # High-resolution application boot splash screen
@@ -168,6 +170,7 @@ D:\projects\DBTOOL\
 | **🌙 Dark / Light FlatLaf Theme Engine** | `ThemeManager.java` | `toggleTheme()`, `init()`, `applyTheme()`, `isDarkMode()` | `src/main/java/com/dbtool/util/ThemeManager.java:1-115`<br>`Main.java:3720` |
 | **📁 Saved Connections Manager** | `ConnectionManagerDialog.java` | `loadProfiles()`, `saveProfiles()`, `testConnection()`, Vault integration | `src/main/java/com/dbtool/panels/ConnectionManagerDialog.java:1-480`<br>`Main.java:3640` |
 | **🛡 1-Click Health & Diagnostics Audit** | `DatabaseAuditorDialog.java` | `runDiagnostics()`, `checkMissingPrimaryKeys()`, `checkIndexBloat()` | `src/main/java/com/dbtool/panels/DatabaseAuditorDialog.java:1-340`<br>`Main.java:3667` |
+| **🐧 Fedora 44 RPM Package Engine** | `FedoraRpmPackager.java` | `buildRpm()`, launcher script, `.desktop` menu integration, hicolor icons, Java dependency | `src/main/java/com/dbtool/packaging/FedoraRpmPackager.java:1-170` |
 
 ---
 
@@ -195,7 +198,8 @@ D:\projects\DBTOOL\
 | **Java Crypto (JCA)** | `JDK Built-in` | Military-grade AES-256-GCM authenticated encryption, PBKDF2-HMAC-SHA256 ($100,000$ iterations) | `src/main/java/com/dbtool/util/CryptoUtil.java:25-110`<br>`DataMaskingDialog.java:160-200` |
 | **Launch4j** | `2.5.1 / 3.50` | Packaging tool generating native Windows x64 `SchemaSync.exe` with bundled manifest & icon | `pom.xml:230-275`<br>`release/SchemaSync.exe` |
 | **Inno Setup** | `6.4.1` | Professional Windows GUI Setup Installer with desktop icons & silent update support | `installer.iss:1-91`<br>`release/SchemaSync-Setup.exe` |
-| **JUnit 5 (Jupiter)** | `5.10.2` | Automated testing framework executing 134 regression, dialect, crypto, and UI tests | `src/test/java/com/dbtool/**/*Test.java` |
+| **Redline RPM** | `1.2.10` | Pure Java RPM generator for Fedora 44, noarch architecture, CPIO payload generation | `pom.xml:143-149`<br>`src/main/java/com/dbtool/packaging/FedoraRpmPackager.java` |
+| **JUnit 5 (Jupiter)** | `5.10.2` | Automated testing framework executing 140+ regression, dialect, crypto, and UI tests | `src/test/java/com/dbtool/**/*Test.java` |
 
 ---
 

@@ -6,7 +6,7 @@
 
     <groupId>com.dbtool</groupId>
     <artifactId>access-db-tool</artifactId>
-    <version>1.6.2</version>
+    <version>1.6.3</version>
 
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
@@ -140,6 +140,13 @@
             <artifactId>sqlite-jdbc</artifactId>
             <version>3.45.2.0</version>
         </dependency>
+        <!-- Redline RPM: Pure Java RPM Builder for Fedora Packaging -->
+        <dependency>
+            <groupId>org.redline-rpm</groupId>
+            <artifactId>redline</artifactId>
+            <version>1.2.10</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <repositories>
@@ -257,13 +264,13 @@
                                 </opts>
                             </jre>
                             <versionInfo>
-                                <fileVersion>1.6.2.0</fileVersion>
-                                <txtFileVersion>1.6.2</txtFileVersion>
+                                <fileVersion>1.6.3.0</fileVersion>
+                                <txtFileVersion>1.6.3</txtFileVersion>
                                 <fileDescription>SchemaSync Database Tool</fileDescription>
                                 <copyright>Copyright (C) 2026 NSENGIYUMVA Christophe. All rights reserved.</copyright>
                                 <companyName>NSENGIYUMVA Christophe</companyName>
-                                <productVersion>1.6.2.0</productVersion>
-                                <txtProductVersion>1.6.2</txtProductVersion>
+                                <productVersion>1.6.3.0</productVersion>
+                                <txtProductVersion>1.6.3</txtProductVersion>
                                 <productName>SchemaSync</productName>
                                 <internalName>SchemaSync</internalName>
                                 <originalFilename>SchemaSync.exe</originalFilename>
