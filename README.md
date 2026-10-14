@@ -1,6 +1,6 @@
 # SchemaSync
 
-**Version:** 1.6.0  
+**Version:** 1.6.1  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -8,6 +8,7 @@ SchemaSync is a high-performance, lightweight Java database synchronization and 
 
 ## Key Features
 
+* **⚡ 1-Click In-App Auto-Updater & Silent Restarter:** Automatic background update checks on launch, interactive What's New changelog viewer, live-streamed download progress bar, and 1-click automated silent installation & seamless application restart (with permanent options for direct installer downloads and GitHub release navigation).
 * **Multi-Database Support:** Connect directly to **PostgreSQL**, **MySQL**, **SQLite** (.sqlite / .db), **MS Access** (.accdb), or standard SQL dump files.
 * **🏠 Database Overview & Live Health Dashboard:** Executive telemetry tab providing real-time database engine and connection metrics, ping latency (ms), catalog inventory counts, proportional storage distribution across the Top 10 largest tables with live percentage meters, and a 1-click executive launchpad.
 * **🔒 Sensitive Data Masking & Anonymization Studio:** GDPR and HIPAA-compliant data sanitization workbench with smart auto-detection of PII (emails, phone numbers, credit card accounts, real names, salaries). Offers side-by-side live dual-grid preview and multi-format export to CSV, Excel (`.xlsx`), and atomic SQL `INSERT` statements.

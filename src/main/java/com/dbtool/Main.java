@@ -28,7 +28,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.6.0";
+    public static final String APP_VERSION = "1.6.1";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -3957,6 +3957,13 @@ public class Main extends JFrame {
                 com.dbtool.util.SessionRecoveryManager.markCleanExit();
             }
         });
+
+        // Background update check after startup (quietly, 3.5 seconds delay)
+        javax.swing.Timer startupUpdateTimer = new javax.swing.Timer(3500, e -> {
+            com.dbtool.util.UpdateChecker.checkForUpdates(this, true);
+        });
+        startupUpdateTimer.setRepeats(false);
+        startupUpdateTimer.start();
 
         // Global Shortcut: Ctrl+Shift+F for Database OmniSearch
         KeyStroke omniSearchKs = KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK);
