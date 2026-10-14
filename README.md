@@ -1,6 +1,6 @@
 # SchemaSync
 
-**Version:** 1.6.1  
+**Version:** 1.6.2  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -8,6 +8,8 @@ SchemaSync is a high-performance, lightweight Java database synchronization and 
 
 ## Key Features
 
+* **📝 Automatic SQL Editor Session Recovery (Draft Persistence):** Never lose your work across app updates or reboots. Automatically saves the active SQL editor buffer into `Documents/SchemaSyncSaves/sql_editor_draft.sql` with real-time keystroke debouncing, instant execution saving, and graceful shutdown hooks, automatically restoring your draft upon launch.
+* **📜 Persistent & Isolated Query History:** Relocates Query History and Saved Queries to `Documents/SchemaSyncSaves/` with automatic legacy migration, expanded 100-query capacity, thread-safe asynchronous execution, and complete test isolation.
 * **⚡ 1-Click In-App Auto-Updater & Silent Restarter:** Automatic background update checks on launch, interactive What's New changelog viewer, live-streamed download progress bar, and 1-click automated silent installation & seamless application restart (with permanent options for direct installer downloads and GitHub release navigation).
 * **Multi-Database Support:** Connect directly to **PostgreSQL**, **MySQL**, **SQLite** (.sqlite / .db), **MS Access** (.accdb), or standard SQL dump files.
 * **🏠 Database Overview & Live Health Dashboard:** Executive telemetry tab providing real-time database engine and connection metrics, ping latency (ms), catalog inventory counts, proportional storage distribution across the Top 10 largest tables with live percentage meters, and a 1-click executive launchpad.

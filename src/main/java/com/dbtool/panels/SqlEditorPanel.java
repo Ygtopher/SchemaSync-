@@ -2,6 +2,7 @@ package com.dbtool.panels;
 
 import com.dbtool.DatabaseManager;
 import com.dbtool.util.ExportUtil;
+import com.dbtool.util.FileUtil;
 import com.dbtool.util.QueryHistory;
 import com.dbtool.util.SavedQueries;
 import com.dbtool.util.SqlSnippetsLibrary;
@@ -10,8 +11,13 @@ import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.fife.ui.rtextarea.RTextScrollPane;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -21,6 +27,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class SqlEditorPanel extends JPanel {
+
+    private static File customDraftFile = null;
+    private final javax.swing.Timer draftSaveTimer = new javax.swing.Timer(600, e -> saveEditorDraft());
 
     private final DatabaseManager dbManager;
     private final RSyntaxTextArea editor;
@@ -50,9 +59,25 @@ public class SqlEditorPanel extends JPanel {
         editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_SQL);
         editor.setCodeFoldingEnabled(true);
         editor.setAntiAliasingEnabled(true);
-        editor.setText("-- Write your SQL here\nSELECT 1;");
+        loadEditorDraft();
         RTextScrollPane editorScroll = new RTextScrollPane(editor);
         editorScroll.setLineNumbersEnabled(true);
+
+        draftSaveTimer.setRepeats(false);
+        editor.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                draftSaveTimer.restart();
+            }
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                draftSaveTimer.restart();
+            }
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                draftSaveTimer.restart();
+            }
+        });
 
         // Right-click context menu integration
         JPopupMenu editorPopup = editor.getPopupMenu();
@@ -267,7 +292,10 @@ public class SqlEditorPanel extends JPanel {
             }
         });
 
-        clearBtn.addActionListener(e -> editor.setText(""));
+        clearBtn.addActionListener(e -> {
+            editor.setText("");
+            saveEditorDraft();
+        });
         saveQueryBtn.addActionListener(e -> saveCurrentQuery());
         loadSqlFileBtn.addActionListener(e -> {
             javax.swing.JFileChooser fc = new javax.swing.JFileChooser();
@@ -694,6 +722,7 @@ public class SqlEditorPanel extends JPanel {
 
     private void executeQuery(String sql, boolean isExplain) {
         if (sql == null || sql.trim().isEmpty()) return;
+        saveEditorDraft();
 
         // Auto-connect Sandbox if no database is connected
         if (dbManager.connection == null) {
@@ -829,12 +858,12 @@ public class SqlEditorPanel extends JPanel {
 
             long totalElapsed = System.currentTimeMillis() - totalStart;
             final int finalExecuted = executedCount;
+            QueryHistory.add(sql);
             SwingUtilities.invokeLater(() -> {
                 progressBar.setVisible(false);
                 statusLabel.setText("Executed " + finalExecuted + " statement(s) in " + totalElapsed + "ms");
                 refreshHistory();
             });
-            QueryHistory.add(sql);
         }).start();
     }
 
@@ -879,6 +908,7 @@ public class SqlEditorPanel extends JPanel {
 
     public void setEditorText(String text) {
         editor.setText(text);
+        saveEditorDraft();
     }
 
     public String getEditorText() {
@@ -888,6 +918,40 @@ public class SqlEditorPanel extends JPanel {
     public void refreshSavedQueries() {
         savedQueriesDropdown.removeAllItems();
         for (String name : SavedQueries.load().keySet()) savedQueriesDropdown.addItem(name);
+    }
+
+    public static synchronized void setDraftFileForTesting(File file) {
+        customDraftFile = file;
+    }
+
+    public static synchronized File getDraftFile() {
+        if (customDraftFile != null) return customDraftFile;
+        return FileUtil.getSaveFile("sql_editor_draft.sql");
+    }
+
+    public void loadEditorDraft() {
+        try {
+            File draftFile = getDraftFile();
+            if (draftFile.exists() && draftFile.length() > 0) {
+                String content = new String(Files.readAllBytes(draftFile.toPath()), StandardCharsets.UTF_8);
+                if (!content.trim().isEmpty()) {
+                    editor.setText(content);
+                    editor.setCaretPosition(0);
+                    return;
+                }
+            }
+        } catch (Exception ignored) {}
+        editor.setText("-- Write your SQL here\nSELECT 1;");
+        editor.setCaretPosition(0);
+    }
+
+    public void saveEditorDraft() {
+        if (editor == null) return;
+        try {
+            File draftFile = getDraftFile();
+            String text = editor.getText();
+            Files.write(draftFile.toPath(), text.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception ignored) {}
     }
 
     private JTable getActiveResultTable() {

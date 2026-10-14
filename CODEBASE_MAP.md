@@ -1,6 +1,6 @@
 # SchemaSync — Codebase, Feature & Technology Architecture Map
 
-**Version:** 1.6.1  
+**Version:** 1.6.2  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -162,7 +162,7 @@ D:\projects\DBTOOL\
 | **🔍 Database OmniSearch (`Ctrl+Shift+F`)** | `OmniSearchDialog.java` | `startSearch()`, `searchTable()`, `jumpToTableRecord()` | `src/main/java/com/dbtool/panels/OmniSearchDialog.java:1-350`<br>`Main.java:3702, 3962` |
 | **📊 Interactive Data Charting** | `DataChartDialog.java` | `createChart()`, Bar / Line / Pie renderers, export PNG | `src/main/java/com/dbtool/panels/DataChartDialog.java:1-280`<br>`Main.java:286` |
 | **🧩 Visual Join Builder** | `Main.java` (`VisualJoinTab`)<br>`VisualJoinProjectManager.java` | `rebuildJoinSql()`, `exportJson()`, `importJson()`, `JoinRowPanel` | `src/main/java/com/dbtool/Main.java:960-1900`<br>`VisualJoinProjectManager.java:1-120` |
-| **📝 SQL Editor & Execution Engine** | `SqlEditorPanel.java`<br>`StatementRunner.java` | `executeQuery()`, `executeBatch()`, syntax highlighting, history | `src/main/java/com/dbtool/panels/SqlEditorPanel.java:1-550`<br>`Main.java:3771` |
+| **📝 SQL Editor & Execution Engine** | `SqlEditorPanel.java`<br>`QueryHistory.java`<br>`SavedQueries.java`<br>`FileUtil.java` | `loadEditorDraft()`, `saveEditorDraft()`, debounced auto-save to `Documents/SchemaSyncSaves/sql_editor_draft.sql`, centralized `query_history.json` (100 queries) with legacy migration, `executeQuery()`, syntax highlighting | `src/main/java/com/dbtool/panels/SqlEditorPanel.java:1-965`<br>`QueryHistory.java:1-75`<br>`SavedQueries.java:1-65`<br>`Main.java:3956, 4122` |
 | **💻 Integrated SSH Terminal** | `SshTerminalPanel.java`<br>`JSchTtyConnector.java` | `createTerminal()`, `connectSsh()`, JediTerm widget | `src/main/java/com/dbtool/panels/SshTerminalPanel.java:1-160`<br>`Main.java:3780` |
 | **💾 Session Crash Recovery & Autosave** | `SessionRecoveryManager.java`<br>`RecoveryDialog.java` | `saveSessionSnapshot()`, `loadAutosavedSession()`, `startAutoSaveDaemon()` | `src/main/java/com/dbtool/util/SessionRecoveryManager.java:1-240`<br>`Main.java:3950` |
 | **🌙 Dark / Light FlatLaf Theme Engine** | `ThemeManager.java` | `toggleTheme()`, `init()`, `applyTheme()`, `isDarkMode()` | `src/main/java/com/dbtool/util/ThemeManager.java:1-115`<br>`Main.java:3720` |

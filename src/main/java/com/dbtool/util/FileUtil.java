@@ -31,4 +31,26 @@ public final class FileUtil {
     public static boolean ensureDirectoryExists(File dir) {
         return dir != null && (dir.exists() || dir.mkdirs());
     }
+
+    public static File getSchemaSyncSavesDir() {
+        File docs = null;
+        try {
+            docs = javax.swing.filechooser.FileSystemView.getFileSystemView().getDefaultDirectory();
+        } catch (Throwable ignored) {}
+        if (docs == null || !docs.exists()) {
+            docs = new File(System.getProperty("user.home"), "Documents");
+        }
+        if (!docs.exists()) {
+            docs = new File(System.getProperty("user.home"));
+        }
+        File savesDir = new File(docs, "SchemaSyncSaves");
+        if (!savesDir.exists()) {
+            savesDir.mkdirs();
+        }
+        return savesDir;
+    }
+
+    public static File getSaveFile(String filename) {
+        return new File(getSchemaSyncSavesDir(), filename);
+    }
 }

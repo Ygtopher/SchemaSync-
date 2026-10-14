@@ -28,7 +28,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.6.1";
+    public static final String APP_VERSION = "1.6.2";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -3954,6 +3954,9 @@ public class Main extends JFrame {
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent e) {
+                if (sqlEditorPanel != null) {
+                    sqlEditorPanel.saveEditorDraft();
+                }
                 com.dbtool.util.SessionRecoveryManager.markCleanExit();
             }
         });
@@ -4119,6 +4122,7 @@ public class Main extends JFrame {
         // SQL Editor
         if (sqlEditorPanel != null) {
             snapshot.sqlEditor.queryText = sqlEditorPanel.getEditorText();
+            sqlEditorPanel.saveEditorDraft();
         }
 
         // Browse Tabs
