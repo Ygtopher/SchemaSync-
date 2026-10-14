@@ -28,7 +28,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.5.0";
+    public static final String APP_VERSION = "1.5.1";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -66,9 +66,7 @@ public class Main extends JFrame {
     private JPanel createBrowsePanel() {
             JPanel panel = new JPanel(new BorderLayout());
             
-            JToolBar tbSelect = new JToolBar();
-            tbSelect.setFloatable(false);
-            tbSelect.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
+            JPanel tbSelect = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
     
             
             tbSelect.add(new JLabel(" |  Table: "));
@@ -121,9 +119,7 @@ public class Main extends JFrame {
             limitField.setPreferredSize(new Dimension(60, 26));
             tbSelect.add(limitField);
             
-            JToolBar tbQuery = new JToolBar();
-            tbQuery.setFloatable(false);
-            tbQuery.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
+            JPanel tbQuery = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
             JButton applyOrderBtn = new JButton("▶ Run Query");
             applyOrderBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -161,9 +157,7 @@ public class Main extends JFrame {
             addBrowseOrderBtn.addActionListener(e -> addBrowseOrderByRow());
             tbQuery.add(addBrowseOrderBtn);
 
-            JToolBar tbAdvanced = new JToolBar();
-            tbAdvanced.setFloatable(false);
-            tbAdvanced.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
+            JPanel tbAdvanced = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
             browseSampleDropdown.setToolTipText("TABLESAMPLE clause (Bernoulli or System sampling)");
             tbAdvanced.add(browseSampleDropdown);
@@ -183,9 +177,7 @@ public class Main extends JFrame {
             explainBtn.addActionListener(e -> showExplainMenu(explainBtn, () -> buildCurrentBrowseQuery(false)));
             tbAdvanced.add(explainBtn);
             
-            JToolBar tbActions = new JToolBar();
-            tbActions.setFloatable(false);
-            tbActions.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
+            JPanel tbRecordActions = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
             JButton insertRowBtn = new JButton("➕ Insert Row");
             JButton updateRowBtn = new JButton("✏️ Update Row");
             JButton deleteRowBtn = new JButton("🗑 Delete Row");
@@ -198,29 +190,29 @@ public class Main extends JFrame {
             updateRowBtn.addActionListener(e -> openUpdateRowDialog());
             deleteRowBtn.addActionListener(e -> deleteSelectedRow());
             cascadeDeleteBtn.addActionListener(e -> openCascadeDeleteDialog());
-            tbActions.add(insertRowBtn);
-            tbActions.add(updateRowBtn);
-            tbActions.add(deleteRowBtn);
-            tbActions.add(cascadeDeleteBtn);
-            tbActions.addSeparator();
+            tbRecordActions.add(insertRowBtn);
+            tbRecordActions.add(updateRowBtn);
+            tbRecordActions.add(deleteRowBtn);
+            tbRecordActions.add(cascadeDeleteBtn);
+            tbRecordActions.add(new JLabel(" | "));
 
             JButton importDataBtn = new JButton("📥 Import Data");
             JButton mockDataBtn = new JButton("🧪 Mock Data");
             JButton codeGenBtn = new JButton("💻 Generate Code");
+            JButton indexAdvisorBtn = new JButton("⚡ Index Advisor");
             importDataBtn.setToolTipText("Import data from CSV, TSV, or Excel (.xlsx) file into this table");
             mockDataBtn.setToolTipText("Generate realistic synthetic test data respecting foreign keys");
             codeGenBtn.setToolTipText("Generate Spring Boot JPA, TypeScript, Python, or C# model code for this table");
+            indexAdvisorBtn.setToolTipText("Analyze unindexed foreign keys, redundant indexes, and bloat for this table");
             importDataBtn.addActionListener(e -> openDataImportDialog());
             mockDataBtn.addActionListener(e -> openMockDataDialog());
             codeGenBtn.addActionListener(e -> openCodeGenDialog());
-            JButton indexAdvisorBtn = new JButton("⚡ Index Advisor");
-            indexAdvisorBtn.setToolTipText("Analyze unindexed foreign keys, redundant indexes, and bloat for this table");
             indexAdvisorBtn.addActionListener(e -> openIndexAdvisorDialog());
-            tbActions.add(importDataBtn);
-            tbActions.add(mockDataBtn);
-            tbActions.add(codeGenBtn);
-            tbActions.add(indexAdvisorBtn);
-            tbActions.addSeparator();
+            tbRecordActions.add(importDataBtn);
+            tbRecordActions.add(mockDataBtn);
+            tbRecordActions.add(codeGenBtn);
+            tbRecordActions.add(indexAdvisorBtn);
+            tbRecordActions.add(new JLabel(" | "));
             
             JCheckBox autoCommitCheck = new JCheckBox("Auto-Commit", true);
             JButton commitBtn = new JButton("Commit");
@@ -242,11 +234,38 @@ public class Main extends JFrame {
                 try { if (dbManager.connection != null) dbManager.connection.rollback(); JOptionPane.showMessageDialog(this, "Transaction rolled back."); loadTableData(); } catch (Exception ex) {}
             });
             
-            tbActions.add(autoCommitCheck);
-            tbActions.add(commitBtn);
-            tbActions.add(rollbackBtn);
-            tbActions.addSeparator();
-    
+            tbRecordActions.add(autoCommitCheck);
+            tbRecordActions.add(commitBtn);
+            tbRecordActions.add(rollbackBtn);
+
+            JPanel tbDataTools = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
+
+            JButton exportMenuBtn = new JButton("📥 Export ▾");
+            exportMenuBtn.setToolTipText("Export table records to CSV, Excel, PDF, or SQL Inserts");
+            exportMenuBtn.addActionListener(e -> {
+                JPopupMenu menu = new JPopupMenu();
+                JMenuItem mCsv = new JMenuItem("📄 Export to CSV (.csv)");
+                mCsv.addActionListener(ev -> ExportUtil.exportCsv(browseTable, this));
+                menu.add(mCsv);
+
+                JMenuItem mExcel = new JMenuItem("📥 Export to Excel (.xlsx)");
+                mExcel.addActionListener(ev -> ExportUtil.exportExcel(browseTable, this));
+                menu.add(mExcel);
+
+                JMenuItem mPdf = new JMenuItem("📄 Export to PDF (.pdf)");
+                mPdf.addActionListener(ev -> ExportUtil.exportPdf(browseTable, this));
+                menu.add(mPdf);
+
+                JMenuItem mSql = new JMenuItem("📥 Export to SQL INSERT Statements (.sql)");
+                mSql.addActionListener(ev -> {
+                    String tbl = (String) browseTableDropdown.getSelectedItem();
+                    if (tbl != null) ExportUtil.exportSqlInserts(browseTable, tbl, this);
+                });
+                menu.add(mSql);
+
+                menu.show(exportMenuBtn, 0, exportMenuBtn.getHeight());
+            });
+
             JButton exportCsvBtn = new JButton("📄 CSV");
             JButton exportPdfBtn = new JButton("📄 PDF");
             JButton exportXlsxBtn = new JButton("📥 Excel");
@@ -290,16 +309,19 @@ public class Main extends JFrame {
                     JOptionPane.showMessageDialog(this, "Please run a query first.");
                 }
             });
-            tbActions.add(exportCsvBtn);
-            tbActions.add(exportPdfBtn);
-            tbActions.add(exportXlsxBtn);
-            tbActions.add(exportInsertBtn);
-            tbActions.add(chartBtn);
-            tbActions.addSeparator();
-            tbActions.add(copyBtn);
-            tbActions.add(copySqlBtn);
-            tbActions.add(openInSqlBtn);
-            tbActions.addSeparator();
+
+            tbDataTools.add(exportMenuBtn);
+            tbDataTools.add(exportCsvBtn);
+            tbDataTools.add(exportXlsxBtn);
+            tbDataTools.add(exportPdfBtn);
+            tbDataTools.add(exportInsertBtn);
+            tbDataTools.add(new JLabel(" | "));
+            tbDataTools.add(chartBtn);
+            tbDataTools.add(new JLabel(" | "));
+            tbDataTools.add(copyBtn);
+            tbDataTools.add(copySqlBtn);
+            tbDataTools.add(openInSqlBtn);
+            tbDataTools.add(new JLabel(" | "));
 
             JButton templatesBtn = new JButton("📝 SQL Templates ▾");
             templatesBtn.setToolTipText("Browse advanced SQL snippets & templates (LATERAL, Window frames, Recursive CTEs, Advisory locks, Indexes...)");
@@ -333,8 +355,8 @@ public class Main extends JFrame {
                     tabbedPane.setSelectedComponent(sqlEditorPanel);
                 }).setVisible(true);
             });
-            tbActions.add(templatesBtn);
-            tbActions.add(cheatSheetBtn);
+            tbDataTools.add(templatesBtn);
+            tbDataTools.add(cheatSheetBtn);
     
             // Enable sorting on browseTable
             browseTable.setAutoCreateRowSorter(true);
@@ -348,13 +370,14 @@ public class Main extends JFrame {
             browseWindowFuncContainer.setLayout(new BoxLayout(browseWindowFuncContainer, BoxLayout.Y_AXIS));
             browseOrderByContainer.setLayout(new BoxLayout(browseOrderByContainer, BoxLayout.Y_AXIS));
             
-            JPanel northPanel = new JPanel(new BorderLayout());
+            com.dbtool.ui.components.ScrollablePanel northPanel = new com.dbtool.ui.components.ScrollablePanel(new BorderLayout());
             JPanel rowsPanel = new JPanel();
             rowsPanel.setLayout(new BoxLayout(rowsPanel, BoxLayout.Y_AXIS));
             rowsPanel.add(tbSelect);
             rowsPanel.add(tbQuery);
             rowsPanel.add(tbAdvanced);
-            rowsPanel.add(tbActions);
+            rowsPanel.add(tbRecordActions);
+            rowsPanel.add(tbDataTools);
             northPanel.add(rowsPanel, BorderLayout.NORTH);
             JPanel filtersPanel = new JPanel();
             filtersPanel.setLayout(new BoxLayout(filtersPanel, BoxLayout.Y_AXIS));
@@ -368,7 +391,7 @@ public class Main extends JFrame {
             
             JScrollPane northScroll = new JScrollPane(northPanel);
             northScroll.setBorder(BorderFactory.createEmptyBorder());
-            northScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+            northScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
             northScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
             northScroll.getVerticalScrollBar().setUnitIncrement(16);
 

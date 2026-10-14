@@ -1,6 +1,6 @@
 # SchemaSync
 
-**Version:** 1.5.0  
+**Version:** 1.5.1  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -24,6 +24,7 @@ SchemaSync is a high-performance, lightweight Java database synchronization and 
 * **🛡 Database Health & Performance Auditor:** 1-click diagnostic scan that detects missing primary keys, unindexed foreign keys causing slow JOINs, wide tables, and orphaned tables, generating instant remediation fix scripts.
 * **📊 Visual Data Charting & Dashboards:** Turn raw table data and SQL query results into interactive **Bar Charts**, **Line / Trend Charts**, and **Donut / Pie Charts** with 1-click PNG image export and clipboard copying.
 * **🔄 In-App Auto-Update Checker:** Seamlessly checks GitHub Releases for new updates and lets users download the latest installer with a single click.
+* **📱 Responsive Multi-Row Toolbars & Overflow-Free Layouts:** Responsive layout engine with `WrapLayout` and viewport-tracking `ScrollablePanel` preventing control clipping on narrow viewports; separates record mutations (`tbRecordActions`) and data export/clipboard utilities (`tbDataTools`) across clean auto-wrapping rows with horizontal scroll fallback.
 * **Browse & Search:** Instantly view tables, select specific columns, filter data with a custom WHERE builder, and execute rapid text searches across entire tables.
 * **Data Operations:** A dedicated interface to safely build and execute structural and data changes:
   * Multi-column **UPDATE** and **UPDATE + JOIN** builder
