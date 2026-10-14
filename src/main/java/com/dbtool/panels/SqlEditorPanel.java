@@ -77,6 +77,9 @@ public class SqlEditorPanel extends JPanel {
         JButton runAllBtn = new JButton("▶▶ Run All");
         runAllBtn.setToolTipText("Run all statements in the editor (Ctrl+Shift+Enter)");
         JButton explainBtn = new JButton("⚡ Explain");
+        JButton profilerBtn = new JButton("⏱️ Profiler");
+        profilerBtn.setToolTipText("Open SQL Query Profiler & Latency Bottleneck Analyzer");
+        profilerBtn.addActionListener(e -> new QueryProfilerDialog(SwingUtilities.getWindowAncestor(this), dbManager, this::setEditorText).setVisible(true));
         JButton toJoinBtn = new JButton("🔀 To Visual Join");
         toJoinBtn.setToolTipText("Send current query or selection to Visual Join Builder");
         toJoinBtn.addActionListener(e -> {
@@ -161,6 +164,7 @@ public class SqlEditorPanel extends JPanel {
         toolbar.add(runBtn);
         toolbar.add(runAllBtn);
         toolbar.add(explainBtn);
+        toolbar.add(profilerBtn);
         toolbar.add(toJoinBtn);
         toolbar.add(snippetsBtn);
         toolbar.add(sandboxBtn);

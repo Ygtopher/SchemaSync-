@@ -207,9 +207,16 @@ public class ConnectionManagerDialog extends JDialog {
         pingAllBtn.setToolTipText("Test connectivity for all saved profiles in the background");
         pingAllBtn.addActionListener(e -> pingAllProfiles());
 
+        JButton vaultBtn = new JButton("🛡️ Vault");
+        vaultBtn.setFont(vaultBtn.getFont().deriveFont(11f));
+        vaultBtn.setMargin(new Insets(1, 5, 1, 5));
+        vaultBtn.setToolTipText("Manage Master Password, lock/unlock vault, export/import AES-256 encrypted profiles");
+        vaultBtn.addActionListener(e -> new VaultDialog(this, dbManager, this::loadProfiles).setVisible(true));
+
         leftButtons.add(addBtn);
         leftButtons.add(delBtn);
         leftButtons.add(pingAllBtn);
+        leftButtons.add(vaultBtn);
         listButtonsPanel.add(leftButtons, BorderLayout.WEST);
         
         countLabel = new JLabel("0 profiles");
@@ -703,7 +710,7 @@ public class ConnectionManagerDialog extends JDialog {
                     portField.setText(parts[1]);
                     userField.setText(parts[2]);
                     try {
-                        String decodedPass = new String(Base64.getDecoder().decode(parts[3]));
+                        String decodedPass = com.dbtool.util.CryptoUtil.decryptPassword(parts[3]);
                         passField.setText(decodedPass);
                     } catch (Exception ex) {}
                     dbNameField.setText(parts[4]);
@@ -787,7 +794,7 @@ public class ConnectionManagerDialog extends JDialog {
         String user = parts[2].trim();
         String pass = "";
         try {
-            pass = new String(Base64.getDecoder().decode(parts[3]));
+            pass = com.dbtool.util.CryptoUtil.decryptPassword(parts[3]);
         } catch (Exception ignored) {}
         String db = parts[4].trim();
 

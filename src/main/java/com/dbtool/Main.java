@@ -28,7 +28,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.5.1";
+    public static final String APP_VERSION = "1.6.0";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -355,8 +355,19 @@ public class Main extends JFrame {
                     tabbedPane.setSelectedComponent(sqlEditorPanel);
                 }).setVisible(true);
             });
+            JButton maskDataBtn = new JButton("🔒 Mask Data");
+            maskDataBtn.setToolTipText("Sensitive Data Masking & Anonymization Studio (GDPR/PII)");
+            maskDataBtn.addActionListener(e -> openDataMaskingDialog());
+
+            JButton profilerBtn = new JButton("⏱️ Profiler");
+            profilerBtn.setToolTipText("SQL Query Profiler & Latency Bottleneck Analyzer");
+            profilerBtn.addActionListener(e -> openQueryProfilerDialog());
+
             tbDataTools.add(templatesBtn);
             tbDataTools.add(cheatSheetBtn);
+            tbDataTools.add(new JLabel(" | "));
+            tbDataTools.add(maskDataBtn);
+            tbDataTools.add(profilerBtn);
     
             // Enable sorting on browseTable
             browseTable.setAutoCreateRowSorter(true);
@@ -3441,6 +3452,7 @@ public class Main extends JFrame {
     private SchemaPanel schemaPanel;
     private SqlEditorPanel sqlEditorPanel;
     private ErDiagramPanel erDiagramPanel;
+    private com.dbtool.panels.DashboardPanel dashboardPanel;
     private TableComparePanel tableComparePanel;
     private com.dbtool.panels.DualDatabaseComparePanel dualDbComparePanel;
     private ScriptBuilderPanel scriptBuilderPanel;
@@ -3583,6 +3595,10 @@ public class Main extends JFrame {
             public void onIndexAdvisor(String tableName) {
                 new com.dbtool.panels.IndexAdvisorDialog(Main.this, dbManager, tableName).setVisible(true);
             }
+            @Override
+            public void onMaskData(String tableName) {
+                new com.dbtool.panels.DataMaskingDialog(Main.this, dbManager, tableName).setVisible(true);
+            }
         });
         tableComparePanel = new TableComparePanel(dbManager);
         dualDbComparePanel = new com.dbtool.panels.DualDatabaseComparePanel(dbManager);
@@ -3591,7 +3607,7 @@ public class Main extends JFrame {
 
         // Schema panel: double-click loads table in browse
         schemaPanel.setOnTableSelected(tableName -> {
-            if (tabbedPane != null) tabbedPane.setSelectedIndex(0); // switch to browse tab
+            if (tabbedPane != null) tabbedPane.setSelectedComponent(browseTabContainer); // switch to browse tab
             if (loadedTables.contains(tableName) && browseTabContainer != null && !browseTabContainer.getTabs().isEmpty()) {
                 browseTabContainer.getTabs().get(0).setBrowseTableDropdownValue(tableName);
             }
@@ -3686,6 +3702,21 @@ public class Main extends JFrame {
         omniSearchBtn.addActionListener(e -> openOmniSearchDialog());
         topPanel.add(omniSearchBtn);
 
+        JButton dataMaskingBtn = new JButton("🔒 Data Masking");
+        dataMaskingBtn.setToolTipText("Sensitive Data Masking & Anonymization Studio (GDPR/PII)");
+        dataMaskingBtn.addActionListener(e -> openDataMaskingDialog());
+        topPanel.add(dataMaskingBtn);
+
+        JButton vaultBtn = new JButton("🛡️ Vault");
+        vaultBtn.setToolTipText("AES-256 Encrypted Credential Vault & Master Password Manager");
+        vaultBtn.addActionListener(e -> openVaultDialog());
+        topPanel.add(vaultBtn);
+
+        JButton profilerBtn = new JButton("⏱️ Profiler");
+        profilerBtn.setToolTipText("SQL Query Profiler & Latency Bottleneck Analyzer");
+        profilerBtn.addActionListener(e -> openQueryProfilerDialog());
+        topPanel.add(profilerBtn);
+
         JButton themeBtn = new JButton("🌙 Dark Mode");
         themeBtn.addActionListener(e -> com.dbtool.util.ThemeManager.toggleTheme(themeBtn));
         topPanel.add(themeBtn);
@@ -3709,6 +3740,21 @@ public class Main extends JFrame {
         tabbedPane = new JTabbedPane();
         tabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
         tabbedPane.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
+
+        dashboardPanel = new com.dbtool.panels.DashboardPanel(
+            dbManager,
+            this::openTableInBrowse,
+            this::openIndexAdvisorDialog,
+            () -> tabbedPane.setSelectedComponent(erDiagramPanel),
+            this::openSchemaDriftDialog,
+            this::openOmniSearchDialog,
+            this::openDataMaskingDialog,
+            this::openVaultDialog,
+            this::openDataImportDialog,
+            this::openMockDataDialog
+        );
+        tabbedPane.addTab("🏠 Dashboard", dashboardPanel);
+
         browseTabContainer = new com.dbtool.panels.MultiTabContainer<>("Browse", () -> {
             BrowseTab tab = new BrowseTab();
             tab.refreshTables();
@@ -3743,6 +3789,8 @@ public class Main extends JFrame {
                 String title = tabbedPane.getTitleAt(selectedIndex);
                 if ("ER Diagram".equals(title) && erDiagramPanel != null) {
                     erDiagramPanel.checkAndRefresh();
+                } else if ("🏠 Dashboard".equals(title) && dashboardPanel != null) {
+                    dashboardPanel.refresh();
                 }
             }
         });
@@ -3930,7 +3978,7 @@ public class Main extends JFrame {
 
     public void jumpToTableRow(String tableName, String columnName, Object matchedValue, Map<String, Object> pks) {
         if (tabbedPane != null) {
-            tabbedPane.setSelectedIndex(0); // Browse & Search
+            tabbedPane.setSelectedComponent(browseTabContainer); // Browse & Search
         }
         if (browseTabContainer != null) {
             BrowseTab activeTab = browseTabContainer.getActiveTab();
@@ -3945,7 +3993,7 @@ public class Main extends JFrame {
 
     public void openTableInBrowse(String tableName) {
         if (tabbedPane != null) {
-            tabbedPane.setSelectedIndex(0); // Browse & Search
+            tabbedPane.setSelectedComponent(browseTabContainer); // Browse & Search
         }
         if (browseTabContainer != null) {
             BrowseTab activeTab = browseTabContainer.getActiveTab();
@@ -3956,6 +4004,76 @@ public class Main extends JFrame {
         }
         toFront();
         requestFocus();
+    }
+
+    public String getActiveBrowseTable() {
+        if (browseTabContainer != null && browseTabContainer.getActiveTab() != null) {
+            return (String) browseTabContainer.getActiveTab().browseTableDropdown.getSelectedItem();
+        }
+        return null;
+    }
+
+    public void openDataMaskingDialog() {
+        if (dbManager.connection == null) {
+            JOptionPane.showMessageDialog(this, "Please connect to a database first to use Data Masking.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        String tbl = getActiveBrowseTable();
+        new com.dbtool.panels.DataMaskingDialog(this, dbManager, tbl).setVisible(true);
+    }
+
+    public void openIndexAdvisorDialog() {
+        if (dbManager.connection == null) {
+            JOptionPane.showMessageDialog(this, "Please connect to a database first to analyze indexes.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        String tbl = getActiveBrowseTable();
+        new com.dbtool.panels.IndexAdvisorDialog(this, dbManager, tbl).setVisible(true);
+    }
+
+    public void openMockDataDialog() {
+        if (dbManager.connection == null) {
+            JOptionPane.showMessageDialog(this, "Please connect to a database first to generate mock data.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        String tbl = getActiveBrowseTable();
+        new com.dbtool.panels.MockDataGeneratorDialog(this, dbManager, tbl, () -> {
+            if (browseTabContainer != null && browseTabContainer.getActiveTab() != null) {
+                browseTabContainer.getActiveTab().loadTableData();
+            }
+        }).setVisible(true);
+    }
+
+    public void openDataImportDialog() {
+        if (dbManager.connection == null) {
+            JOptionPane.showMessageDialog(this, "Please connect to a database first to import data.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        String tbl = getActiveBrowseTable();
+        new com.dbtool.panels.DataImporterDialog(this, dbManager, tbl, () -> {
+            if (browseTabContainer != null && browseTabContainer.getActiveTab() != null) {
+                browseTabContainer.getActiveTab().loadTableData();
+            }
+        }).setVisible(true);
+    }
+
+    public void openVaultDialog() {
+        new com.dbtool.panels.VaultDialog(this, dbManager, null).setVisible(true);
+    }
+
+    public void openQueryProfilerDialog() {
+        new com.dbtool.panels.QueryProfilerDialog(this, dbManager, sql -> {
+            tabbedPane.setSelectedComponent(sqlEditorPanel);
+            sqlEditorPanel.setEditorText(sql);
+        }).setVisible(true);
+    }
+
+    public void openSchemaDriftDialog() {
+        if (dbManager.connection == null) {
+            JOptionPane.showMessageDialog(this, "Please connect to a database first to inspect schema drift.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        new com.dbtool.panels.SchemaDriftDialog(this, dbManager).setVisible(true);
     }
 
     private void onAutoSaved(String timeStr) {
@@ -4315,6 +4433,7 @@ public class Main extends JFrame {
         
         schemaPanel.refresh();
         if (erDiagramPanel != null) erDiagramPanel.refresh(null, null);
+        if (dashboardPanel != null) dashboardPanel.refresh();
         tableComparePanel.refreshTables();
         if (dataOpsPanel != null) dataOpsPanel.refreshTables();
         
@@ -4357,6 +4476,7 @@ public class Main extends JFrame {
         }
         schemaPanel.refresh();
         if (erDiagramPanel != null) erDiagramPanel.markNeedsRefresh(dbManager);
+        if (dashboardPanel != null) dashboardPanel.refresh();
     }
 
     private void connectExistingDatabase() {

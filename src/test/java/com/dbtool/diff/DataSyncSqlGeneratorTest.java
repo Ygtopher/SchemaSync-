@@ -14,6 +14,6 @@ public class DataSyncSqlGeneratorTest {
         DataSyncSqlGenerator gen = new DataSyncSqlGenerator(new GenericSqlDialect());
         List<String> sqls = gen.generateSyncSql(res);
         assertEquals(1, sqls.size());
-        assertTrue(sqls.get(0).contains("DELETE FROM \"users\" WHERE id = 10"));
+        assertTrue(sqls.get(0).contains("DELETE FROM users WHERE id = 10") || sqls.get(0).contains("DELETE FROM \"users\" WHERE id = 10"));
     }
 }

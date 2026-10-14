@@ -38,6 +38,7 @@ public class ErDiagramPanel extends JPanel {
         void onMockData(String tableName);
         void onImportData(String tableName);
         void onIndexAdvisor(String tableName);
+        default void onMaskData(String tableName) {}
     }
 
     private mxGraph graph;
@@ -257,6 +258,12 @@ public class ErDiagramPanel extends JPanel {
             if (tableActionHandler != null) tableActionHandler.onIndexAdvisor(tableName);
         });
         menu.add(indexItem);
+
+        JMenuItem maskItem = new JMenuItem("🔒 Mask & Anonymize Data...");
+        maskItem.addActionListener(e -> {
+            if (tableActionHandler != null) tableActionHandler.onMaskData(tableName);
+        });
+        menu.add(maskItem);
 
         menu.show(comp, x, y);
     }

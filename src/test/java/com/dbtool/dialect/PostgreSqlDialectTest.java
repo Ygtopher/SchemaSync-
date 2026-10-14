@@ -10,7 +10,8 @@ public class PostgreSqlDialectTest {
 
     @Test
     void testQuoting() {
-        assertEquals("\"users\"", dialect.quoteIdentifier("users"));
+        assertEquals("users", dialect.quoteIdentifier("users"));
+        assertEquals("\"user\"", dialect.quoteIdentifier("user"));
         assertEquals("\"order\"\"item\"", dialect.quoteIdentifier("order\"item"));
     }
 

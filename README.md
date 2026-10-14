@@ -1,6 +1,6 @@
 # SchemaSync
 
-**Version:** 1.5.1  
+**Version:** 1.6.0  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -9,6 +9,10 @@ SchemaSync is a high-performance, lightweight Java database synchronization and 
 ## Key Features
 
 * **Multi-Database Support:** Connect directly to **PostgreSQL**, **MySQL**, **SQLite** (.sqlite / .db), **MS Access** (.accdb), or standard SQL dump files.
+* **🏠 Database Overview & Live Health Dashboard:** Executive telemetry tab providing real-time database engine and connection metrics, ping latency (ms), catalog inventory counts, proportional storage distribution across the Top 10 largest tables with live percentage meters, and a 1-click executive launchpad.
+* **🔒 Sensitive Data Masking & Anonymization Studio:** GDPR and HIPAA-compliant data sanitization workbench with smart auto-detection of PII (emails, phone numbers, credit card accounts, real names, salaries). Offers side-by-side live dual-grid preview and multi-format export to CSV, Excel (`.xlsx`), and atomic SQL `INSERT` statements.
+* **🛡️ Enterprise AES-256-GCM Encrypted Credential Vault:** Military-grade AES-256-GCM authenticated encryption with PBKDF2-HMAC-SHA256 key derivation (100,000 rounds). Supports optional zero-knowledge Master Password protection, in-memory vault lock/unlock, and secure password-protected `.schemasync.vault` bundle export/import for teams.
+* **⏱️ SQL Query Profiler & Bottleneck Analyzer:** Real-time query execution monitoring with millisecond latency tracking, color-coded bottleneck alerts (`> 100ms` warning, `> 500ms` critical), 1-click `EXPLAIN` and `EXPLAIN ANALYZE` execution plan visualization, and CSV export.
 * **📐 Interactive ER Diagram & Architecture Visualizer:** High-contrast zoomable and pannable diagram canvas displaying rich table cards with `[PK]`, `[FK]`, data types, and column counts. Includes high-resolution **PNG image export**, **Mermaid.js Markdown ERD generation**, dynamic layout engines (Hierarchical, Organic, Circular), and interactive double-click/right-click table navigation.
 * **⚡ Database Performance & Index Advisor:** Detects critical unindexed foreign keys causing full-table scans during JOINs and row locks during parent deletes, detects redundant composite indexes to save disk space and RAM, flags missing primary keys, and recommends high-cardinality candidate search indexes with 1-click execution.
 * **📐 Schema Snapshot, Drift & Migration Studio:** Capture portable `.schema.json` snapshots of your live database, compare against baselines to detect schema drift across environments, and generate atomic reversible **UP** and **DOWN** migration DDL scripts with **Dry-Run transaction testing**.

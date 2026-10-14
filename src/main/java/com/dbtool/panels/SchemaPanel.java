@@ -306,6 +306,13 @@ public class SchemaPanel extends JPanel {
         });
         menu.add(indexAdvisorItem);
 
+        JMenuItem maskDataItem = new JMenuItem("🔒 Mask & Anonymize Data...");
+        maskDataItem.addActionListener(ev -> {
+            Frame owner = (Frame) SwingUtilities.getWindowAncestor(this);
+            new DataMaskingDialog(owner, dbManager, tbl).setVisible(true);
+        });
+        menu.add(maskDataItem);
+
         menu.show(tree, e.getX(), e.getY());
     }
 }

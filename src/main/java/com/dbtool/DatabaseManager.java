@@ -1151,7 +1151,7 @@ public class DatabaseManager {
             } catch (Exception e) {}
         }
         
-        String encodedPass = java.util.Base64.getEncoder().encodeToString(pass.getBytes());
+        String encodedPass = com.dbtool.util.CryptoUtil.encryptPassword(pass);
         String val = host + ";" + port + ";" + user + ";" + encodedPass + ";" + dbName;
         props.setProperty(profileName, val);
         

@@ -14,7 +14,7 @@ public class JdbcUrlBuilderTest {
         cfg.setHost("dbserver");
         cfg.setPort(5433);
         cfg.setDatabaseName("analytics");
-        assertEquals("jdbc:postgresql://dbserver:5433/analytics", JdbcUrlBuilder.buildUrl(cfg));
+        assertEquals("jdbc:postgresql://dbserver:5433/analytics?tcpKeepAlive=true&gssEncMode=disable", JdbcUrlBuilder.buildUrl(cfg));
     }
 
     @Test
