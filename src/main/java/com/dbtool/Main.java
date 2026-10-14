@@ -28,7 +28,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.4.0";
+    public static final String APP_VERSION = "1.5.0";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -213,9 +213,13 @@ public class Main extends JFrame {
             importDataBtn.addActionListener(e -> openDataImportDialog());
             mockDataBtn.addActionListener(e -> openMockDataDialog());
             codeGenBtn.addActionListener(e -> openCodeGenDialog());
+            JButton indexAdvisorBtn = new JButton("⚡ Index Advisor");
+            indexAdvisorBtn.setToolTipText("Analyze unindexed foreign keys, redundant indexes, and bloat for this table");
+            indexAdvisorBtn.addActionListener(e -> openIndexAdvisorDialog());
             tbActions.add(importDataBtn);
             tbActions.add(mockDataBtn);
             tbActions.add(codeGenBtn);
+            tbActions.add(indexAdvisorBtn);
             tbActions.addSeparator();
             
             JCheckBox autoCommitCheck = new JCheckBox("Auto-Commit", true);
@@ -436,6 +440,10 @@ public class Main extends JFrame {
                 JMenuItem importDataMenuItem = new JMenuItem("📥 Import Data (CSV / Excel)...");
                 importDataMenuItem.addActionListener(e -> openDataImportDialog());
                 tableMenu.add(importDataMenuItem);
+
+                JMenuItem indexAdvisorMenuItem = new JMenuItem("⚡ Table Index & Performance Advisor...");
+                indexAdvisorMenuItem.addActionListener(e -> openIndexAdvisorDialog());
+                tableMenu.add(indexAdvisorMenuItem);
             }
 
             browseTable.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -848,6 +856,11 @@ public class Main extends JFrame {
     private void openDataImportDialog() {
         String tbl = (String) browseTableDropdown.getSelectedItem();
         new com.dbtool.panels.DataImporterDialog(Main.this, dbManager, tbl, this::loadTableData).setVisible(true);
+    }
+
+    private void openIndexAdvisorDialog() {
+        String tbl = (String) browseTableDropdown.getSelectedItem();
+        new com.dbtool.panels.IndexAdvisorDialog(Main.this, dbManager, tbl).setVisible(true);
     }
 
     private void openColumnSelector() {
@@ -3518,6 +3531,36 @@ public class Main extends JFrame {
             if (erDiagramPanel != null) erDiagramPanel.markNeedsRefresh(dbManager);
         });
         erDiagramPanel = new ErDiagramPanel();
+        erDiagramPanel.setTableActionHandler(new ErDiagramPanel.TableActionHandler() {
+            @Override
+            public void onOpenTable(String tableName) {
+                openTableInBrowse(tableName);
+            }
+            @Override
+            public void onGenerateCode(String tableName) {
+                new com.dbtool.panels.EntityCodeGeneratorDialog(Main.this, dbManager, tableName).setVisible(true);
+            }
+            @Override
+            public void onMockData(String tableName) {
+                new com.dbtool.panels.MockDataGeneratorDialog(Main.this, dbManager, tableName, () -> {
+                    if (browseTabContainer != null && browseTabContainer.getActiveTab() != null) {
+                        browseTabContainer.getActiveTab().loadTableData();
+                    }
+                }).setVisible(true);
+            }
+            @Override
+            public void onImportData(String tableName) {
+                new com.dbtool.panels.DataImporterDialog(Main.this, dbManager, tableName, () -> {
+                    if (browseTabContainer != null && browseTabContainer.getActiveTab() != null) {
+                        browseTabContainer.getActiveTab().loadTableData();
+                    }
+                }).setVisible(true);
+            }
+            @Override
+            public void onIndexAdvisor(String tableName) {
+                new com.dbtool.panels.IndexAdvisorDialog(Main.this, dbManager, tableName).setVisible(true);
+            }
+        });
         tableComparePanel = new TableComparePanel(dbManager);
         dualDbComparePanel = new com.dbtool.panels.DualDatabaseComparePanel(dbManager);
         scriptBuilderPanel = new ScriptBuilderPanel(dbManager);
@@ -3592,6 +3635,28 @@ public class Main extends JFrame {
             new com.dbtool.panels.DatabaseAuditorDialog(this, dbManager).setVisible(true);
         });
         topPanel.add(auditDbBtn);
+
+        JButton indexAdvisorBtn = new JButton("⚡ Index Advisor");
+        indexAdvisorBtn.setToolTipText("Database Performance & Index Optimization Advisor (Unindexed FKs, Redundant Indexes, Search Candidates)");
+        indexAdvisorBtn.addActionListener(e -> {
+            if (dbManager.connection == null) {
+                JOptionPane.showMessageDialog(this, "Please connect to a database first to analyze indexes.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            new com.dbtool.panels.IndexAdvisorDialog(this, dbManager).setVisible(true);
+        });
+        topPanel.add(indexAdvisorBtn);
+
+        JButton schemaDriftBtn = new JButton("📐 Schema Drift");
+        schemaDriftBtn.setToolTipText("Schema Snapshot, Drift Detector & Migration Studio");
+        schemaDriftBtn.addActionListener(e -> {
+            if (dbManager.connection == null) {
+                JOptionPane.showMessageDialog(this, "Please connect to a database first to inspect schema drift.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            new com.dbtool.panels.SchemaDriftDialog(this, dbManager).setVisible(true);
+        });
+        topPanel.add(schemaDriftBtn);
 
         JButton omniSearchBtn = new JButton("🔍 OmniSearch");
         omniSearchBtn.setToolTipText("Global Database Search across all tables (Ctrl+Shift+F)");
@@ -3841,6 +3906,21 @@ public class Main extends JFrame {
     }
 
     public void jumpToTableRow(String tableName, String columnName, Object matchedValue, Map<String, Object> pks) {
+        if (tabbedPane != null) {
+            tabbedPane.setSelectedIndex(0); // Browse & Search
+        }
+        if (browseTabContainer != null) {
+            BrowseTab activeTab = browseTabContainer.getActiveTab();
+            if (activeTab != null) {
+                activeTab.browseTableDropdown.setSelectedItem(tableName);
+                activeTab.loadTableData();
+            }
+        }
+        toFront();
+        requestFocus();
+    }
+
+    public void openTableInBrowse(String tableName) {
         if (tabbedPane != null) {
             tabbedPane.setSelectedIndex(0); // Browse & Search
         }

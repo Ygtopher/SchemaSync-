@@ -299,6 +299,13 @@ public class SchemaPanel extends JPanel {
         });
         menu.add(importItem);
 
+        JMenuItem indexAdvisorItem = new JMenuItem("⚡ Table Index & Performance Advisor...");
+        indexAdvisorItem.addActionListener(ev -> {
+            Frame owner = (Frame) SwingUtilities.getWindowAncestor(this);
+            new IndexAdvisorDialog(owner, dbManager, tbl).setVisible(true);
+        });
+        menu.add(indexAdvisorItem);
+
         menu.show(tree, e.getX(), e.getY());
     }
 }

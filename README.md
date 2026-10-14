@@ -1,6 +1,6 @@
 # SchemaSync
 
-**Version:** 1.4.0  
+**Version:** 1.5.0  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -9,6 +9,9 @@ SchemaSync is a high-performance, lightweight Java database synchronization and 
 ## Key Features
 
 * **Multi-Database Support:** Connect directly to **PostgreSQL**, **MySQL**, **SQLite** (.sqlite / .db), **MS Access** (.accdb), or standard SQL dump files.
+* **📐 Interactive ER Diagram & Architecture Visualizer:** High-contrast zoomable and pannable diagram canvas displaying rich table cards with `[PK]`, `[FK]`, data types, and column counts. Includes high-resolution **PNG image export**, **Mermaid.js Markdown ERD generation**, dynamic layout engines (Hierarchical, Organic, Circular), and interactive double-click/right-click table navigation.
+* **⚡ Database Performance & Index Advisor:** Detects critical unindexed foreign keys causing full-table scans during JOINs and row locks during parent deletes, detects redundant composite indexes to save disk space and RAM, flags missing primary keys, and recommends high-cardinality candidate search indexes with 1-click execution.
+* **📐 Schema Snapshot, Drift & Migration Studio:** Capture portable `.schema.json` snapshots of your live database, compare against baselines to detect schema drift across environments, and generate atomic reversible **UP** and **DOWN** migration DDL scripts with **Dry-Run transaction testing**.
 * **💻 Instant ORM & Entity Code Generator:** Right-click any table or click 'Generate Code' to instantly produce production-ready backend models for **Spring Boot JPA (`@Entity`)**, **Java Records (17/21)**, **TypeScript Prisma Schema**, **TypeScript Drizzle ORM**, **Python SQLAlchemy**, **Python Pydantic (v2)**, and **C# .NET EF Core**.
 * **📥 Smart Drag-and-Drop CSV & Excel Importer:** Drag & drop or browse `.csv`, `.tsv`, or `.xlsx` files with automatic column mapping, first-20-rows preview, batch inserts, and single-transaction rollback safety.
 * **🧪 Synthetic Realistic Mock Data Generator:** Generate 10 to 10,000 realistic sample records (Names, Emails, Phones, Dates, Balances, UUIDs) that automatically sample valid foreign keys from referenced parent tables to prevent constraint violations.
