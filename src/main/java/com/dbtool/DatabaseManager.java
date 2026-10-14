@@ -3,9 +3,7 @@ package com.dbtool;
 import javax.swing.table.DefaultTableModel;
 import java.io.*;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Vector;
+import java.util.*;
 import java.util.zip.GZIPInputStream;
 import javax.swing.filechooser.FileSystemView;
 
@@ -1084,4 +1082,416 @@ public class DatabaseManager {
         }
         return props;
     }
+
+    // =========================================================================
+    // Tier 1: Recursive Foreign Key Dependency & Cascade Deletion Engine
+    // =========================================================================
+
+    public static class ExportedForeignKey {
+        public String fkName;
+        public String childSchema;
+        public String childTable;
+        public List<String> childColumns = new ArrayList<>();
+        public String parentSchema;
+        public String parentTable;
+        public List<String> parentColumns = new ArrayList<>();
+
+        @Override
+        public String toString() {
+            return childTable + "(" + String.join(", ", childColumns) + ") -> " + parentTable + "(" + String.join(", ", parentColumns) + ")";
+        }
+    }
+
+    public static class CascadeRowNode {
+        public String tableName;
+        public Map<String, Object> keyValues = new LinkedHashMap<>();
+        public Map<String, Object> allRowValues = new LinkedHashMap<>();
+        public String relationReason;
+        public List<CascadeRowNode> children = new ArrayList<>();
+        public int depth = 0;
+
+        public String getDisplayLabel() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(tableName).append(" (");
+            if (!keyValues.isEmpty()) {
+                boolean first = true;
+                for (Map.Entry<String, Object> e : keyValues.entrySet()) {
+                    if (!first) sb.append(", ");
+                    first = false;
+                    sb.append(e.getKey()).append("=").append(e.getValue());
+                }
+            } else {
+                sb.append("Row");
+            }
+            sb.append(")");
+            return sb.toString();
+        }
+    }
+
+    public static class PreparedDelete {
+        public String tableName;
+        public String sql;
+        public List<Object> params;
+        public String previewSql;
+
+        public PreparedDelete(String tableName, String sql, List<Object> params, String previewSql) {
+            this.tableName = tableName;
+            this.sql = sql;
+            this.params = params;
+            this.previewSql = previewSql;
+        }
+    }
+
+    public static class CascadePlan {
+        public String rootTable;
+        public List<CascadeRowNode> rootNodes = new ArrayList<>();
+        public int totalRows = 0;
+        public Map<String, Integer> tableCounts = new LinkedHashMap<>();
+        public List<PreparedDelete> executableDeletes = new ArrayList<>();
+        public String fullScript = "";
+    }
+
+    public List<ExportedForeignKey> getExportedForeignKeys(String parentTable) {
+        List<ExportedForeignKey> result = new ArrayList<>();
+        if (connection == null || parentTable == null) return result;
+
+        String rawTable = parentTable;
+        String schema = null;
+        if (parentTable.contains(".")) {
+            String[] parts = parentTable.split("\\.", 2);
+            schema = parts[0];
+            rawTable = parts[1];
+        }
+
+        try {
+            DatabaseMetaData meta = connection.getMetaData();
+            Map<String, ExportedForeignKey> fkMap = new LinkedHashMap<>();
+
+            java.util.function.Consumer<ResultSet> collector = (rs) -> {
+                try {
+                    while (rs.next()) {
+                        String fkTableSchem = rs.getString("FKTABLE_SCHEM");
+                        String fkTableName = rs.getString("FKTABLE_NAME");
+                        String fkCol = rs.getString("FKCOLUMN_NAME");
+                        String pkCol = rs.getString("PKCOLUMN_NAME");
+                        String fkName = rs.getString("FK_NAME");
+
+                        String childFullTable = (fkTableSchem != null && !fkTableSchem.equalsIgnoreCase("public") && !fkTableSchem.isEmpty())
+                                ? fkTableSchem + "." + fkTableName
+                                : fkTableName;
+
+                        String key = childFullTable + "::" + (fkName != null ? fkName : "fk_" + childFullTable);
+                        ExportedForeignKey efk = fkMap.computeIfAbsent(key, k -> {
+                            ExportedForeignKey obj = new ExportedForeignKey();
+                            obj.fkName = fkName;
+                            obj.childSchema = fkTableSchem;
+                            obj.childTable = childFullTable;
+                            obj.parentTable = parentTable;
+                            return obj;
+                        });
+                        if (!efk.childColumns.contains(fkCol)) {
+                            efk.childColumns.add(fkCol);
+                            efk.parentColumns.add(pkCol);
+                        }
+                    }
+                } catch (Exception e) {}
+            };
+
+            // 1. Try with schema
+            if (schema != null) {
+                try (ResultSet rs = meta.getExportedKeys(null, schema, rawTable)) {
+                    collector.accept(rs);
+                }
+            }
+
+            // 2. Try without schema
+            if (fkMap.isEmpty()) {
+                try (ResultSet rs = meta.getExportedKeys(null, null, rawTable)) {
+                    collector.accept(rs);
+                }
+            }
+
+            // 3. Try uppercase
+            if (fkMap.isEmpty()) {
+                try (ResultSet rs = meta.getExportedKeys(null, null, rawTable.toUpperCase())) {
+                    collector.accept(rs);
+                }
+            }
+
+            // 4. Try lowercase
+            if (fkMap.isEmpty()) {
+                try (ResultSet rs = meta.getExportedKeys(null, null, rawTable.toLowerCase())) {
+                    collector.accept(rs);
+                }
+            }
+
+            // 5. Fallback for SQLite via PRAGMA foreign_key_list
+            if (fkMap.isEmpty() && isSQLite()) {
+                List<String> allTables = getTableNames();
+                for (String t : allTables) {
+                    try (Statement stmt = connection.createStatement();
+                         ResultSet rs = stmt.executeQuery("PRAGMA foreign_key_list(" + quoteTableName(t) + ")")) {
+                        while (rs.next()) {
+                            String targetTbl = rs.getString("table");
+                            if (targetTbl != null && targetTbl.equalsIgnoreCase(rawTable)) {
+                                String fkId = rs.getString("id");
+                                String fromCol = rs.getString("from");
+                                String toCol = rs.getString("to");
+                                String key = t + "::fk_" + fkId;
+                                ExportedForeignKey efk = fkMap.computeIfAbsent(key, k -> {
+                                    ExportedForeignKey obj = new ExportedForeignKey();
+                                    obj.fkName = "fk_" + t + "_" + fkId;
+                                    obj.childTable = t;
+                                    obj.parentTable = parentTable;
+                                    return obj;
+                                });
+                                efk.childColumns.add(fromCol);
+                                efk.parentColumns.add(toCol);
+                            }
+                        }
+                    } catch (Exception ex) {}
+                }
+            }
+
+            result.addAll(fkMap.values());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    public CascadePlan buildCascadePlan(String rootTable, List<Map<String, Object>> targetRows) {
+        CascadePlan plan = new CascadePlan();
+        plan.rootTable = rootTable;
+        if (connection == null || rootTable == null || targetRows == null || targetRows.isEmpty()) {
+            return plan;
+        }
+
+        Set<String> visitedRows = new HashSet<>();
+        List<String> rootPks = getPrimaryKeys(rootTable);
+
+        for (Map<String, Object> targetRow : targetRows) {
+            CascadeRowNode rootNode = new CascadeRowNode();
+            rootNode.tableName = rootTable;
+            rootNode.allRowValues.putAll(targetRow);
+            rootNode.depth = 0;
+            rootNode.relationReason = "Target record to delete";
+
+            // Extract PK values if available, else all values
+            if (!rootPks.isEmpty()) {
+                for (String pk : rootPks) {
+                    for (Map.Entry<String, Object> entry : targetRow.entrySet()) {
+                        String clean = entry.getKey().contains(".") ? entry.getKey().split("\\.", 2)[1] : entry.getKey();
+                        if (clean.equalsIgnoreCase(pk)) {
+                            rootNode.keyValues.put(pk, entry.getValue());
+                            break;
+                        }
+                    }
+                }
+            }
+            if (rootNode.keyValues.isEmpty()) {
+                rootNode.keyValues.putAll(targetRow);
+            }
+
+            String fingerprint = rootTable + "::" + rootNode.keyValues.toString();
+            visitedRows.add(fingerprint);
+            plan.rootNodes.add(rootNode);
+
+            // Recursively discover referencing child rows
+            inspectChildDependencies(rootNode, visitedRows, 1);
+        }
+
+        // Collect in bottom-up (reverse topological) order:
+        // Children must be deleted BEFORE parents.
+        List<CascadeRowNode> deletionOrder = new ArrayList<>();
+        Set<String> collectedRows = new HashSet<>();
+        for (CascadeRowNode root : plan.rootNodes) {
+            collectBottomUpNodes(root, deletionOrder, collectedRows);
+        }
+
+        plan.totalRows = deletionOrder.size();
+        for (CascadeRowNode node : deletionOrder) {
+            plan.tableCounts.put(node.tableName, plan.tableCounts.getOrDefault(node.tableName, 0) + 1);
+        }
+
+        // Build executable prepared deletes and readable preview script
+        StringBuilder script = new StringBuilder();
+        script.append("-- ==========================================================\n");
+        script.append("-- SchemaSync Safe Cascade Deletion Transaction Script\n");
+        script.append("-- Generated: ").append(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date())).append("\n");
+        script.append("-- Total Records Affected: ").append(plan.totalRows).append(" across ").append(plan.tableCounts.size()).append(" table(s)\n");
+        script.append("-- Root Target Table: ").append(rootTable).append("\n");
+        script.append("-- Execution Order: Strict Reverse-Dependency (Children First)\n");
+        script.append("-- ==========================================================\n\n");
+
+        if (isPostgres() || isSQLite()) {
+            script.append("BEGIN TRANSACTION;\n\n");
+        } else if (isMySQL()) {
+            script.append("START TRANSACTION;\n\n");
+        }
+
+        int step = 1;
+        for (CascadeRowNode node : deletionOrder) {
+            StringBuilder sql = new StringBuilder("DELETE FROM ").append(quoteTableName(node.tableName)).append(" WHERE ");
+            StringBuilder preview = new StringBuilder("DELETE FROM ").append(quoteTableName(node.tableName)).append(" WHERE ");
+            List<Object> params = new ArrayList<>();
+
+            boolean first = true;
+            for (Map.Entry<String, Object> entry : node.keyValues.entrySet()) {
+                if (!first) {
+                    sql.append(" AND ");
+                    preview.append(" AND ");
+                }
+                first = false;
+                sql.append(quoteColumnName(entry.getKey()));
+                preview.append(quoteColumnName(entry.getKey()));
+
+                Object val = entry.getValue();
+                if (val == null) {
+                    sql.append(" IS NULL");
+                    preview.append(" IS NULL");
+                } else {
+                    sql.append(" = ?");
+                    params.add(val);
+                    if (val instanceof Number) {
+                        preview.append(" = ").append(val);
+                    } else {
+                        preview.append(" = '").append(val.toString().replace("'", "''")).append("'");
+                    }
+                }
+            }
+            sql.append(";");
+            preview.append(";");
+
+            script.append("-- Step ").append(step++).append(": ").append(node.relationReason).append("\n");
+            script.append(preview.toString()).append("\n\n");
+
+            plan.executableDeletes.add(new PreparedDelete(node.tableName, sql.toString().replace(";", ""), params, preview.toString()));
+        }
+
+        script.append("COMMIT;\n");
+        plan.fullScript = script.toString();
+
+        return plan;
+    }
+
+    private void inspectChildDependencies(CascadeRowNode parentNode, Set<String> visitedRows, int depth) {
+        if (depth > 10) return; // Guard against pathological depth
+        List<ExportedForeignKey> exportedFks = getExportedForeignKeys(parentNode.tableName);
+
+        for (ExportedForeignKey efk : exportedFks) {
+            boolean matchable = true;
+            List<Object> matchParams = new ArrayList<>();
+            StringBuilder where = new StringBuilder();
+
+            for (int i = 0; i < efk.parentColumns.size(); i++) {
+                String parentCol = efk.parentColumns.get(i);
+                String childCol = efk.childColumns.get(i);
+
+                Object parentVal = null;
+                for (Map.Entry<String, Object> e : parentNode.allRowValues.entrySet()) {
+                    String cleanKey = e.getKey().contains(".") ? e.getKey().split("\\.", 2)[1] : e.getKey();
+                    if (cleanKey.equalsIgnoreCase(parentCol)) {
+                        parentVal = e.getValue();
+                        break;
+                    }
+                }
+                if (parentVal == null) {
+                    matchable = false;
+                    break;
+                }
+
+                if (i > 0) where.append(" AND ");
+                where.append(quoteColumnName(childCol)).append(" = ?");
+                matchParams.add(parentVal);
+            }
+
+            if (!matchable || matchParams.isEmpty()) continue;
+
+            String query = "SELECT * FROM " + quoteTableName(efk.childTable) + " WHERE " + where.toString();
+            try (PreparedStatement pstmt = connection.prepareStatement(query)) {
+                for (int p = 0; p < matchParams.size(); p++) {
+                    pstmt.setObject(p + 1, matchParams.get(p));
+                }
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    ResultSetMetaData md = rs.getMetaData();
+                    int colCount = md.getColumnCount();
+                    List<String> childPks = getPrimaryKeys(efk.childTable);
+
+                    while (rs.next()) {
+                        CascadeRowNode childNode = new CascadeRowNode();
+                        childNode.tableName = efk.childTable;
+                        childNode.depth = depth;
+                        childNode.relationReason = "Referenced by " + efk.childTable + "(" + String.join(", ", efk.childColumns) + ") -> " + parentNode.tableName;
+
+                        for (int c = 1; c <= colCount; c++) {
+                            String colName = md.getColumnName(c);
+                            Object colVal = rs.getObject(c);
+                            childNode.allRowValues.put(colName, colVal);
+                        }
+
+                        if (!childPks.isEmpty()) {
+                            for (String pk : childPks) {
+                                for (Map.Entry<String, Object> entry : childNode.allRowValues.entrySet()) {
+                                    if (entry.getKey().equalsIgnoreCase(pk)) {
+                                        childNode.keyValues.put(pk, entry.getValue());
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (childNode.keyValues.isEmpty()) {
+                            childNode.keyValues.putAll(childNode.allRowValues);
+                        }
+
+                        String fingerprint = childNode.tableName + "::" + childNode.keyValues.toString();
+                        if (!visitedRows.contains(fingerprint)) {
+                            visitedRows.add(fingerprint);
+                            parentNode.children.add(childNode);
+                            // Recurse to find grandchildren
+                            inspectChildDependencies(childNode, visitedRows, depth + 1);
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                // If child query fails, skip gracefully
+            }
+        }
+    }
+
+    private void collectBottomUpNodes(CascadeRowNode node, List<CascadeRowNode> list, Set<String> collected) {
+        for (CascadeRowNode child : node.children) {
+            collectBottomUpNodes(child, list, collected);
+        }
+        String fingerprint = node.tableName + "::" + node.keyValues.toString();
+        if (!collected.contains(fingerprint)) {
+            collected.add(fingerprint);
+            list.add(node);
+        }
+    }
+
+    public void executeCascadePlan(CascadePlan plan) throws SQLException {
+        if (connection == null) throw new SQLException("Not connected to a database.");
+        boolean origAutoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+        try {
+            for (PreparedDelete pd : plan.executableDeletes) {
+                try (PreparedStatement pstmt = connection.prepareStatement(pd.sql)) {
+                    for (int i = 0; i < pd.params.size(); i++) {
+                        pstmt.setObject(i + 1, pd.params.get(i));
+                    }
+                    pstmt.executeUpdate();
+                }
+            }
+            connection.commit();
+        } catch (SQLException ex) {
+            connection.rollback();
+            throw ex;
+        } finally {
+            try {
+                connection.setAutoCommit(origAutoCommit);
+            } catch (Exception e) {}
+        }
+    }
 }
+

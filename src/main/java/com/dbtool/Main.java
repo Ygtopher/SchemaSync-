@@ -12,6 +12,7 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.sql.SQLException;
@@ -27,7 +28,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.2.1";
+    public static final String APP_VERSION = "1.3.0";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -188,15 +189,19 @@ public class Main extends JFrame {
             JButton insertRowBtn = new JButton("➕ Insert Row");
             JButton updateRowBtn = new JButton("✏️ Update Row");
             JButton deleteRowBtn = new JButton("🗑 Delete Row");
+            JButton cascadeDeleteBtn = new JButton("⚡ Cascade Delete");
             insertRowBtn.setToolTipText("Insert a new record into the current table");
             updateRowBtn.setToolTipText("Edit & update the selected table row in a dialog (or double-click row)");
             deleteRowBtn.setToolTipText("Permanently delete selected row(s) (or press Delete key)");
+            cascadeDeleteBtn.setToolTipText("Inspect foreign key dependencies and safely cascade-delete selected record(s) in a transaction");
             insertRowBtn.addActionListener(e -> openInsertRowDialog());
             updateRowBtn.addActionListener(e -> openUpdateRowDialog());
             deleteRowBtn.addActionListener(e -> deleteSelectedRow());
+            cascadeDeleteBtn.addActionListener(e -> openCascadeDeleteDialog());
             tbActions.add(insertRowBtn);
             tbActions.add(updateRowBtn);
             tbActions.add(deleteRowBtn);
+            tbActions.add(cascadeDeleteBtn);
             tbActions.addSeparator();
             
             JCheckBox autoCommitCheck = new JCheckBox("Auto-Commit", true);
@@ -398,6 +403,12 @@ public class Main extends JFrame {
                 delMenuItem.setForeground(new Color(220, 38, 38));
                 delMenuItem.addActionListener(e -> deleteSelectedRow());
                 tableMenu.add(delMenuItem);
+
+                JMenuItem cascadeDelMenuItem = new JMenuItem("⚡ Cascade Delete & Inspect Dependencies...");
+                cascadeDelMenuItem.setFont(cascadeDelMenuItem.getFont().deriveFont(Font.BOLD));
+                cascadeDelMenuItem.setForeground(new Color(234, 88, 12));
+                cascadeDelMenuItem.addActionListener(e -> openCascadeDeleteDialog());
+                tableMenu.add(cascadeDelMenuItem);
             }
 
             browseTable.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -719,17 +730,25 @@ public class Main extends JFrame {
                 }
             }
 
-            if (isFkViolation && childTable != null && loadedTables.contains(childTable)) {
+            if (isFkViolation) {
                 final String targetChildTable = childTable;
-                Object[] options = {"🔍 View Child Rows in '" + childTable + "'", "OK"};
+                List<Object> optionsList = new ArrayList<>();
+                optionsList.add("⚡ Open Cascade Delete Assistant");
+                if (targetChildTable != null && loadedTables.contains(targetChildTable)) {
+                    optionsList.add("🔍 View Child Rows in '" + targetChildTable + "'");
+                }
+                optionsList.add("OK");
+                Object[] options = optionsList.toArray();
                 int choice = JOptionPane.showOptionDialog(this,
-                    errMsg.toString() + "\n💡 Tip: Relational integrity requires deleting or reassigning the referencing records in '" + childTable + "' first.",
+                    errMsg.toString() + "\n💡 Tip: Relational integrity requires deleting or reassigning child records first.\nWould you like SchemaSync to safely inspect dependencies and prepare an atomic cascade deletion?",
                     "Foreign Key Constraint Blocked Delete",
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.WARNING_MESSAGE,
                     null, options, options[0]);
 
                 if (choice == 0) {
+                    openCascadeDeleteDialog();
+                } else if (choice == 1 && targetChildTable != null && loadedTables.contains(targetChildTable)) {
                     browseTableDropdown.setSelectedItem(targetChildTable);
                 }
             } else {
@@ -740,6 +759,45 @@ public class Main extends JFrame {
         }
 
         loadTableData();
+    }
+
+    private void openCascadeDeleteDialog() {
+        String tbl = (String) browseTableDropdown.getSelectedItem();
+        if (tbl == null || tbl.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No table is currently selected.", "Warning", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int[] rows = browseTable.getSelectedRows();
+        if (rows.length == 0) {
+            JOptionPane.showMessageDialog(this, "Please select at least one row from the table to inspect cascade dependencies.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        DefaultTableModel model = (DefaultTableModel) browseTable.getModel();
+        int totalCols = model.getColumnCount();
+        if (totalCols == 0) return;
+
+        List<Map<String, Object>> targetRows = new ArrayList<>();
+        for (int viewRow : rows) {
+            int modelRow = browseTable.convertRowIndexToModel(viewRow);
+            Map<String, Object> rowVals = new LinkedHashMap<>();
+            for (int c = 0; c < totalCols; c++) {
+                String colHeader = model.getColumnName(c);
+                String cleanHeader = colHeader.contains(".") ? colHeader.split("\\.", 2)[1] : colHeader;
+                rowVals.put(cleanHeader, model.getValueAt(modelRow, c));
+            }
+            targetRows.add(rowVals);
+        }
+
+        setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+        try {
+            com.dbtool.DatabaseManager.CascadePlan plan = dbManager.buildCascadePlan(tbl, targetRows);
+            setCursor(Cursor.getDefaultCursor());
+            new com.dbtool.panels.CascadeDeleteDialog(Main.this, dbManager, plan, this::loadTableData).setVisible(true);
+        } catch (Exception ex) {
+            setCursor(Cursor.getDefaultCursor());
+            JOptionPane.showMessageDialog(this, "Failed to inspect foreign key dependencies:\n" + ex.getMessage(), "Inspection Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
     private void openColumnSelector() {
             String selectedTable = (String) browseTableDropdown.getSelectedItem();
@@ -3484,6 +3542,11 @@ public class Main extends JFrame {
         });
         topPanel.add(auditDbBtn);
 
+        JButton omniSearchBtn = new JButton("🔍 OmniSearch");
+        omniSearchBtn.setToolTipText("Global Database Search across all tables (Ctrl+Shift+F)");
+        omniSearchBtn.addActionListener(e -> openOmniSearchDialog());
+        topPanel.add(omniSearchBtn);
+
         JButton themeBtn = new JButton("🌙 Dark Mode");
         themeBtn.addActionListener(e -> com.dbtool.util.ThemeManager.toggleTheme(themeBtn));
         topPanel.add(themeBtn);
@@ -3707,6 +3770,38 @@ public class Main extends JFrame {
                 com.dbtool.util.SessionRecoveryManager.markCleanExit();
             }
         });
+
+        // Global Shortcut: Ctrl+Shift+F for Database OmniSearch
+        KeyStroke omniSearchKs = KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK);
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(omniSearchKs, "omniSearchGlobal");
+        getRootPane().getActionMap().put("omniSearchGlobal", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) {
+                openOmniSearchDialog();
+            }
+        });
+    }
+
+    public void openOmniSearchDialog() {
+        if (dbManager.connection == null) {
+            JOptionPane.showMessageDialog(this, "Please connect to a database first to use OmniSearch.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        new com.dbtool.panels.OmniSearchDialog(this, dbManager, this::jumpToTableRow).setVisible(true);
+    }
+
+    public void jumpToTableRow(String tableName, String columnName, Object matchedValue, Map<String, Object> pks) {
+        if (tabbedPane != null) {
+            tabbedPane.setSelectedIndex(0); // Browse & Search
+        }
+        if (browseTabContainer != null) {
+            BrowseTab activeTab = browseTabContainer.getActiveTab();
+            if (activeTab != null) {
+                activeTab.browseTableDropdown.setSelectedItem(tableName);
+                activeTab.loadTableData();
+            }
+        }
+        toFront();
+        requestFocus();
     }
 
     private void onAutoSaved(String timeStr) {

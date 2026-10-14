@@ -1,6 +1,6 @@
 # SchemaSync
 
-**Version:** 1.2.1  
+**Version:** 1.3.0  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -9,6 +9,8 @@ SchemaSync is a high-performance, lightweight Java database synchronization and 
 ## Key Features
 
 * **Multi-Database Support:** Connect directly to **PostgreSQL**, **MySQL**, **SQLite** (.sqlite / .db), **MS Access** (.accdb), or standard SQL dump files.
+* **⚡ Recursive Foreign Key Dependency Inspector & Safe Cascade Delete:** Inspect child and grandchild referencing records down all relationship depths in an interactive visual tree, preview ordered reverse-topological deletion scripts, and execute safe cascade deletes inside an atomic rollback transaction.
+* **🔍 Global Database OmniSearch (Spotlight Search, `Ctrl+Shift+F`):** Rapidly scan all tables and columns across the entire database in background streaming mode, with live match filtering and 1-click navigation to jump directly to any matched table record.
 * **⚡ One-Click Schema Migration & Rollback Generator:** Compare any two schemas and automatically generate:
   * **Forward Migration (UP)** DDL scripts (`CREATE TABLE`, `ALTER TABLE ADD COLUMN`, `ALTER COLUMN TYPE`)
   * **Rollback Script (DOWN)** to revert changes safely
