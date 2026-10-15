@@ -68,6 +68,7 @@ D:\projects\DBTOOL\
 ├── README.md                                 # Official product documentation & features
 ├── CODEBASE_MAP.md                           # This architecture and feature mapping document
 ├── release\                                  # Build output folder
+│   ├── schemasync_1.6.4_all.deb              # Ubuntu Desktop DEB Package (Pure Java / Commons Compress)
 │   ├── schemasync-1.6.4-1.fc44.noarch.rpm    # Fedora 44 Linux RPM Package (Redline RPM)
 │   ├── SchemaSync-Setup.exe                  # Windows Setup Installer (Inno Setup)
 │   ├── SchemaSync.exe                        # Windows Standalone Native Executable (Launch4j)
@@ -130,7 +131,11 @@ D:\projects\DBTOOL\
     │       │   ├── SplashScreen.java         # High-resolution application boot splash screen
     │       │   └── components\               # CustomTable, DiffRenderer, FilterTextField, PagingToolbar, StatusBar
     │       │
-    │       └── util\                         # Helper utilities
+    │       ├── packaging\                    # Native Linux distribution packaging engines
+│       │   ├── UbuntuDebPackager.java    # Ubuntu Desktop DEB package builder (Pure Java / Commons Compress)
+│       │   └── FedoraRpmPackager.java    # Fedora 44 RPM package builder (Redline RPM)
+│       │
+│       └── util\                         # Helper utilities
     │           ├── UpdateChecker.java        # 1-Click In-App Auto-Updater, silent restarter & download manager
     │           ├── CryptoUtil.java           # Military-grade AES-256-GCM + PBKDF2 encryption utility
     │           ├── ThemeManager.java         # FlatMac Dark/Light mode theme engine & listeners
@@ -170,6 +175,7 @@ D:\projects\DBTOOL\
 | **🌙 Dark / Light FlatLaf Theme Engine** | `ThemeManager.java` | `toggleTheme()`, `init()`, `applyTheme()`, `isDarkMode()` | `src/main/java/com/dbtool/util/ThemeManager.java:1-115`<br>`Main.java:3720` |
 | **📁 Saved Connections Manager** | `ConnectionManagerDialog.java` | `loadProfiles()`, `saveProfiles()`, `testConnection()`, Vault integration | `src/main/java/com/dbtool/panels/ConnectionManagerDialog.java:1-480`<br>`Main.java:3640` |
 | **🛡 1-Click Health & Diagnostics Audit** | `DatabaseAuditorDialog.java` | `runDiagnostics()`, `checkMissingPrimaryKeys()`, `checkIndexBloat()` | `src/main/java/com/dbtool/panels/DatabaseAuditorDialog.java:1-340`<br>`Main.java:3667` |
+| **🐧 Ubuntu Desktop DEB Package Engine & GNOME Dock Integration** | `UbuntuDebPackager.java`<br>`UbuntuDebPackagerTest.java` | `buildDeb()`, pure Java `ar` and `tar.gz` stream packager, `control` metadata with `Depends: default-jre`, `postinst`/`postrm` desktop & icon cache refresh, `.desktop` launcher, `/usr/share/pixmaps` & hicolor icons | `src/main/java/com/dbtool/packaging/UbuntuDebPackager.java:1-320`<br>`src/test/java/com/dbtool/packaging/UbuntuDebPackagerTest.java:1-170` |
 | **🐧 Fedora 44 RPM Package Engine & Wayland Dock Integration** | `FedoraRpmPackager.java`<br>`Main.java` | `buildRpm()`, launcher script with `--add-opens java.desktop/sun.awt.X11=ALL-UNNAMED`, `setLinuxAppId()`, `awtAppClassName="schemasync"`, `StartupWMClass=schemasync`, `.desktop` menu integration, `/usr/share/pixmaps` and hicolor icons, Java dependency | `src/main/java/com/dbtool/packaging/FedoraRpmPackager.java:1-185`<br>`Main.java:6259-6275` |
 
 ---

@@ -12,6 +12,7 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <exec.mainClass>com.dbtool.Main</exec.mainClass>
     </properties>
 
     <developers>
@@ -175,7 +176,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <configuration>
-                    <mainClass>com.dbtool.Main</mainClass>
+                    <mainClass>${exec.mainClass}</mainClass>
                     <systemProperties>
                         <systemProperty>
                             <key>java.net.preferIPv4Stack</key>
