@@ -106,7 +106,7 @@ public class DatabaseManager {
             
             // Connect to the default 'postgres' database to create the new one
             String baseUrl = "jdbc:postgresql://" + host + ":" + port + "/postgres?tcpKeepAlive=true&gssEncMode=disable";
-            try (Connection tempConn = DriverManager.getConnection(baseUrl, user, pass);
+            try (Connection tempConn = com.dbtool.core.connection.ConnectionUtil.getConnection(baseUrl, user, pass);
                  Statement stmt = tempConn.createStatement()) {
                 
                 // Drop database if exists (safe for our analyzer_db)
@@ -123,7 +123,7 @@ public class DatabaseManager {
             
             // Now connect to the new database
             String targetUrl = "jdbc:postgresql://" + host + ":" + port + "/" + dbName + "?tcpKeepAlive=true&gssEncMode=disable&connectTimeout=10&socketTimeout=30";
-            connection = DriverManager.getConnection(targetUrl, user, pass);
+            connection = com.dbtool.core.connection.ConnectionUtil.getConnection(targetUrl, user, pass);
             
             importSqlDump(dbFilePath);
             
@@ -131,7 +131,7 @@ public class DatabaseManager {
             if (connection != null && !connection.isClosed()) {
                 connection.close();
             }
-            connection = DriverManager.getConnection(targetUrl, user, pass);
+            connection = com.dbtool.core.connection.ConnectionUtil.getConnection(targetUrl, user, pass);
             
         } else if (dbFilePath.toLowerCase().endsWith(".accdb") || dbFilePath.toLowerCase().endsWith(".mdb")) {
             System.out.println("Connecting to MS Access Database...");
@@ -150,7 +150,7 @@ public class DatabaseManager {
         this.lastHost = host; this.lastPort = port; this.lastDbName = dbName; this.lastUser = user; this.lastPass = pass; this.lastDumpFile = null;
         clearCache();
         String targetUrl = "jdbc:postgresql://" + host + ":" + port + "/" + dbName + "?tcpKeepAlive=true&gssEncMode=disable&connectTimeout=10&socketTimeout=30";
-        connection = DriverManager.getConnection(targetUrl, user, pass);
+        connection = com.dbtool.core.connection.ConnectionUtil.getConnection(targetUrl, user, pass);
     }
 
     public void connectMySQL(String host, String port, String dbName, String user, String pass) throws Exception {

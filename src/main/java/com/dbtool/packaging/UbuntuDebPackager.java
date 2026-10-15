@@ -41,7 +41,7 @@ import java.util.zip.Deflater;
 public class UbuntuDebPackager {
 
     public static final String PACKAGE_NAME = "schemasync";
-    public static final String VERSION = "1.6.4";
+    public static final String VERSION = "1.6.5";
     public static final String ARCHITECTURE = "all";
 
     public static class PackageEntry {
@@ -105,9 +105,9 @@ public class UbuntuDebPackager {
                     + "    echo \"Please install OpenJDK on Ubuntu: sudo apt install default-jre\" >&2\n"
                     + "    exit 1\n"
                     + "fi\n\n"
-                    + "# FlatLaf / Linux Wayland and HiDPI font rendering settings\n"
+                    + "# FlatLaf / Linux Wayland, TimeZone, and HiDPI font rendering settings\n"
                     + "export _JAVA_AWT_WM_NONREPARENTING=1\n"
-                    + "JAVA_OPTS=\"--add-opens java.desktop/sun.awt.X11=ALL-UNNAMED -Dawt.useSystemAAFontSettings=on -Dswing.aatext=true -Dsun.java2d.uiScale.enabled=true -Djdk.gtk.version=3\"\n\n"
+                    + "JAVA_OPTS=\"--add-opens java.desktop/sun.awt.X11=ALL-UNNAMED -Duser.timezone=UTC -Dawt.useSystemAAFontSettings=on -Dswing.aatext=true -Dsun.java2d.uiScale.enabled=true -Djdk.gtk.version=3\"\n\n"
                     + "JAR_PATH=\"/usr/share/schemasync/SchemaSync.jar\"\n\n"
                     + "if [ ! -f \"$JAR_PATH\" ]; then\n"
                     + "    echo \"Error: SchemaSync JAR not found at $JAR_PATH\" >&2\n"

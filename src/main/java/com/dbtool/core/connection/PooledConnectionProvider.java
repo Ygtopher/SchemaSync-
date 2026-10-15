@@ -29,7 +29,7 @@ public class PooledConnectionProvider implements ConnectionProvider {
         if (conn == null || conn.isClosed() || !ConnectionValidator.isValid(conn, 2)) {
             String url = JdbcUrlBuilder.buildUrl(config);
             DriverManager.setLoginTimeout(config.getTimeoutSeconds());
-            conn = DriverManager.getConnection(url, config.getUsername(), config.getPassword());
+            conn = ConnectionUtil.getConnection(url, config.getUsername(), config.getPassword());
         }
         synchronized (this) { activeCount++; }
         return conn;

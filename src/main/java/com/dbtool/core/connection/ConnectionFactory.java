@@ -11,6 +11,6 @@ public class ConnectionFactory {
         Objects.requireNonNull(config, "ConnectionConfig must not be null");
         config.validate();
         String url = JdbcUrlBuilder.buildUrl(config);
-        return DriverManager.getConnection(url, config.getUsername(), config.getPassword());
+        return ConnectionUtil.getConnection(url, config.getUsername(), config.getPassword());
     }
 }

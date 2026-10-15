@@ -496,7 +496,7 @@ public class ConnectionManagerDialog extends JDialog {
                         conn = java.sql.DriverManager.getConnection(url);
                     } else {
                         String url = "jdbc:postgresql://" + h + ":" + p + "/" + d + "?connectTimeout=10&socketTimeout=10&tcpKeepAlive=true&gssEncMode=disable";
-                        conn = java.sql.DriverManager.getConnection(url, u, pw);
+                        conn = com.dbtool.core.connection.ConnectionUtil.getConnection(url, u, pw);
                     }
                     conn.close();
                     long elapsed = System.currentTimeMillis() - start;
@@ -830,7 +830,7 @@ public class ConnectionManagerDialog extends JDialog {
 
         // 2. Fast JDBC login check (connectTimeout=3s, socketTimeout=3s)
         String url = "jdbc:postgresql://" + host + ":" + portNum + "/" + db + "?connectTimeout=3&socketTimeout=3&tcpKeepAlive=true&gssEncMode=disable";
-        try (Connection conn = DriverManager.getConnection(url, user, pass)) {
+        try (Connection conn = com.dbtool.core.connection.ConnectionUtil.getConnection(url, user, pass)) {
             long elapsed = System.currentTimeMillis() - startTime;
             return new StatusInfo(ConnectionStatus.ONLINE, "Connected successfully", elapsed);
         } catch (SQLException e) {

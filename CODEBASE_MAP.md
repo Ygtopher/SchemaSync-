@@ -68,8 +68,8 @@ D:\projects\DBTOOL\
 ├── README.md                                 # Official product documentation & features
 ├── CODEBASE_MAP.md                           # This architecture and feature mapping document
 ├── release\                                  # Build output folder
-│   ├── schemasync_1.6.4_all.deb              # Ubuntu Desktop DEB Package (Pure Java / Commons Compress)
-│   ├── schemasync-1.6.4-1.fc44.noarch.rpm    # Fedora 44 Linux RPM Package (Redline RPM)
+│   ├── schemasync_1.6.5_all.deb              # Ubuntu Desktop DEB Package (Pure Java / Commons Compress)
+│   ├── schemasync-1.6.5-1.fc44.noarch.rpm    # Fedora 44 Linux RPM Package (Redline RPM)
 │   ├── SchemaSync-Setup.exe                  # Windows Setup Installer (Inno Setup)
 │   ├── SchemaSync.exe                        # Windows Standalone Native Executable (Launch4j)
 │   └── SchemaSync.jar                        # Shaded Cross-Platform Fat JAR
@@ -176,6 +176,7 @@ D:\projects\DBTOOL\
 | **📁 Saved Connections Manager** | `ConnectionManagerDialog.java` | `loadProfiles()`, `saveProfiles()`, `testConnection()`, Vault integration | `src/main/java/com/dbtool/panels/ConnectionManagerDialog.java:1-480`<br>`Main.java:3640` |
 | **🛡 1-Click Health & Diagnostics Audit** | `DatabaseAuditorDialog.java` | `runDiagnostics()`, `checkMissingPrimaryKeys()`, `checkIndexBloat()` | `src/main/java/com/dbtool/panels/DatabaseAuditorDialog.java:1-340`<br>`Main.java:3667` |
 | **🐧 Ubuntu Desktop DEB Package Engine & GNOME Dock Integration** | `UbuntuDebPackager.java`<br>`UbuntuDebPackagerTest.java` | `buildDeb()`, pure Java `ar` and `tar.gz` stream packager, `control` metadata with `Depends: default-jre`, `postinst`/`postrm` desktop & icon cache refresh, `.desktop` launcher, `/usr/share/pixmaps` & hicolor icons | `src/main/java/com/dbtool/packaging/UbuntuDebPackager.java:1-320`<br>`src/test/java/com/dbtool/packaging/UbuntuDebPackagerTest.java:1-170` |
+| **🌍 Automatic PostgreSQL TimeZone Fallback & Normalization** | `ConnectionUtil.java`<br>`ConnectionUtilTest.java`<br>`Main.java` | Resolves `FATAL: invalid value for parameter "TimeZone": "Africa/Kigali"`; automatically catches timezone rejections, sets JVM timezone to `UTC`, and retries connection seamlessly without user errors. Proactive startup check in `Main.java` and `-Duser.timezone=UTC` in Linux launchers. | `src/main/java/com/dbtool/core/connection/ConnectionUtil.java:1-85`<br>`Main.java:6285` |
 | **🐧 Fedora 44 RPM Package Engine & Wayland Dock Integration** | `FedoraRpmPackager.java`<br>`Main.java` | `buildRpm()`, launcher script with `--add-opens java.desktop/sun.awt.X11=ALL-UNNAMED`, `setLinuxAppId()`, `awtAppClassName="schemasync"`, `StartupWMClass=schemasync`, `.desktop` menu integration, `/usr/share/pixmaps` and hicolor icons, Java dependency | `src/main/java/com/dbtool/packaging/FedoraRpmPackager.java:1-185`<br>`Main.java:6259-6275` |
 
 ---

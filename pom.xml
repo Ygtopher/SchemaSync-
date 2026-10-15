@@ -6,7 +6,7 @@
 
     <groupId>com.dbtool</groupId>
     <artifactId>access-db-tool</artifactId>
-    <version>1.6.4</version>
+    <version>1.6.5</version>
 
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
@@ -265,13 +265,13 @@
                                 </opts>
                             </jre>
                             <versionInfo>
-                                <fileVersion>1.6.4.0</fileVersion>
-                                <txtFileVersion>1.6.4</txtFileVersion>
+                                <fileVersion>1.6.5.0</fileVersion>
+                                <txtFileVersion>1.6.5</txtFileVersion>
                                 <fileDescription>SchemaSync Database Tool</fileDescription>
                                 <copyright>Copyright (C) 2026 NSENGIYUMVA Christophe. All rights reserved.</copyright>
                                 <companyName>NSENGIYUMVA Christophe</companyName>
-                                <productVersion>1.6.4.0</productVersion>
-                                <txtProductVersion>1.6.4</txtProductVersion>
+                                <productVersion>1.6.5.0</productVersion>
+                                <txtProductVersion>1.6.5</txtProductVersion>
                                 <productName>SchemaSync</productName>
                                 <internalName>SchemaSync</internalName>
                                 <originalFilename>SchemaSync.exe</originalFilename>
