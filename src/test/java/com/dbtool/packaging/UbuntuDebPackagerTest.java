@@ -50,7 +50,7 @@ public class UbuntuDebPackagerTest {
         assertNotNull(deb);
         assertTrue(deb.exists());
         assertTrue(deb.length() > 0);
-        assertEquals("schemasync_1.6.7_all.deb", deb.getName());
+        assertEquals("schemasync_1.6.8_all.deb", deb.getName());
 
         // Verify standard 'ar' magic header: "!<arch>\n" (0x21 0x3c 0x61 0x72 0x63 0x68 0x3e 0x0a)
         try (FileInputStream fis = new FileInputStream(deb)) {
@@ -106,7 +106,7 @@ public class UbuntuDebPackagerTest {
                     while ((n = tarIn.read(buf)) != -1) baos.write(buf, 0, n);
                     String controlStr = baos.toString(StandardCharsets.UTF_8);
                     assertTrue(controlStr.contains("Package: schemasync"));
-                    assertTrue(controlStr.contains("Version: 1.6.7"));
+                    assertTrue(controlStr.contains("Version: 1.6.8"));
                     assertTrue(controlStr.contains("Architecture: all"));
                     assertTrue(controlStr.contains("Depends: default-jre"));
                 }
@@ -135,7 +135,7 @@ public class UbuntuDebPackagerTest {
 
     @Test
     void testVerifyBuiltProductionDeb() throws Exception {
-        File productionDeb = new File("release/schemasync_1.6.7_all.deb");
+        File productionDeb = new File("release/schemasync_1.6.8_all.deb");
         if (!productionDeb.exists()) {
             productionDeb = new File("release/schemasync_1.6.4_all.deb");
         }

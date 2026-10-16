@@ -83,31 +83,103 @@ public class UpdateChecker {
                 String body = release.path("body").asText("No release notes provided.");
                 String htmlUrl = release.path("html_url").asText("https://github.com/" + GITHUB_REPO + "/releases");
 
-                // Discover assets
+                // Discover assets across platforms (Windows .exe, Ubuntu .deb, Fedora .rpm, Universal .jar)
                 String setupUrl = null;
                 String exeUrl = null;
+                String debUrl = null;
+                String debName = null;
+                long debSize = 0;
+                String rpmUrl = null;
+                String rpmName = null;
+                long rpmSize = 0;
+                String jarUrl = null;
+                String jarName = null;
+                long jarSize = 0;
                 long setupSize = 0;
+
                 JsonNode assets = release.path("assets");
                 if (assets.isArray()) {
                     for (JsonNode asset : assets) {
                         String aName = asset.path("name").asText("");
+                        String aUrl = asset.path("browser_download_url").asText(null);
+                        long aSize = asset.path("size").asLong(0);
                         if (aName.equalsIgnoreCase("SchemaSync-Setup.exe")) {
-                            setupUrl = asset.path("browser_download_url").asText(null);
-                            setupSize = asset.path("size").asLong(0);
+                            setupUrl = aUrl;
+                            setupSize = aSize;
                         } else if (aName.equalsIgnoreCase("SchemaSync.exe")) {
-                            exeUrl = asset.path("browser_download_url").asText(null);
-                            if (setupSize == 0) setupSize = asset.path("size").asLong(0);
+                            exeUrl = aUrl;
+                            if (setupSize == 0) setupSize = aSize;
+                        } else if (aName.toLowerCase().endsWith(".deb")) {
+                            debUrl = aUrl;
+                            debName = aName;
+                            debSize = aSize;
+                        } else if (aName.toLowerCase().endsWith(".rpm")) {
+                            rpmUrl = aUrl;
+                            rpmName = aName;
+                            rpmSize = aSize;
+                        } else if (aName.toLowerCase().endsWith(".jar")) {
+                            jarUrl = aUrl;
+                            jarName = aName;
+                            jarSize = aSize;
                         }
                     }
                 }
 
-                // If setup is not specifically found, fall back to exe or htmlUrl
-                final String effectiveSetupUrl = setupUrl != null ? setupUrl : (exeUrl != null ? exeUrl : htmlUrl);
-                final long finalSetupSize = setupSize;
+                boolean isWindows = System.getProperty("os.name", "").toLowerCase().contains("win");
+                boolean hasDpkg = !isWindows && new File("/usr/bin/dpkg").exists();
+                boolean hasRpm = !isWindows && !hasDpkg && new File("/usr/bin/rpm").exists();
+
+                String chosenUrl;
+                String chosenFileName;
+                long chosenSize;
+
+                if (isWindows) {
+                    if (setupUrl != null) {
+                        chosenUrl = setupUrl;
+                        chosenFileName = "SchemaSync-Setup-" + tagName + ".exe";
+                        chosenSize = setupSize;
+                    } else if (exeUrl != null) {
+                        chosenUrl = exeUrl;
+                        chosenFileName = "SchemaSync-" + tagName + ".exe";
+                        chosenSize = setupSize;
+                    } else if (jarUrl != null) {
+                        chosenUrl = jarUrl;
+                        chosenFileName = jarName != null ? jarName : "SchemaSync.jar";
+                        chosenSize = jarSize;
+                    } else {
+                        chosenUrl = htmlUrl;
+                        chosenFileName = "SchemaSync-Setup-" + tagName + ".exe";
+                        chosenSize = 0;
+                    }
+                } else if (hasDpkg && debUrl != null) {
+                    chosenUrl = debUrl;
+                    chosenFileName = debName != null ? debName : ("schemasync_" + tagName.replaceFirst("^[vV]", "") + "_all.deb");
+                    chosenSize = debSize;
+                } else if (hasRpm && rpmUrl != null) {
+                    chosenUrl = rpmUrl;
+                    chosenFileName = rpmName != null ? rpmName : ("schemasync-" + tagName.replaceFirst("^[vV]", "") + ".noarch.rpm");
+                    chosenSize = rpmSize;
+                } else if (jarUrl != null) {
+                    chosenUrl = jarUrl;
+                    chosenFileName = jarName != null ? jarName : "SchemaSync.jar";
+                    chosenSize = jarSize;
+                } else if (debUrl != null) {
+                    chosenUrl = debUrl;
+                    chosenFileName = debName != null ? debName : "schemasync_update.deb";
+                    chosenSize = debSize;
+                } else {
+                    chosenUrl = setupUrl != null ? setupUrl : (exeUrl != null ? exeUrl : htmlUrl);
+                    chosenFileName = "SchemaSync-Update";
+                    chosenSize = setupSize;
+                }
+
+                final String effectiveSetupUrl = chosenUrl;
+                final String effectiveFileName = chosenFileName;
+                final long finalSetupSize = chosenSize;
 
                 if (isNewerVersion(tagName, CURRENT_VERSION)) {
                     SwingUtilities.invokeLater(() -> {
-                        showUpdateDialog(parent, tagName, releaseName, body, htmlUrl, effectiveSetupUrl, finalSetupSize);
+                        showUpdateDialog(parent, tagName, releaseName, body, htmlUrl, effectiveSetupUrl, effectiveFileName, finalSetupSize);
                     });
                 } else {
                     if (!silentIfUpToDate) {
@@ -176,7 +248,8 @@ public class UpdateChecker {
     }
 
     private static void showUpdateDialog(Component parent, String tagName, String releaseName,
-                                         String body, String htmlUrl, String downloadUrl, long packageSize) {
+                                         String body, String htmlUrl, String downloadUrl,
+                                         String downloadFileName, long packageSize) {
         Frame owner = parent instanceof Frame ? (Frame) parent : (Frame) SwingUtilities.getWindowAncestor(parent);
         JDialog dlg = new JDialog(owner, "🚀 SchemaSync Update Available: " + tagName, true);
         dlg.setSize(640, 500);
@@ -193,7 +266,7 @@ public class UpdateChecker {
         JLabel sub = new JLabel("Installed: v" + CURRENT_VERSION + "  ➔  Available: " + tagName + " (" + releaseName + ")");
         sub.setFont(sub.getFont().deriveFont(Font.PLAIN, 13f));
 
-        String sizeStr = packageSize > 0 ? " • Package size: " + formatFileSize(packageSize) : "";
+        String sizeStr = packageSize > 0 ? " • Package: " + downloadFileName + " (" + formatFileSize(packageSize) + ")" : "";
         JLabel sizeLbl = new JLabel("Published on GitHub" + sizeStr);
         sizeLbl.setForeground(Color.GRAY);
         sizeLbl.setFont(sizeLbl.getFont().deriveFont(Font.ITALIC, 11f));
@@ -244,12 +317,12 @@ public class UpdateChecker {
 
         JButton updateNowBtn = new JButton("⚡ 1-Click Update & Restart");
         updateNowBtn.setFont(updateNowBtn.getFont().deriveFont(Font.BOLD, 12f));
-        updateNowBtn.setToolTipText("Downloads the verified installer in background, executes update, and restarts");
+        updateNowBtn.setToolTipText("Downloads the verified package in background, installs update, and restarts SchemaSync");
         updateNowBtn.setBackground(new Color(16, 185, 129));
         updateNowBtn.setForeground(Color.WHITE);
 
-        JButton downloadInstallerBtn = new JButton("📥 Download Installer");
-        downloadInstallerBtn.setToolTipText("Open direct download link in browser to save the installer manually");
+        JButton downloadInstallerBtn = new JButton("📥 Download Package");
+        downloadInstallerBtn.setToolTipText("Open direct download link in browser to save the package manually");
         downloadInstallerBtn.addActionListener(e -> {
             try {
                 Desktop.getDesktop().browse(new URI(downloadUrl));
@@ -295,7 +368,7 @@ public class UpdateChecker {
                 try {
                     File tempDir = new File(System.getProperty("java.io.tmpdir"), "SchemaSyncUpdate");
                     if (!tempDir.exists()) tempDir.mkdirs();
-                    tempInstaller = new File(tempDir, "SchemaSync-Setup-" + tagName + ".exe");
+                    tempInstaller = new File(tempDir, downloadFileName);
 
                     // Handle redirects (GitHub release asset downloads redirect to AWS S3)
                     URL curUrl = new URI(downloadUrl).toURL();
@@ -382,59 +455,59 @@ public class UpdateChecker {
                     }
 
                     final File finalInstaller = tempInstaller;
-                    SwingUtilities.invokeLater(() -> {
-                        statusLabel.setText("✅ Download verified! Launching installer...");
-                        progressBar.setValue(100);
+                    boolean isWindows = System.getProperty("os.name", "").toLowerCase().contains("win");
 
-                        boolean isWindows = System.getProperty("os.name", "").toLowerCase().contains("win");
-                        if (!isWindows) {
-                            JOptionPane.showMessageDialog(dlg,
-                                "Update downloaded successfully to:\n" + finalInstaller.getAbsolutePath() +
-                                "\n\nPlease run the installer to complete the update.",
-                                "Download Complete", JOptionPane.INFORMATION_MESSAGE);
-                            dlg.dispose();
-                            return;
-                        }
+                    if (isWindows) {
+                        SwingUtilities.invokeLater(() -> {
+                            statusLabel.setText("✅ Download verified! Launching installer...");
+                            progressBar.setValue(100);
+                            try {
+                                List<String> launchCmd = new ArrayList<>();
+                                launchCmd.add(finalInstaller.getAbsolutePath());
 
-                        // Launch installer
-                        try {
-                            List<String> launchCmd = new ArrayList<>();
-                            launchCmd.add(finalInstaller.getAbsolutePath());
+                                if (silentRestartBox.isSelected()) {
+                                    launchCmd.add("/SILENT");
+                                    launchCmd.add("/FORCECLOSEAPPLICATIONS");
+                                    launchCmd.add("/RESTARTAPPLICATIONS");
+                                }
 
-                            if (silentRestartBox.isSelected()) {
-                                launchCmd.add("/SILENT");
-                                launchCmd.add("/FORCECLOSEAPPLICATIONS");
-                                launchCmd.add("/RESTARTAPPLICATIONS");
+                                ProcessBuilder pb = new ProcessBuilder(launchCmd);
+                                pb.start();
+
+                                new Thread(() -> {
+                                    try { Thread.sleep(600); } catch (Exception ignored) {}
+                                    System.exit(0);
+                                }).start();
+
+                            } catch (Exception launchEx) {
+                                JOptionPane.showMessageDialog(dlg,
+                                    "Failed to automatically start installer: " + launchEx.getMessage() +
+                                    "\n\nInstaller saved at:\n" + finalInstaller.getAbsolutePath(),
+                                    "Launch Error", JOptionPane.ERROR_MESSAGE);
+                                updateNowBtn.setEnabled(true);
+                                downloadInstallerBtn.setEnabled(true);
+                                viewGithubBtn.setEnabled(true);
+                                laterBtn.setText("Later");
+                                isDownloading.set(false);
                             }
+                        });
+                    } else {
+                        // Ubuntu / Linux 1-Click Update & Restart
+                        SwingUtilities.invokeLater(() -> {
+                            progressBar.setIndeterminate(true);
+                            statusLabel.setText("📦 Installing update on Linux (authenticate if prompted)...");
+                        });
 
-                            ProcessBuilder pb = new ProcessBuilder(launchCmd);
-                            pb.start();
-
-                            // Gracefully terminate this instance after brief delay
-                            new Thread(() -> {
-                                try { Thread.sleep(600); } catch (Exception ignored) {}
-                                System.exit(0);
-                            }).start();
-
-                        } catch (Exception launchEx) {
-                            JOptionPane.showMessageDialog(dlg,
-                                "Failed to automatically start installer: " + launchEx.getMessage() +
-                                "\n\nInstaller saved at:\n" + finalInstaller.getAbsolutePath(),
-                                "Launch Error", JOptionPane.ERROR_MESSAGE);
-                            updateNowBtn.setEnabled(true);
-                            downloadInstallerBtn.setEnabled(true);
-                            viewGithubBtn.setEnabled(true);
-                            laterBtn.setText("Later");
-                            isDownloading.set(false);
-                        }
-                    });
+                        installAndRestartOnLinux(finalInstaller, tagName, silentRestartBox.isSelected(), dlg);
+                    }
 
                 } catch (Exception ex) {
                     if (tempInstaller != null && tempInstaller.exists()) {
                         tempInstaller.delete();
                     }
                     SwingUtilities.invokeLater(() -> {
-                        statusLabel.setText("Download failed: " + ex.getMessage());
+                        statusLabel.setText("Update failed: " + ex.getMessage());
+                        progressBar.setIndeterminate(false);
                         progressBar.setVisible(false);
                         updateNowBtn.setEnabled(true);
                         downloadInstallerBtn.setEnabled(true);
@@ -444,7 +517,7 @@ public class UpdateChecker {
 
                         JOptionPane.showMessageDialog(dlg,
                             "Unable to complete 1-Click Update:\n" + ex.getMessage() +
-                            "\n\nYou can still download the installer manually using the 'Download Installer' button.",
+                            "\n\nYou can still download the package manually using the 'Download Package' button.",
                             "Update Error", JOptionPane.WARNING_MESSAGE);
                     });
                 }
@@ -468,6 +541,149 @@ public class UpdateChecker {
         dlg.add(southPanel, BorderLayout.SOUTH);
 
         dlg.setVisible(true);
+    }
+
+    private static void installAndRestartOnLinux(File downloadedFile, String tagName, boolean autoRestart, JDialog dlg) throws Exception {
+        File runningJar = getRunningJarFile();
+        File systemJar = new File("/usr/share/schemasync/SchemaSync.jar");
+        File systemLauncher = new File("/usr/bin/schemasync");
+        String fileName = downloadedFile.getName().toLowerCase();
+
+        boolean updatedLocalJar = false;
+        boolean updatedSystemPkg = false;
+
+        if (fileName.endsWith(".deb")) {
+            // 1. If running from a user-writable local JAR (outside /usr/share/schemasync), extract the updated JAR directly
+            if (runningJar != null && !runningJar.equals(systemJar) && runningJar.canWrite()) {
+                updatedLocalJar = extractJarFromDeb(downloadedFile, runningJar);
+            }
+
+            // 2. If running from system installation (/usr/share/schemasync) or if system package is installed, install .deb via pkexec dpkg -i
+            if (systemJar.exists() || !updatedLocalJar) {
+                if (new File("/usr/bin/pkexec").exists() && new File("/usr/bin/dpkg").exists()) {
+                    Process proc = new ProcessBuilder("pkexec", "dpkg", "-i", downloadedFile.getAbsolutePath())
+                            .redirectErrorStream(true)
+                            .start();
+                    int exitCode = proc.waitFor();
+                    if (exitCode == 0) {
+                        updatedSystemPkg = true;
+                    } else if (!updatedLocalJar) {
+                        throw new Exception("Ubuntu package installation was cancelled or failed (exit code " + exitCode + ").");
+                    }
+                } else if (!updatedLocalJar && runningJar != null && runningJar.canWrite()) {
+                    updatedLocalJar = extractJarFromDeb(downloadedFile, runningJar);
+                }
+            }
+        } else if (fileName.endsWith(".rpm")) {
+            if (new File("/usr/bin/pkexec").exists() && new File("/usr/bin/rpm").exists()) {
+                Process proc = new ProcessBuilder("pkexec", "rpm", "-Uvh", "--force", downloadedFile.getAbsolutePath())
+                        .redirectErrorStream(true)
+                        .start();
+                int exitCode = proc.waitFor();
+                if (exitCode == 0) {
+                    updatedSystemPkg = true;
+                } else {
+                    throw new Exception("RPM package installation was cancelled or failed (exit code " + exitCode + ").");
+                }
+            }
+        } else if (fileName.endsWith(".jar")) {
+            if (runningJar != null && runningJar.canWrite()) {
+                java.nio.file.Files.copy(downloadedFile.toPath(), runningJar.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                updatedLocalJar = true;
+            } else if (systemJar.exists() && new File("/usr/bin/pkexec").exists()) {
+                Process proc = new ProcessBuilder("pkexec", "cp", "-f", downloadedFile.getAbsolutePath(), systemJar.getAbsolutePath())
+                        .redirectErrorStream(true)
+                        .start();
+                int exitCode = proc.waitFor();
+                if (exitCode == 0) {
+                    updatedSystemPkg = true;
+                } else {
+                    throw new Exception("Copying updated JAR to /usr/share/schemasync failed (exit code " + exitCode + ").");
+                }
+            }
+        }
+
+        if (!updatedLocalJar && !updatedSystemPkg) {
+            throw new Exception("Could not apply update automatically. Package saved at: " + downloadedFile.getAbsolutePath());
+        }
+
+        if (!autoRestart) {
+            SwingUtilities.invokeLater(() -> {
+                JOptionPane.showMessageDialog(dlg,
+                    "✅ SchemaSync has been updated to " + tagName + "!\nRestart the application to use the new version.",
+                    "Update Complete", JOptionPane.INFORMATION_MESSAGE);
+                dlg.dispose();
+            });
+            return;
+        }
+
+        // Build restart command
+        List<String> restartCmd = new ArrayList<>();
+        if (updatedSystemPkg && systemLauncher.exists() && (runningJar == null || runningJar.equals(systemJar))) {
+            restartCmd.add(systemLauncher.getAbsolutePath());
+        } else {
+            String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
+            if (!new File(javaBin).exists()) javaBin = "java";
+            File targetJar = (runningJar != null && runningJar.exists()) ? runningJar : systemJar;
+            restartCmd.add(javaBin);
+            restartCmd.add("-Duser.timezone=UTC");
+            restartCmd.add("-Dsun.java2d.pmoffscreen=false");
+            restartCmd.add("-jar");
+            restartCmd.add(targetJar.getAbsolutePath());
+        }
+
+        new ProcessBuilder(restartCmd).start();
+        Thread.sleep(500);
+        System.exit(0);
+    }
+
+    private static File getRunningJarFile() {
+        try {
+            URI uri = UpdateChecker.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+            File f = new File(uri);
+            if (f.isFile() && f.getName().toLowerCase().endsWith(".jar")) {
+                return f;
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private static boolean extractJarFromDeb(File debFile, File targetJar) {
+        try (java.io.FileInputStream fis = new java.io.FileInputStream(debFile);
+             org.apache.commons.compress.archivers.ar.ArArchiveInputStream arIn =
+                     new org.apache.commons.compress.archivers.ar.ArArchiveInputStream(fis)) {
+            org.apache.commons.compress.archivers.ar.ArArchiveEntry arEntry;
+            while ((arEntry = arIn.getNextArEntry()) != null) {
+                if (arEntry.getName().startsWith("data.tar.gz")) {
+                    try (org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream gzIn =
+                                 new org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream(arIn);
+                         org.apache.commons.compress.archivers.tar.TarArchiveInputStream tarIn =
+                                 new org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gzIn)) {
+                        org.apache.commons.compress.archivers.tar.TarArchiveEntry tarEntry;
+                        while ((tarEntry = tarIn.getNextTarEntry()) != null) {
+                            if (tarEntry.getName().endsWith("usr/share/schemasync/SchemaSync.jar")) {
+                                File tempOut = new File(targetJar.getParentFile(), targetJar.getName() + ".tmp");
+                                try (FileOutputStream fos = new FileOutputStream(tempOut)) {
+                                    byte[] buf = new byte[65536];
+                                    int n;
+                                    while ((n = tarIn.read(buf)) != -1) {
+                                        fos.write(buf, 0, n);
+                                    }
+                                }
+                                java.nio.file.Files.move(
+                                        tempOut.toPath(),
+                                        targetJar.toPath(),
+                                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     private static String formatFileSize(long bytes) {

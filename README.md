@@ -82,11 +82,11 @@ This will generate a self-contained executable JAR in the `target/` directory.
 ### Ubuntu Desktop Linux (DEB Package)
 Install SchemaSync natively on Ubuntu Desktop (20.04, 22.04, 24.04 LTS+) with automatic Java dependency resolution:
 ```bash
-sudo apt install ./schemasync_1.6.7_all.deb
+sudo apt install ./schemasync_1.6.8_all.deb
 ```
 Or install using `dpkg`:
 ```bash
-sudo dpkg -i ./schemasync_1.6.7_all.deb
+sudo dpkg -i ./schemasync_1.6.8_all.deb
 sudo apt-get install -f  # resolves dependencies if needed
 ```
 Launch directly from the Ubuntu App Grid, dock, or terminal:
@@ -97,7 +97,7 @@ schemasync
 ### Fedora 44 Linux (RPM Package)
 Install SchemaSync natively on Fedora 44 with automatic Java dependency resolution:
 ```bash
-sudo dnf install ./schemasync-1.6.7-1.fc44.noarch.rpm
+sudo dnf install ./schemasync-1.6.8-1.fc44.noarch.rpm
 ```
 Launch directly from the GNOME/KDE App Menu or from terminal:
 ```bash
