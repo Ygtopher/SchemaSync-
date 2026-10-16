@@ -95,6 +95,12 @@ public class ThemeManager {
             UIManager.put("Table.showHorizontalLines", true);
             UIManager.put("Table.showVerticalLines", true);
             UIManager.put("Table.gridColor", isDarkMode ? new Color(55, 55, 55) : java.awt.Color.LIGHT_GRAY);
+
+            // Ensure smooth dropdown & popup behavior on Ubuntu/Linux (X11/Wayland)
+            JPopupMenu.setDefaultLightWeightPopupEnabled(true);
+            UIManager.put("ComboBox.maximumRowCount", 12);
+            UIManager.put("PopupMenu.consumeEventOnClose", false);
+            UIManager.put("ComboBox.showPopupOnNavigation", false);
             
             for (ThemeChangeListener l : listeners) {
                 try {

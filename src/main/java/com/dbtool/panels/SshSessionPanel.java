@@ -42,7 +42,7 @@ public class SshSessionPanel extends JPanel {
     private boolean isDetached = false;
     private JFrame detachedFrame = null;
 
-    private JComboBox<String> profileDropdown = new JComboBox<>();
+    private com.dbtool.ui.components.SearchableComboBox<String> profileDropdown = new com.dbtool.ui.components.SearchableComboBox<>();
     private JTextField hostField = new JTextField(10);
     private JTextField portField = new JTextField("22", 3);
     private JTextField userField = new JTextField(7);
@@ -90,33 +90,11 @@ public class SshSessionPanel extends JPanel {
 
         // --- Setup profiles ---
         Properties savedProfiles = dbManager.getSavedSshProfiles();
-        profileDropdown.setEditable(true);
-        JTextField editor = (JTextField) profileDropdown.getEditor().getEditorComponent();
-
-        profileDropdown.addItem("-- Select --");
-        for (String key : savedProfiles.stringPropertyNames()) {
-            profileDropdown.addItem(key);
-        }
-
-        editor.addKeyListener(new KeyAdapter() {
-            public void keyReleased(KeyEvent e) {
-                char ch = e.getKeyChar();
-                if (Character.isLetterOrDigit(ch) || Character.isSpaceChar(ch) || e.getKeyCode() == KeyEvent.VK_BACK_SPACE) {
-                    String filter = editor.getText();
-                    String filterLower = filter.toLowerCase();
-                    profileDropdown.hidePopup();
-                    profileDropdown.removeAllItems();
-                    profileDropdown.addItem("-- Select --");
-                    for (String key : savedProfiles.stringPropertyNames()) {
-                        if (key.toLowerCase().contains(filterLower)) {
-                            profileDropdown.addItem(key);
-                        }
-                    }
-                    editor.setText(filter);
-                    profileDropdown.showPopup();
-                }
-            }
-        });
+        java.util.List<String> profileList = new java.util.ArrayList<>();
+        profileList.add("-- Select --");
+        profileList.addAll(savedProfiles.stringPropertyNames());
+        profileDropdown.setAllItems(profileList);
+        profileDropdown.setSelectedItem("-- Select --");
 
         profileDropdown.addActionListener(e -> {
             String selected = (String) profileDropdown.getSelectedItem();

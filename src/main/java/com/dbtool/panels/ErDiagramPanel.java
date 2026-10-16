@@ -44,7 +44,7 @@ public class ErDiagramPanel extends JPanel {
     private mxGraph graph;
     private mxGraphComponent graphComponent;
     private DatabaseManager dbManager;
-    private JComboBox<String> searchDropdown;
+    private com.dbtool.ui.components.SearchableComboBox<String> searchDropdown;
     private JButton searchBtn;
     private JButton showAllBtn;
     private JComboBox<String> layoutCombo;
@@ -64,46 +64,8 @@ public class ErDiagramPanel extends JPanel {
         JPanel toolbar = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 3));
         toolbar.add(new JLabel(" Table: "));
 
-        searchDropdown = new JComboBox<>();
-        searchDropdown.setEditable(true);
+        searchDropdown = new com.dbtool.ui.components.SearchableComboBox<>();
         searchDropdown.setPreferredSize(new Dimension(180, 26));
-
-        // Autocomplete search suggestions
-        JTextField editorField = (JTextField) searchDropdown.getEditor().getEditorComponent();
-        editorField.addKeyListener(new java.awt.event.KeyAdapter() {
-            @Override
-            public void keyReleased(java.awt.event.KeyEvent e) {
-                int code = e.getKeyCode();
-                if (code == java.awt.event.KeyEvent.VK_ENTER || code == java.awt.event.KeyEvent.VK_UP ||
-                    code == java.awt.event.KeyEvent.VK_DOWN || code == java.awt.event.KeyEvent.VK_LEFT ||
-                    code == java.awt.event.KeyEvent.VK_RIGHT || code == java.awt.event.KeyEvent.VK_ESCAPE) {
-                    return;
-                }
-
-                SwingUtilities.invokeLater(() -> {
-                    if (dbManager == null) return;
-                    String text = editorField.getText();
-                    List<String> all = dbManager.getTableNames();
-
-                    searchDropdown.removeAllItems();
-                    if (text.isEmpty()) {
-                        for (String t : all) searchDropdown.addItem(t);
-                    } else {
-                        for (String t : all) {
-                            if (t.toLowerCase().contains(text.toLowerCase())) {
-                                searchDropdown.addItem(t);
-                            }
-                        }
-                    }
-                    searchDropdown.hidePopup();
-                    if (searchDropdown.getItemCount() > 0) {
-                        searchDropdown.showPopup();
-                    }
-                    editorField.setText(text);
-                });
-            }
-        });
-
         toolbar.add(searchDropdown);
 
         searchBtn = new JButton("🔍 Focus");
@@ -384,12 +346,8 @@ public class ErDiagramPanel extends JPanel {
                     tableFkMaps.putAll(tempFkMaps);
                     vertexToTableMap.clear();
 
-                    if (allTables != null && searchDropdown.getItemCount() <= 1) {
-                        searchDropdown.removeAllItems();
-                        searchDropdown.addItem("");
-                        for (String t : allTables) {
-                            searchDropdown.addItem(t);
-                        }
+                    if (allTables != null && searchDropdown.getAllItems().isEmpty()) {
+                        searchDropdown.setAllItems(allTables);
                         if (focusTable != null && !focusTable.isEmpty()) {
                             searchDropdown.setSelectedItem(focusTable);
                         }
