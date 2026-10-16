@@ -41,7 +41,7 @@ import java.util.zip.Deflater;
 public class UbuntuDebPackager {
 
     public static final String PACKAGE_NAME = "schemasync";
-    public static final String VERSION = "1.6.8";
+    public static final String VERSION = "1.6.9";
     public static final String ARCHITECTURE = "all";
 
     public static class PackageEntry {
@@ -108,7 +108,11 @@ public class UbuntuDebPackager {
                     + "# FlatLaf / Linux Wayland, TimeZone, and HiDPI font rendering settings\n"
                     + "export _JAVA_AWT_WM_NONREPARENTING=1\n"
                     + "JAVA_OPTS=\"--add-opens java.desktop/sun.awt.X11=ALL-UNNAMED -Duser.timezone=UTC -Dsun.java2d.pmoffscreen=false -Dawt.useSystemAAFontSettings=on -Dswing.aatext=true -Dsun.java2d.uiScale.enabled=true -Djdk.gtk.version=3\"\n\n"
-                    + "JAR_PATH=\"/usr/share/schemasync/SchemaSync.jar\"\n\n"
+                    + "USER_JAR=\"$HOME/.local/share/schemasync/SchemaSync.jar\"\n"
+                    + "JAR_PATH=\"/usr/share/schemasync/SchemaSync.jar\"\n"
+                    + "if [ -f \"$USER_JAR\" ] && [ \"$USER_JAR\" -nt \"$JAR_PATH\" ]; then\n"
+                    + "    JAR_PATH=\"$USER_JAR\"\n"
+                    + "fi\n\n"
                     + "if [ ! -f \"$JAR_PATH\" ]; then\n"
                     + "    echo \"Error: SchemaSync JAR not found at $JAR_PATH\" >&2\n"
                     + "    exit 1\n"

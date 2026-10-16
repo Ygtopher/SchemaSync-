@@ -547,32 +547,42 @@ public class UpdateChecker {
         File runningJar = getRunningJarFile();
         File systemJar = new File("/usr/share/schemasync/SchemaSync.jar");
         File systemLauncher = new File("/usr/bin/schemasync");
+        File userHome = new File(System.getProperty("user.home", "."));
+        File userAppDir = new File(userHome, ".local/share/schemasync");
+        if (!userAppDir.exists()) userAppDir.mkdirs();
+        File userJar = new File(userAppDir, "SchemaSync.jar");
+        File userBinDir = new File(userHome, ".local/bin");
+        if (!userBinDir.exists()) userBinDir.mkdirs();
+        File userLauncher = new File(userBinDir, "schemasync");
         String fileName = downloadedFile.getName().toLowerCase();
 
         boolean updatedLocalJar = false;
+        boolean updatedUserJar = false;
         boolean updatedSystemPkg = false;
 
         if (fileName.endsWith(".deb")) {
-            // 1. If running from a user-writable local JAR (outside /usr/share/schemasync), extract the updated JAR directly
-            if (runningJar != null && !runningJar.equals(systemJar) && runningJar.canWrite()) {
+            // 1. Always extract into ~/.local/share/schemasync/SchemaSync.jar (password-free user-level install)
+            updatedUserJar = extractJarFromDeb(downloadedFile, userJar);
+            if (updatedUserJar) {
+                installUserLauncherAndDesktopEntry(userHome, userLauncher, userJar);
+            }
+
+            // 2. If running from another user-writable local JAR (e.g. project release/SchemaSync.jar), update it too
+            if (runningJar != null && !runningJar.equals(systemJar) && !runningJar.equals(userJar) && runningJar.canWrite()) {
                 updatedLocalJar = extractJarFromDeb(downloadedFile, runningJar);
             }
 
-            // 2. If running from system installation (/usr/share/schemasync) or if system package is installed, install .deb via pkexec dpkg -i
-            if (systemJar.exists() || !updatedLocalJar) {
-                if (new File("/usr/bin/pkexec").exists() && new File("/usr/bin/dpkg").exists()) {
+            // 3. Optionally update system package if /usr/share/schemasync exists and pkexec is available (non-fatal if skipped)
+            if (systemJar.exists() && new File("/usr/bin/pkexec").exists() && new File("/usr/bin/dpkg").exists()) {
+                try {
                     Process proc = new ProcessBuilder("pkexec", "dpkg", "-i", downloadedFile.getAbsolutePath())
                             .redirectErrorStream(true)
                             .start();
                     int exitCode = proc.waitFor();
                     if (exitCode == 0) {
                         updatedSystemPkg = true;
-                    } else if (!updatedLocalJar) {
-                        throw new Exception("Ubuntu package installation was cancelled or failed (exit code " + exitCode + ").");
                     }
-                } else if (!updatedLocalJar && runningJar != null && runningJar.canWrite()) {
-                    updatedLocalJar = extractJarFromDeb(downloadedFile, runningJar);
-                }
+                } catch (Exception ignored) {}
             }
         } else if (fileName.endsWith(".rpm")) {
             if (new File("/usr/bin/pkexec").exists() && new File("/usr/bin/rpm").exists()) {
@@ -587,23 +597,16 @@ public class UpdateChecker {
                 }
             }
         } else if (fileName.endsWith(".jar")) {
-            if (runningJar != null && runningJar.canWrite()) {
+            java.nio.file.Files.copy(downloadedFile.toPath(), userJar.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            updatedUserJar = true;
+            installUserLauncherAndDesktopEntry(userHome, userLauncher, userJar);
+            if (runningJar != null && !runningJar.equals(userJar) && runningJar.canWrite()) {
                 java.nio.file.Files.copy(downloadedFile.toPath(), runningJar.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 updatedLocalJar = true;
-            } else if (systemJar.exists() && new File("/usr/bin/pkexec").exists()) {
-                Process proc = new ProcessBuilder("pkexec", "cp", "-f", downloadedFile.getAbsolutePath(), systemJar.getAbsolutePath())
-                        .redirectErrorStream(true)
-                        .start();
-                int exitCode = proc.waitFor();
-                if (exitCode == 0) {
-                    updatedSystemPkg = true;
-                } else {
-                    throw new Exception("Copying updated JAR to /usr/share/schemasync failed (exit code " + exitCode + ").");
-                }
             }
         }
 
-        if (!updatedLocalJar && !updatedSystemPkg) {
+        if (!updatedUserJar && !updatedLocalJar && !updatedSystemPkg) {
             throw new Exception("Could not apply update automatically. Package saved at: " + downloadedFile.getAbsolutePath());
         }
 
@@ -617,24 +620,68 @@ public class UpdateChecker {
             return;
         }
 
-        // Build restart command
+        // Build restart command using the updated JAR
         List<String> restartCmd = new ArrayList<>();
-        if (updatedSystemPkg && systemLauncher.exists() && (runningJar == null || runningJar.equals(systemJar))) {
-            restartCmd.add(systemLauncher.getAbsolutePath());
+        String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
+        if (!new File(javaBin).exists()) javaBin = "java";
+
+        File targetJar;
+        if (updatedLocalJar && runningJar != null && runningJar.exists()) {
+            targetJar = runningJar;
+        } else if (updatedUserJar && userJar.exists()) {
+            targetJar = userJar;
+        } else if (updatedSystemPkg && systemJar.exists()) {
+            targetJar = systemJar;
         } else {
-            String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
-            if (!new File(javaBin).exists()) javaBin = "java";
-            File targetJar = (runningJar != null && runningJar.exists()) ? runningJar : systemJar;
-            restartCmd.add(javaBin);
-            restartCmd.add("-Duser.timezone=UTC");
-            restartCmd.add("-Dsun.java2d.pmoffscreen=false");
-            restartCmd.add("-jar");
-            restartCmd.add(targetJar.getAbsolutePath());
+            targetJar = (runningJar != null && runningJar.exists()) ? runningJar : userJar;
         }
+
+        restartCmd.add(javaBin);
+        restartCmd.add("-Duser.timezone=UTC");
+        restartCmd.add("-Dsun.java2d.pmoffscreen=false");
+        restartCmd.add("-jar");
+        restartCmd.add(targetJar.getAbsolutePath());
 
         new ProcessBuilder(restartCmd).start();
         Thread.sleep(500);
         System.exit(0);
+    }
+
+    private static void installUserLauncherAndDesktopEntry(File userHome, File userLauncher, File userJar) {
+        try {
+            String script = "#!/bin/bash\n"
+                    + "export _JAVA_AWT_WM_NONREPARENTING=1\n"
+                    + "JAVA_OPTS=\"--add-opens java.desktop/sun.awt.X11=ALL-UNNAMED -Duser.timezone=UTC -Dsun.java2d.pmoffscreen=false -Dawt.useSystemAAFontSettings=on -Dswing.aatext=true -Dsun.java2d.uiScale.enabled=true -Djdk.gtk.version=3\"\n"
+                    + "USER_JAR=\"" + userJar.getAbsolutePath() + "\"\n"
+                    + "SYS_JAR=\"/usr/share/schemasync/SchemaSync.jar\"\n"
+                    + "if [ -f \"$USER_JAR\" ]; then\n"
+                    + "    JAR_PATH=\"$USER_JAR\"\n"
+                    + "else\n"
+                    + "    JAR_PATH=\"$SYS_JAR\"\n"
+                    + "fi\n"
+                    + "exec java $JAVA_OPTS -jar \"$JAR_PATH\" \"$@\"\n";
+            java.nio.file.Files.write(userLauncher.toPath(), script.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            userLauncher.setExecutable(true, false);
+
+            File appsDir = new File(userHome, ".local/share/applications");
+            if (!appsDir.exists()) appsDir.mkdirs();
+            File desktopFile = new File(appsDir, "schemasync.desktop");
+            String desktop = "[Desktop Entry]\n"
+                    + "Version=1.0\n"
+                    + "Type=Application\n"
+                    + "Name=SchemaSync\n"
+                    + "GenericName=Database Management Tool\n"
+                    + "Comment=Modern, lightweight database management and synchronization tool\n"
+                    + "Exec=" + userLauncher.getAbsolutePath() + " %F\n"
+                    + "Icon=schemasync\n"
+                    + "Terminal=false\n"
+                    + "StartupNotify=true\n"
+                    + "StartupWMClass=schemasync\n"
+                    + "Categories=Development;Database;IDE;\n"
+                    + "MimeType=application/sql;application/x-sqlite3;\n"
+                    + "Keywords=database;sql;postgres;mysql;sqlite;schema;diff;sync;\n";
+            java.nio.file.Files.write(desktopFile.toPath(), desktop.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception ignored) {}
     }
 
     private static File getRunningJarFile() {

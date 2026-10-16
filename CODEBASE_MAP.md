@@ -68,8 +68,8 @@ D:\projects\DBTOOL\
 ├── README.md                                 # Official product documentation & features
 ├── CODEBASE_MAP.md                           # This architecture and feature mapping document
 ├── release\                                  # Build output folder
-│   ├── schemasync_1.6.8_all.deb              # Ubuntu Desktop DEB Package (Pure Java / Commons Compress)
-│   ├── schemasync-1.6.8-1.fc44.noarch.rpm    # Fedora 44 Linux RPM Package (Redline RPM)
+│   ├── schemasync_1.6.9_all.deb              # Ubuntu Desktop DEB Package (Pure Java / Commons Compress)
+│   ├── schemasync-1.6.9-1.fc44.noarch.rpm    # Fedora 44 Linux RPM Package (Redline RPM)
 │   ├── SchemaSync-Setup.exe                  # Windows Setup Installer (Inno Setup)
 │   ├── SchemaSync.exe                        # Windows Standalone Native Executable (Launch4j)
 │   └── SchemaSync.jar                        # Shaded Cross-Platform Fat JAR
