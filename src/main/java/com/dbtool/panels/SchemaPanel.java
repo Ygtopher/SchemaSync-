@@ -74,10 +74,14 @@ public class SchemaPanel extends JPanel {
         add(searchContainer, BorderLayout.NORTH);
         add(split, BorderLayout.CENTER);
 
-        // Double-click → load table in Browse
+        // Double-click → load table in Browse; Single-click (debounced) → show fast stats
+        final javax.swing.Timer[] statsDebounceTimer = new javax.swing.Timer[1];
         tree.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
+                    if (statsDebounceTimer[0] != null) {
+                        statsDebounceTimer[0].stop();
+                    }
                     TreePath path = tree.getPathForLocation(e.getX(), e.getY());
                     if (path != null && path.getPathCount() == 2) {
                         DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
@@ -92,7 +96,13 @@ public class SchemaPanel extends JPanel {
                         DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
                         String tableName = node.getUserObject().toString();
                         if (tableName.contains(" (")) tableName = tableName.substring(0, tableName.indexOf(" ("));
-                        showTableStats(tableName);
+                        final String targetTable = tableName;
+                        if (statsDebounceTimer[0] != null) {
+                            statsDebounceTimer[0].stop();
+                        }
+                        statsDebounceTimer[0] = new javax.swing.Timer(260, ev -> showTableStats(targetTable));
+                        statsDebounceTimer[0].setRepeats(false);
+                        statsDebounceTimer[0].start();
                     }
                 }
             }
@@ -138,6 +148,7 @@ public class SchemaPanel extends JPanel {
                 newMaster.setUserObject(rootName);
 
                 dbManager.preloadAllColumns();
+                dbManager.preloadAllForeignKeys();
 
                 List<String> tables = dbManager.getTableNames();
                 for (String tbl : tables) {
@@ -219,39 +230,54 @@ public class SchemaPanel extends JPanel {
         new Thread(() -> {
             StringBuilder sb = new StringBuilder();
             try {
-                // Row count
-                ResultSet rs = dbManager.connection.createStatement()
-                        .executeQuery("SELECT COUNT(*) FROM " + dbManager.quoteTableName(tableName));
-                if (rs.next()) sb.append("Rows: ").append(rs.getLong(1)).append("\n");
+                String cleanTable = tableName.contains(".") ? tableName.split("\\.")[1] : tableName;
+                if (dbManager.isPostgres()) {
+                    long rows = -1;
+                    String prettySize = null;
+                    try (Statement st = dbManager.connection.createStatement();
+                         ResultSet rs = st.executeQuery(
+                                 "SELECT COALESCE(n_live_tup, -1), pg_size_pretty(pg_total_relation_size(relid)) " +
+                                 "FROM pg_stat_user_tables WHERE relname = '" + cleanTable.replace("'", "''") + "' LIMIT 1")) {
+                        if (rs.next()) {
+                            rows = rs.getLong(1);
+                            prettySize = rs.getString(2);
+                        }
+                    } catch (Exception ignored) {}
+                    if (rows >= 0) sb.append("Rows (est): ").append(rows).append("\n");
+                    if (prettySize != null) sb.append("Size: ").append(prettySize).append("\n");
+                    try (Statement st = dbManager.connection.createStatement();
+                         ResultSet idxRs = st.executeQuery("SELECT indexname FROM pg_indexes WHERE tablename = '" + cleanTable.replace("'", "''") + "'")) {
+                        sb.append("Indexes:\n");
+                        while (idxRs.next()) sb.append("  • ").append(idxRs.getString(1)).append("\n");
+                    } catch (Exception ignored) {}
+                } else if (dbManager.isMySQL()) {
+                    try (Statement st = dbManager.connection.createStatement();
+                         ResultSet rs = st.executeQuery(
+                                 "SELECT COALESCE(table_rows, 0), COALESCE(data_length + index_length, 0) " +
+                                 "FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = '" + cleanTable.replace("'", "''") + "' LIMIT 1")) {
+                        if (rs.next()) {
+                            sb.append("Rows (est): ").append(rs.getLong(1)).append("\n");
+                            sb.append("Size: ").append(rs.getLong(2) / 1024).append(" KB\n");
+                        }
+                    } catch (Exception ignored) {}
+                } else {
+                    try (Statement st = dbManager.connection.createStatement();
+                         ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM " + dbManager.quoteTableName(tableName))) {
+                        if (rs.next()) sb.append("Rows: ").append(rs.getLong(1)).append("\n");
+                    } catch (Exception ignored) {}
+                }
 
-                // Disk size (PostgreSQL only)
-                try {
-                    ResultSet sizeRs = dbManager.connection.createStatement()
-                            .executeQuery("SELECT pg_size_pretty(pg_total_relation_size('" + tableName + "'))");
-                    if (sizeRs.next()) sb.append("Size: ").append(sizeRs.getString(1)).append("\n");
-                } catch (Exception ignored) {}
-
-                // Indexes
-                try {
-                    ResultSet idxRs = dbManager.connection.createStatement()
-                            .executeQuery("SELECT indexname FROM pg_indexes WHERE tablename = '" + tableName + "'");
-                    sb.append("Indexes:\n");
-                    while (idxRs.next()) sb.append("  • ").append(idxRs.getString(1)).append("\n");
-                } catch (Exception ignored) {}
-
-                // Foreign keys
-                try {
-                    ResultSet fkRs = dbManager.connection.createStatement().executeQuery(
-                            "SELECT kcu.column_name, ccu.table_name, ccu.column_name AS foreign_col " +
-                            "FROM information_schema.table_constraints tc " +
-                            "JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name " +
-                            "JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name " +
-                            "WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name='" + tableName + "'");
+                // Foreign keys from in-memory fkCache (instant, 0 SQL queries when preloaded)
+                java.util.Map<String, String[]> fks = dbManager.getForeignKeys(tableName);
+                if (fks != null && !fks.isEmpty()) {
                     sb.append("Foreign Keys:\n");
-                    while (fkRs.next()) sb.append("  • ").append(fkRs.getString(1))
-                            .append(" → ").append(fkRs.getString(2)).append(".").append(fkRs.getString(3)).append("\n");
-                } catch (Exception ignored) {}
-
+                    for (java.util.Map.Entry<String, String[]> fk : fks.entrySet()) {
+                        String[] ref = fk.getValue();
+                        if (ref != null && ref.length >= 2) {
+                            sb.append("  • ").append(fk.getKey()).append(" → ").append(ref[0]).append(".").append(ref[1]).append("\n");
+                        }
+                    }
+                }
             } catch (Exception ex) {
                 sb.append("Error: ").append(ex.getMessage());
             }

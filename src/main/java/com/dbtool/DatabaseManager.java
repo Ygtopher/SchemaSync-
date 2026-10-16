@@ -60,10 +60,25 @@ public class DatabaseManager {
     }
 
 
+    private volatile long lastValidCheckMs = 0;
+
+    private void ensureConnectionValid() {
+        if (connection == null) return;
+        long now = System.currentTimeMillis();
+        if (now - lastValidCheckMs < 15000) return;
+        try {
+            if (!connection.isValid(2)) {
+                autoReconnect();
+            }
+            lastValidCheckMs = System.currentTimeMillis();
+        } catch (Exception ignored) {}
+    }
+
     public void clearCache() {
         columnCache.clear();
         fkCache.clear();
         tableCache = null;
+        lastValidCheckMs = 0;
     }
 
     public void preloadAllColumns() {
@@ -86,6 +101,42 @@ public class DatabaseManager {
         } catch (Exception ignored) {
             // Non-fatal, getColumnNames will fall back to per-table metadata query
         }
+    }
+
+    public void preloadAllForeignKeys() {
+        if (connection == null) return;
+        try {
+            List<String> allTables = getTableNames();
+            if (allTables != null) {
+                for (String t : allTables) {
+                    fkCache.computeIfAbsent(t, k -> new java.util.HashMap<>());
+                }
+            }
+            DatabaseMetaData metaData = connection.getMetaData();
+            try (ResultSet rs = metaData.getImportedKeys(null, null, null)) {
+                while (rs.next()) {
+                    String fkSchema = rs.getString("FKTABLE_SCHEM");
+                    String fkTable = rs.getString("FKTABLE_NAME");
+                    String fkCol = rs.getString("FKCOLUMN_NAME");
+                    String pkTable = rs.getString("PKTABLE_NAME");
+                    String pkCol = rs.getString("PKCOLUMN_NAME");
+                    if (fkTable != null && fkCol != null && pkTable != null && pkCol != null) {
+                        fkCache.computeIfAbsent(fkTable, k -> new java.util.HashMap<>()).put(fkCol, new String[]{pkTable, pkCol});
+                        if (fkSchema != null && !fkSchema.equalsIgnoreCase("public") && !fkSchema.isEmpty()) {
+                            fkCache.computeIfAbsent(fkSchema + "." + fkTable, k -> new java.util.HashMap<>()).put(fkCol, new String[]{pkTable, pkCol});
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // Non-fatal, getForeignKeys will fall back to per-table query if needed
+        }
+    }
+
+    public java.util.Map<String, String[]> getCachedForeignKeys(String table) {
+        if (table == null) return java.util.Collections.emptyMap();
+        java.util.Map<String, String[]> cached = fkCache.get(table);
+        return cached != null ? cached : java.util.Collections.emptyMap();
     }
     public void connect(String dbFilePath) throws Exception {
         // Fallback for old method without credentials
@@ -801,49 +852,29 @@ public class DatabaseManager {
 
     public String[] getForeignKeyMatch(String tableA, String tableB) {
         if (connection == null || tableA == null || tableB == null) return null;
-        try {
-            DatabaseMetaData metaData = connection.getMetaData();
-            
-            String schemaA = null;
-            String nameA = tableA;
-            if (tableA.contains(".")) {
-                schemaA = tableA.split("\\.")[0];
-                nameA = tableA.split("\\.")[1];
-            }
-            
-            String schemaB = null;
-            String nameB = tableB;
-            if (tableB.contains(".")) {
-                schemaB = tableB.split("\\.")[0];
-                nameB = tableB.split("\\.")[1];
-            }
+        String nameA = tableA.contains(".") ? tableA.split("\\.")[1] : tableA;
+        String nameB = tableB.contains(".") ? tableB.split("\\.")[1] : tableB;
 
-            // 1. Check if tableA has a foreign key pointing to tableB
-            try (ResultSet rs = metaData.getImportedKeys(null, schemaA, nameA)) {
-                while (rs.next()) {
-                    String pkTable = rs.getString("PKTABLE_NAME");
-                    if (nameB.equalsIgnoreCase(pkTable)) {
-                        String fkColumn = rs.getString("FKCOLUMN_NAME");
-                        String pkColumn = rs.getString("PKCOLUMN_NAME");
-                        return new String[]{tableA + "." + fkColumn, tableB + "." + pkColumn};
-                    }
-                }
+        // 1. Check if tableA has a foreign key pointing to tableB (uses fkCache)
+        java.util.Map<String, String[]> fksA = getForeignKeys(tableA);
+        for (java.util.Map.Entry<String, String[]> entry : fksA.entrySet()) {
+            String fkColumn = entry.getKey();
+            String[] pkInfo = entry.getValue();
+            if (pkInfo != null && pkInfo.length >= 2 && nameB.equalsIgnoreCase(pkInfo[0])) {
+                return new String[]{tableA + "." + fkColumn, tableB + "." + pkInfo[1]};
             }
-
-            // 2. Check if tableB has a foreign key pointing to tableA
-            try (ResultSet rs = metaData.getImportedKeys(null, schemaB, nameB)) {
-                while (rs.next()) {
-                    String pkTable = rs.getString("PKTABLE_NAME");
-                    if (nameA.equalsIgnoreCase(pkTable)) {
-                        String fkColumn = rs.getString("FKCOLUMN_NAME");
-                        String pkColumn = rs.getString("PKCOLUMN_NAME");
-                        return new String[]{tableA + "." + pkColumn, tableB + "." + fkColumn};
-                    }
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
+
+        // 2. Check if tableB has a foreign key pointing to tableA (uses fkCache)
+        java.util.Map<String, String[]> fksB = getForeignKeys(tableB);
+        for (java.util.Map.Entry<String, String[]> entry : fksB.entrySet()) {
+            String fkColumn = entry.getKey();
+            String[] pkInfo = entry.getValue();
+            if (pkInfo != null && pkInfo.length >= 2 && nameA.equalsIgnoreCase(pkInfo[0])) {
+                return new String[]{tableA + "." + pkInfo[1], tableB + "." + fkColumn};
+            }
+        }
+
         return null; // No formal foreign key found
     }
 
@@ -924,11 +955,7 @@ public class DatabaseManager {
 
     public void executeUpdate(String query, java.util.List<Object> params) throws java.sql.SQLException {
         if (connection == null) throw new java.sql.SQLException("Not connected to a database.");
-        try {
-            if (!connection.isValid(2)) {
-                autoReconnect();
-            }
-        } catch (Exception e) {}
+        ensureConnectionValid();
 
         long start = System.currentTimeMillis();
         boolean success = false;
@@ -938,6 +965,7 @@ public class DatabaseManager {
             }
             pstmt.executeUpdate();
             success = true;
+            lastValidCheckMs = System.currentTimeMillis();
         } catch (java.sql.SQLException e) {
             String msg = e.getMessage().toLowerCase();
             if (msg.contains("closed") || msg.contains("i/o") || msg.contains("broken pipe") || msg.contains("timeout") || msg.contains("connection")) {
@@ -949,6 +977,7 @@ public class DatabaseManager {
                         }
                         pstmt2.executeUpdate();
                         success = true;
+                        lastValidCheckMs = System.currentTimeMillis();
                     }
                 } catch (Exception ex) {
                     throw e;
@@ -963,17 +992,14 @@ public class DatabaseManager {
 
     public int executeUpdate(String query) throws java.sql.SQLException {
         if (connection == null) throw new java.sql.SQLException("Not connected to a database.");
-        try {
-            if (!connection.isValid(2)) {
-                autoReconnect();
-            }
-        } catch (Exception ignored) {}
+        ensureConnectionValid();
 
         long start = System.currentTimeMillis();
         boolean success = false;
         try (java.sql.Statement stmt = connection.createStatement()) {
             int count = stmt.executeUpdate(query);
             success = true;
+            lastValidCheckMs = System.currentTimeMillis();
             return count;
         } catch (java.sql.SQLException e) {
             String msg = e.getMessage().toLowerCase();
@@ -983,6 +1009,7 @@ public class DatabaseManager {
                     try (java.sql.Statement stmt2 = connection.createStatement()) {
                         int count = stmt2.executeUpdate(query);
                         success = true;
+                        lastValidCheckMs = System.currentTimeMillis();
                         return count;
                     }
                 } catch (Exception ex) {
@@ -1027,12 +1054,7 @@ public class DatabaseManager {
 
     public DefaultTableModel executeQuery(String query) throws java.sql.SQLException {
         if (connection == null) throw new java.sql.SQLException("Not connected to a database.");
-        
-        try {
-            if (!connection.isValid(2)) {
-                autoReconnect();
-            }
-        } catch (Exception e) {}
+        ensureConnectionValid();
 
         long start = System.currentTimeMillis();
         boolean success = false;
@@ -1040,6 +1062,7 @@ public class DatabaseManager {
              java.sql.ResultSet rs = stmt.executeQuery(query)) {
             DefaultTableModel model = buildTableModel(rs);
             success = true;
+            lastValidCheckMs = System.currentTimeMillis();
             return model;
         } catch (java.sql.SQLException e) {
             String msg = e.getMessage().toLowerCase();
@@ -1050,6 +1073,7 @@ public class DatabaseManager {
                          java.sql.ResultSet rs2 = stmt2.executeQuery(query)) {
                         DefaultTableModel model = buildTableModel(rs2);
                         success = true;
+                        lastValidCheckMs = System.currentTimeMillis();
                         return model;
                     }
                 } catch (Exception ex) {
@@ -1065,11 +1089,7 @@ public class DatabaseManager {
 
     public DefaultTableModel executeSearch(String tableName, String keyword, String cols, int limit) throws SQLException {
         if (connection == null) throw new SQLException("Not connected to a database.");
-        try {
-            if (!connection.isValid(2)) {
-                autoReconnect();
-            }
-        } catch (Exception e) {}
+        ensureConnectionValid();
 
         List<String> columns = getColumnNames(tableName);
         if (columns.isEmpty()) return new DefaultTableModel();

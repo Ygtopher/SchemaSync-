@@ -28,7 +28,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.6.6";
+    public static final String APP_VERSION = "1.6.7";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -3217,33 +3217,44 @@ public class Main extends JFrame {
                 }
             }
             
-            // 1. Check for Foreign Key
+            // 1. Check for Foreign Key (non-blocking cache lookup on EDT)
             if (actualTable != null && !actualTable.isEmpty()) {
-                java.util.Map<String, String[]> fks = dbManager.getForeignKeys(actualTable);
+                java.util.Map<String, String[]> fks = dbManager.getCachedForeignKeys(actualTable);
                 if (fks.containsKey(actualCol)) {
                     String[] pkInfo = fks.get(actualCol);
                     String pkTable = pkInfo[0];
                     String pkCol = pkInfo[1];
                     String cacheKey = pkTable + "." + pkCol;
                     java.util.Vector<String> options = fkOptionsCache.get(cacheKey);
-                    if (options == null) {
-                        try {
-                            javax.swing.table.DefaultTableModel rs = dbManager.executeQuery("SELECT DISTINCT " + dbManager.quoteColumnName(pkCol) + " FROM " + dbManager.quoteTableName(pkTable) + " LIMIT 500");
-                            options = new java.util.Vector<>();
-                            for (int i = 0; i < rs.getRowCount(); i++) {
-                                Object val = rs.getValueAt(i, 0);
-                                if (val != null) options.add(val.toString());
-                            }
-                            if (!options.isEmpty()) {
-                                fkOptionsCache.put(cacheKey, options);
-                            }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
                     if (options != null && !options.isEmpty()) {
                         JComboBox<String> combo = new JComboBox<>(options);
                         combo.setEditable(true);
+                        return new DefaultCellEditor(combo);
+                    } else if (options == null) {
+                        // Populate FK options asynchronously so we never block the Swing EDT
+                        fkOptionsCache.put(cacheKey, new java.util.Vector<>());
+                        JComboBox<String> combo = new JComboBox<>();
+                        combo.setEditable(true);
+                        Object curVal = getValueAt(row, column);
+                        if (curVal != null) combo.addItem(curVal.toString());
+                        new Thread(() -> {
+                            try {
+                                javax.swing.table.DefaultTableModel rs = dbManager.executeQuery(
+                                        "SELECT DISTINCT " + dbManager.quoteColumnName(pkCol) +
+                                        " FROM " + dbManager.quoteTableName(pkTable) + " LIMIT 500");
+                                java.util.Vector<String> fetched = new java.util.Vector<>();
+                                for (int i = 0; i < rs.getRowCount(); i++) {
+                                    Object val = rs.getValueAt(i, 0);
+                                    if (val != null) fetched.add(val.toString());
+                                }
+                                if (!fetched.isEmpty()) {
+                                    fkOptionsCache.put(cacheKey, fetched);
+                                    SwingUtilities.invokeLater(() -> {
+                                        combo.setModel(new DefaultComboBoxModel<>(fetched));
+                                    });
+                                }
+                            } catch (Exception ignored) {}
+                        }).start();
                         return new DefaultCellEditor(combo);
                     }
                 }
@@ -4289,13 +4300,10 @@ public class Main extends JFrame {
                 try {
                     dbManager.connectPostgres(selectedFile.getAbsolutePath(), finalHost, finalPort, finalUser, finalPass, finalDbName);
                     
-                    // Pre-fetch caches in background so we don't freeze EDT
-                    java.util.List<String> tables = dbManager.getTableNames();
-                    if (tables != null) {
-                        for (String t : tables) {
-                            dbManager.getColumnNames(t);
-                        }
-                    }
+                    // Pre-fetch caches in bulk (2 queries instead of N*2) so we don't freeze EDT
+                    dbManager.getTableNames();
+                    dbManager.preloadAllColumns();
+                    dbManager.preloadAllForeignKeys();
 
                     SwingUtilities.invokeLater(() -> {
                         statusLabel.setText("Loaded: " + selectedFile.getName());
@@ -4487,7 +4495,9 @@ public class Main extends JFrame {
         }
         schemaPanel.refresh();
         if (erDiagramPanel != null) erDiagramPanel.markNeedsRefresh(dbManager);
-        if (dashboardPanel != null) dashboardPanel.refresh();
+        if (dashboardPanel != null && tabbedPane != null && tabbedPane.getSelectedComponent() == dashboardPanel) {
+            dashboardPanel.refresh();
+        }
     }
 
     private void connectExistingDatabase() {
@@ -4517,13 +4527,10 @@ public class Main extends JFrame {
                     dbManager.connectExistingPostgres(finalHost, finalPort, finalDbName, finalUser, finalPass);
                 }
                 
-                // Pre-fetch caches in background so we don't freeze EDT
-                java.util.List<String> tables = dbManager.getTableNames();
-                if (tables != null) {
-                    for (String t : tables) {
-                        dbManager.getColumnNames(t);
-                    }
-                }
+                // Pre-fetch caches in bulk (2 queries instead of N*2) so we don't freeze EDT
+                dbManager.getTableNames();
+                dbManager.preloadAllColumns();
+                dbManager.preloadAllForeignKeys();
 
                 javax.swing.SwingUtilities.invokeLater(() -> {
                     try {
@@ -6259,6 +6266,10 @@ public class Main extends JFrame {
     private static void setLinuxAppId() {
         String os = System.getProperty("os.name", "").toLowerCase();
         if (!os.contains("win") && !os.contains("mac")) {
+            // Prevent X11/XWayland offscreen pixmap stalls on Ubuntu (GNOME/Mutter)
+            if (System.getProperty("sun.java2d.pmoffscreen") == null) {
+                System.setProperty("sun.java2d.pmoffscreen", "false");
+            }
             try {
                 Toolkit toolkit = Toolkit.getDefaultToolkit();
                 Class<?> toolkitClass = toolkit.getClass();

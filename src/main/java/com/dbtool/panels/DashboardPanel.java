@@ -322,10 +322,15 @@ public class DashboardPanel extends JPanel {
         return tile;
     }
 
+    private final java.util.concurrent.atomic.AtomicBoolean isRefreshing = new java.util.concurrent.atomic.AtomicBoolean(false);
+
     public void refresh() {
         if (dbManager == null || dbManager.connection == null) {
             statusPillLabel.setText("● Disconnected");
             statusPillLabel.setForeground(Color.GRAY);
+            return;
+        }
+        if (!isRefreshing.compareAndSet(false, true)) {
             return;
         }
 
@@ -347,49 +352,75 @@ public class DashboardPanel extends JPanel {
                 String url = meta.getURL();
                 boolean autoCommit = dbManager.connection.getAutoCommit();
 
+                dbManager.preloadAllColumns();
+                dbManager.preloadAllForeignKeys();
+
                 List<String> tables = dbManager.getTableNames();
                 int tableCount = tables.size();
 
-                // Compute storage and table sizes
+                // Compute storage and table sizes in a SINGLE batch query instead of N*3 queries
                 List<TableStorageInfo> storageList = new ArrayList<>();
                 long totalCatalogBytes = 0;
+                java.util.Map<String, long[]> statsMap = new java.util.HashMap<>();
+                int batchIndexCount = 0;
 
-                for (String t : tables) {
-                    long rows = -1;
-                    long bytes = 0;
+                if (dbManager.isPostgres()) {
                     try (Statement s = dbManager.connection.createStatement()) {
-                        s.setMaxRows(1);
-                        if (dbManager.isPostgres()) {
-                            try (ResultSet rs = s.executeQuery("SELECT pg_total_relation_size('" + t + "')")) {
-                                if (rs.next()) bytes = rs.getLong(1);
-                            }
-                            try (ResultSet rs = s.executeQuery("SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = '" + t + "'")) {
-                                if (rs.next()) rows = rs.getLong(1);
-                            }
-                        } else if (dbManager.isMySQL()) {
-                            try (ResultSet rs = s.executeQuery("SELECT table_rows, (data_length + index_length) FROM information_schema.tables WHERE table_name = '" + t + "'")) {
-                                if (rs.next()) {
-                                    rows = rs.getLong(1);
-                                    bytes = rs.getLong(2);
+                        try (ResultSet rs = s.executeQuery(
+                                "SELECT CASE WHEN schemaname = 'public' THEN relname ELSE schemaname || '.' || relname END, " +
+                                "COALESCE(n_live_tup, 0), COALESCE(pg_total_relation_size(relid), 0) " +
+                                "FROM pg_stat_user_tables")) {
+                            while (rs.next()) {
+                                String tName = rs.getString(1);
+                                long rCount = Math.max(0, rs.getLong(2));
+                                long bSize = Math.max(0, rs.getLong(3));
+                                if (tName != null) {
+                                    statsMap.put(tName, new long[]{rCount, bSize});
                                 }
                             }
-                        }
+                        } catch (Exception ignored) {}
+                        try (ResultSet rs = s.executeQuery(
+                                "SELECT COUNT(*) FROM pg_indexes WHERE schemaname NOT IN ('pg_catalog', 'information_schema')")) {
+                            if (rs.next()) batchIndexCount = rs.getInt(1);
+                        } catch (Exception ignored) {}
                     } catch (Exception ignored) {}
-
-                    if (rows < 0) {
-                        // Lightweight count estimate
-                        try (Statement s = dbManager.connection.createStatement()) {
-                            try (ResultSet rs = s.executeQuery("SELECT COUNT(*) FROM " + t)) {
-                                if (rs.next()) rows = rs.getLong(1);
+                } else if (dbManager.isMySQL()) {
+                    try (Statement s = dbManager.connection.createStatement()) {
+                        try (ResultSet rs = s.executeQuery(
+                                "SELECT table_name, COALESCE(table_rows, 0), COALESCE(data_length + index_length, 0) " +
+                                "FROM information_schema.tables WHERE table_schema = DATABASE()")) {
+                            while (rs.next()) {
+                                String tName = rs.getString(1);
+                                long rCount = Math.max(0, rs.getLong(2));
+                                long bSize = Math.max(0, rs.getLong(3));
+                                if (tName != null) {
+                                    statsMap.put(tName, new long[]{rCount, bSize});
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    } catch (Exception ignored) {}
+                } else if (tables.size() <= 20) {
+                    // Local embedded DB (SQLite / H2 Sandbox) with few tables
+                    for (String t : tables) {
+                        try (Statement s = dbManager.connection.createStatement();
+                             ResultSet rs = s.executeQuery("SELECT COUNT(*) FROM " + dbManager.quoteTableName(t))) {
+                            if (rs.next()) {
+                                long r = Math.max(0, rs.getLong(1));
+                                statsMap.put(t, new long[]{r, r * 128L});
                             }
                         } catch (Exception ignored) {}
                     }
-                    if (bytes == 0 && rows > 0) {
-                        bytes = rows * 128L; // Fallback estimated bytes per row
-                    }
+                }
 
+                for (String t : tables) {
+                    long[] st = statsMap.get(t);
+                    long rows = st != null ? st[0] : 0;
+                    long bytes = st != null ? st[1] : 0;
+                    if (bytes == 0 && rows > 0) {
+                        bytes = rows * 128L;
+                    }
                     totalCatalogBytes += bytes;
-                    storageList.add(new TableStorageInfo(t, Math.max(0, rows), bytes));
+                    storageList.add(new TableStorageInfo(t, rows, bytes));
                 }
 
                 // Sort descending by bytes/rows
@@ -403,18 +434,14 @@ public class DashboardPanel extends JPanel {
                     }
                 }
 
-                // Count columns and indexes
+                // Count columns and foreign keys from in-memory caches (0 network queries)
                 int totalCols = 0;
-                int totalIdx = 0;
                 int totalFk = 0;
-                for (int i = 0; i < Math.min(tables.size(), 20); i++) {
-                    String t = tables.get(i);
+                for (String t : tables) {
                     totalCols += dbManager.getColumnNames(t).size();
-                    try (ResultSet rs = meta.getIndexInfo(null, null, t, false, false)) {
-                        while (rs.next()) totalIdx++;
-                    } catch (Exception ignored) {}
-                    totalFk += dbManager.getForeignKeys(t).size();
+                    totalFk += dbManager.getCachedForeignKeys(t).size();
                 }
+                int totalIdx = batchIndexCount > 0 ? batchIndexCount : Math.max(tableCount, totalFk);
 
                 final int finalCols = totalCols;
                 final int finalIdx = totalIdx;
@@ -465,6 +492,8 @@ public class DashboardPanel extends JPanel {
                     statusPillLabel.setText("● Telemetry Error");
                     statusPillLabel.setForeground(Color.RED);
                 });
+            } finally {
+                isRefreshing.set(false);
             }
         }).start();
     }
