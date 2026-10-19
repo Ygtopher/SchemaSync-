@@ -6280,6 +6280,10 @@ public class Main extends JFrame {
                 }
             } catch (Throwable ignored) {
             }
+            try {
+                com.dbtool.util.UpdateChecker.ensureLinuxDesktopIntegration();
+            } catch (Throwable ignored) {
+            }
         }
     }
 

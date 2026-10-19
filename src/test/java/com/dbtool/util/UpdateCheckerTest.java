@@ -50,4 +50,10 @@ public class UpdateCheckerTest {
         assertTrue(UpdateChecker.isNewerVersion("1.6.1", null));
         assertTrue(UpdateChecker.isNewerVersion("1.6.1", ""));
     }
+
+    @Test
+    void testEnsureLinuxDesktopIntegrationNonFatal() {
+        // Must execute cleanly on any OS without throwing
+        assertDoesNotThrow(() -> UpdateChecker.ensureLinuxDesktopIntegration());
+    }
 }

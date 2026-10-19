@@ -129,57 +129,106 @@ public class UpdateChecker {
                 boolean hasDpkg = !isWindows && new File("/usr/bin/dpkg").exists();
                 boolean hasRpm = !isWindows && !hasDpkg && new File("/usr/bin/rpm").exists();
 
-                String chosenUrl;
-                String chosenFileName;
-                long chosenSize;
+                File runningJar = getRunningJarFile();
+                boolean isRunningExe = isRunningFromExe();
+
+                // 1. Manual browser download package ("📥 Download Package")
+                String manualDownloadUrl;
+                String manualDownloadFileName;
+                long manualDownloadSize;
 
                 if (isWindows) {
                     if (setupUrl != null) {
-                        chosenUrl = setupUrl;
-                        chosenFileName = "SchemaSync-Setup-" + tagName + ".exe";
-                        chosenSize = setupSize;
+                        manualDownloadUrl = setupUrl;
+                        manualDownloadFileName = "SchemaSync-Setup-" + tagName + ".exe";
+                        manualDownloadSize = setupSize;
                     } else if (exeUrl != null) {
-                        chosenUrl = exeUrl;
-                        chosenFileName = "SchemaSync-" + tagName + ".exe";
-                        chosenSize = setupSize;
+                        manualDownloadUrl = exeUrl;
+                        manualDownloadFileName = "SchemaSync-" + tagName + ".exe";
+                        manualDownloadSize = setupSize;
                     } else if (jarUrl != null) {
-                        chosenUrl = jarUrl;
-                        chosenFileName = jarName != null ? jarName : "SchemaSync.jar";
-                        chosenSize = jarSize;
+                        manualDownloadUrl = jarUrl;
+                        manualDownloadFileName = jarName != null ? jarName : "SchemaSync.jar";
+                        manualDownloadSize = jarSize;
                     } else {
-                        chosenUrl = htmlUrl;
-                        chosenFileName = "SchemaSync-Setup-" + tagName + ".exe";
-                        chosenSize = 0;
+                        manualDownloadUrl = htmlUrl;
+                        manualDownloadFileName = "SchemaSync-Setup-" + tagName + ".exe";
+                        manualDownloadSize = 0;
                     }
                 } else if (hasDpkg && debUrl != null) {
-                    chosenUrl = debUrl;
-                    chosenFileName = debName != null ? debName : ("schemasync_" + tagName.replaceFirst("^[vV]", "") + "_all.deb");
-                    chosenSize = debSize;
+                    manualDownloadUrl = debUrl;
+                    manualDownloadFileName = debName != null ? debName : ("schemasync_" + tagName.replaceFirst("^[vV]", "") + "_all.deb");
+                    manualDownloadSize = debSize;
                 } else if (hasRpm && rpmUrl != null) {
-                    chosenUrl = rpmUrl;
-                    chosenFileName = rpmName != null ? rpmName : ("schemasync-" + tagName.replaceFirst("^[vV]", "") + ".noarch.rpm");
-                    chosenSize = rpmSize;
+                    manualDownloadUrl = rpmUrl;
+                    manualDownloadFileName = rpmName != null ? rpmName : ("schemasync-" + tagName.replaceFirst("^[vV]", "") + ".noarch.rpm");
+                    manualDownloadSize = rpmSize;
                 } else if (jarUrl != null) {
-                    chosenUrl = jarUrl;
-                    chosenFileName = jarName != null ? jarName : "SchemaSync.jar";
-                    chosenSize = jarSize;
+                    manualDownloadUrl = jarUrl;
+                    manualDownloadFileName = jarName != null ? jarName : "SchemaSync.jar";
+                    manualDownloadSize = jarSize;
                 } else if (debUrl != null) {
-                    chosenUrl = debUrl;
-                    chosenFileName = debName != null ? debName : "schemasync_update.deb";
-                    chosenSize = debSize;
+                    manualDownloadUrl = debUrl;
+                    manualDownloadFileName = debName != null ? debName : "schemasync_update.deb";
+                    manualDownloadSize = debSize;
                 } else {
-                    chosenUrl = setupUrl != null ? setupUrl : (exeUrl != null ? exeUrl : htmlUrl);
-                    chosenFileName = "SchemaSync-Update";
-                    chosenSize = setupSize;
+                    manualDownloadUrl = setupUrl != null ? setupUrl : (exeUrl != null ? exeUrl : htmlUrl);
+                    manualDownloadFileName = "SchemaSync-Update";
+                    manualDownloadSize = setupSize;
                 }
 
-                final String effectiveSetupUrl = chosenUrl;
-                final String effectiveFileName = chosenFileName;
-                final long finalSetupSize = chosenSize;
+                // 2. Automated 1-Click Update & Restart package ("⚡ 1-Click Update & Restart")
+                String autoUpdateUrl;
+                String autoUpdateFileName;
+
+                if (isWindows) {
+                    if (runningJar != null && !isRunningExe && jarUrl != null) {
+                        // Running via java -jar SchemaSync.jar: update running JAR directly
+                        autoUpdateUrl = jarUrl;
+                        autoUpdateFileName = "SchemaSync.jar";
+                    } else if (setupUrl != null) {
+                        // Running installed or native executable: use Inno Setup installer
+                        autoUpdateUrl = setupUrl;
+                        autoUpdateFileName = "SchemaSync-Setup-" + tagName + ".exe";
+                    } else if (exeUrl != null) {
+                        // Standalone portable SchemaSync.exe
+                        autoUpdateUrl = exeUrl;
+                        autoUpdateFileName = "SchemaSync-" + tagName + ".exe";
+                    } else if (jarUrl != null) {
+                        autoUpdateUrl = jarUrl;
+                        autoUpdateFileName = "SchemaSync.jar";
+                    } else {
+                        autoUpdateUrl = manualDownloadUrl;
+                        autoUpdateFileName = manualDownloadFileName;
+                    }
+                } else {
+                    // Linux: prefer universal JAR for password-free user-level update
+                    if (jarUrl != null) {
+                        autoUpdateUrl = jarUrl;
+                        autoUpdateFileName = "SchemaSync.jar";
+                    } else if (hasDpkg && debUrl != null) {
+                        autoUpdateUrl = debUrl;
+                        autoUpdateFileName = debName != null ? debName : "schemasync_update.deb";
+                    } else if (hasRpm && rpmUrl != null) {
+                        autoUpdateUrl = rpmUrl;
+                        autoUpdateFileName = rpmName != null ? rpmName : "schemasync_update.rpm";
+                    } else {
+                        autoUpdateUrl = manualDownloadUrl;
+                        autoUpdateFileName = manualDownloadFileName;
+                    }
+                }
+
+                final String finalManualUrl = manualDownloadUrl;
+                final String finalManualName = manualDownloadFileName;
+                final long finalManualSize = manualDownloadSize;
+                final String finalAutoUrl = autoUpdateUrl;
+                final String finalAutoName = autoUpdateFileName;
 
                 if (isNewerVersion(tagName, CURRENT_VERSION)) {
                     SwingUtilities.invokeLater(() -> {
-                        showUpdateDialog(parent, tagName, releaseName, body, htmlUrl, effectiveSetupUrl, effectiveFileName, finalSetupSize);
+                        showUpdateDialog(parent, tagName, releaseName, body, htmlUrl,
+                                finalManualUrl, finalManualName, finalManualSize,
+                                finalAutoUrl, finalAutoName);
                     });
                 } else {
                     if (!silentIfUpToDate) {
@@ -249,7 +298,8 @@ public class UpdateChecker {
 
     private static void showUpdateDialog(Component parent, String tagName, String releaseName,
                                          String body, String htmlUrl, String downloadUrl,
-                                         String downloadFileName, long packageSize) {
+                                         String downloadFileName, long packageSize,
+                                         String autoUpdateUrl, String autoUpdateFileName) {
         Frame owner = parent instanceof Frame ? (Frame) parent : (Frame) SwingUtilities.getWindowAncestor(parent);
         JDialog dlg = new JDialog(owner, "🚀 SchemaSync Update Available: " + tagName, true);
         dlg.setSize(640, 500);
@@ -368,10 +418,10 @@ public class UpdateChecker {
                 try {
                     File tempDir = new File(System.getProperty("java.io.tmpdir"), "SchemaSyncUpdate");
                     if (!tempDir.exists()) tempDir.mkdirs();
-                    tempInstaller = new File(tempDir, downloadFileName);
+                    tempInstaller = new File(tempDir, autoUpdateFileName);
 
                     // Handle redirects (GitHub release asset downloads redirect to AWS S3)
-                    URL curUrl = new URI(downloadUrl).toURL();
+                    URL curUrl = new URI(autoUpdateUrl).toURL();
                     HttpURLConnection conn = null;
                     int redirectCount = 0;
                     while (redirectCount < 8) {
@@ -459,45 +509,16 @@ public class UpdateChecker {
 
                     if (isWindows) {
                         SwingUtilities.invokeLater(() -> {
-                            statusLabel.setText("✅ Download verified! Launching installer...");
-                            progressBar.setValue(100);
-                            try {
-                                List<String> launchCmd = new ArrayList<>();
-                                launchCmd.add(finalInstaller.getAbsolutePath());
-
-                                if (silentRestartBox.isSelected()) {
-                                    launchCmd.add("/SILENT");
-                                    launchCmd.add("/FORCECLOSEAPPLICATIONS");
-                                    launchCmd.add("/RESTARTAPPLICATIONS");
-                                }
-
-                                ProcessBuilder pb = new ProcessBuilder(launchCmd);
-                                pb.start();
-
-                                new Thread(() -> {
-                                    try { Thread.sleep(600); } catch (Exception ignored) {}
-                                    System.exit(0);
-                                }).start();
-
-                            } catch (Exception launchEx) {
-                                JOptionPane.showMessageDialog(dlg,
-                                    "Failed to automatically start installer: " + launchEx.getMessage() +
-                                    "\n\nInstaller saved at:\n" + finalInstaller.getAbsolutePath(),
-                                    "Launch Error", JOptionPane.ERROR_MESSAGE);
-                                updateNowBtn.setEnabled(true);
-                                downloadInstallerBtn.setEnabled(true);
-                                viewGithubBtn.setEnabled(true);
-                                laterBtn.setText("Later");
-                                isDownloading.set(false);
-                            }
+                            progressBar.setIndeterminate(true);
+                            statusLabel.setText("📦 Applying update and restarting SchemaSync...");
                         });
+                        installAndRestartOnWindows(finalInstaller, tagName, silentRestartBox.isSelected(), dlg);
                     } else {
                         // Ubuntu / Linux 1-Click Update & Restart
                         SwingUtilities.invokeLater(() -> {
                             progressBar.setIndeterminate(true);
-                            statusLabel.setText("📦 Installing update on Linux (authenticate if prompted)...");
+                            statusLabel.setText("📦 Applying update and restarting SchemaSync...");
                         });
-
                         installAndRestartOnLinux(finalInstaller, tagName, silentRestartBox.isSelected(), dlg);
                     }
 
@@ -543,10 +564,129 @@ public class UpdateChecker {
         dlg.setVisible(true);
     }
 
+    private static void installAndRestartOnWindows(File downloadedFile, String tagName, boolean autoRestart, JDialog dlg) throws Exception {
+        File runningJar = getRunningJarFile();
+        File runningExe = getRunningExeFile();
+        String fileName = downloadedFile.getName().toLowerCase();
+        File tempDir = downloadedFile.getParentFile();
+        File updateBatch = new File(tempDir, "update_and_restart.bat");
+
+        if (fileName.endsWith(".jar")) {
+            File targetJar = (runningJar != null && runningJar.exists()) ? runningJar : downloadedFile;
+            if (!autoRestart) {
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(dlg,
+                        "✅ SchemaSync update downloaded!\nReplace your JAR with:\n" + downloadedFile.getAbsolutePath(),
+                        "Update Ready", JOptionPane.INFORMATION_MESSAGE);
+                    dlg.dispose();
+                });
+                return;
+            }
+
+            String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "javaw.exe";
+            if (!new File(javaBin).exists()) {
+                javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java.exe";
+            }
+            if (!new File(javaBin).exists()) javaBin = "javaw";
+
+            String batchContent = "@echo off\r\n"
+                    + "setlocal enabledelayedexpansion\r\n"
+                    + "timeout /t 1 /nobreak >nul\r\n"
+                    + "set RETRIES=0\r\n"
+                    + ":retry\r\n"
+                    + "copy /y \"" + downloadedFile.getAbsolutePath() + "\" \"" + targetJar.getAbsolutePath() + "\" >nul 2>&1\r\n"
+                    + "if errorlevel 1 (\r\n"
+                    + "    timeout /t 1 /nobreak >nul\r\n"
+                    + "    set /a RETRIES+=1\r\n"
+                    + "    if !RETRIES! lss 15 goto retry\r\n"
+                    + ")\r\n"
+                    + "start \"\" \"" + javaBin + "\" -Duser.timezone=UTC -jar \"" + targetJar.getAbsolutePath() + "\"\r\n"
+                    + "del \"%~f0\" >nul 2>&1\r\n";
+
+            java.nio.file.Files.write(updateBatch.toPath(), batchContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            new ProcessBuilder("cmd.exe", "/c", "start", "\"\"", updateBatch.getAbsolutePath()).start();
+            Thread.sleep(400);
+            System.exit(0);
+
+        } else if (fileName.contains("setup") && fileName.endsWith(".exe")) {
+            if (!autoRestart) {
+                new ProcessBuilder(downloadedFile.getAbsolutePath()).start();
+                dlg.dispose();
+                return;
+            }
+
+            File targetExe = runningExe;
+            if (targetExe == null || !targetExe.exists()) {
+                String localAppData = System.getenv("LOCALAPPDATA");
+                if (localAppData != null) {
+                    File candidate = new File(localAppData, "Programs\\SchemaSync\\SchemaSync.exe");
+                    if (candidate.exists()) targetExe = candidate;
+                }
+            }
+            if (targetExe == null || !targetExe.exists()) {
+                String programFiles = System.getenv("ProgramFiles");
+                if (programFiles != null) {
+                    File candidate = new File(programFiles, "SchemaSync\\SchemaSync.exe");
+                    if (candidate.exists()) targetExe = candidate;
+                }
+            }
+
+            String targetExePath = targetExe != null ? targetExe.getAbsolutePath() : "";
+
+            String batchContent = "@echo off\r\n"
+                    + "setlocal enabledelayedexpansion\r\n"
+                    + "timeout /t 1 /nobreak >nul\r\n"
+                    + "start /wait \"\" \"" + downloadedFile.getAbsolutePath() + "\" /SILENT /FORCECLOSEAPPLICATIONS /SUPPRESSMSGBOXES\r\n"
+                    + "timeout /t 1 /nobreak >nul\r\n"
+                    + "set TARGET=\"" + targetExePath + "\"\r\n"
+                    + "if exist !TARGET! (\r\n"
+                    + "    start \"\" !TARGET!\r\n"
+                    + ") else if exist \"%LOCALAPPDATA%\\Programs\\SchemaSync\\SchemaSync.exe\" (\r\n"
+                    + "    start \"\" \"%LOCALAPPDATA%\\Programs\\SchemaSync\\SchemaSync.exe\"\r\n"
+                    + ") else if exist \"%ProgramFiles%\\SchemaSync\\SchemaSync.exe\" (\r\n"
+                    + "    start \"\" \"%ProgramFiles%\\SchemaSync\\SchemaSync.exe\"\r\n"
+                    + ")\r\n"
+                    + "del \"%~f0\" >nul 2>&1\r\n";
+
+            java.nio.file.Files.write(updateBatch.toPath(), batchContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            new ProcessBuilder("cmd.exe", "/c", "start", "\"\"", updateBatch.getAbsolutePath()).start();
+            Thread.sleep(400);
+            System.exit(0);
+
+        } else if (fileName.endsWith(".exe")) {
+            File targetExe = runningExe != null ? runningExe : downloadedFile;
+            if (!autoRestart) {
+                new ProcessBuilder(downloadedFile.getAbsolutePath()).start();
+                dlg.dispose();
+                return;
+            }
+
+            String batchContent = "@echo off\r\n"
+                    + "setlocal enabledelayedexpansion\r\n"
+                    + "timeout /t 1 /nobreak >nul\r\n"
+                    + "set RETRIES=0\r\n"
+                    + ":retry\r\n"
+                    + "copy /y \"" + downloadedFile.getAbsolutePath() + "\" \"" + targetExe.getAbsolutePath() + "\" >nul 2>&1\r\n"
+                    + "if errorlevel 1 (\r\n"
+                    + "    timeout /t 1 /nobreak >nul\r\n"
+                    + "    set /a RETRIES+=1\r\n"
+                    + "    if !RETRIES! lss 15 goto retry\r\n"
+                    + ")\r\n"
+                    + "start \"\" \"" + targetExe.getAbsolutePath() + "\"\r\n"
+                    + "del \"%~f0\" >nul 2>&1\r\n";
+
+            java.nio.file.Files.write(updateBatch.toPath(), batchContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            new ProcessBuilder("cmd.exe", "/c", "start", "\"\"", updateBatch.getAbsolutePath()).start();
+            Thread.sleep(400);
+            System.exit(0);
+        } else {
+            throw new Exception("Unrecognized package format for Windows: " + fileName);
+        }
+    }
+
     private static void installAndRestartOnLinux(File downloadedFile, String tagName, boolean autoRestart, JDialog dlg) throws Exception {
         File runningJar = getRunningJarFile();
         File systemJar = new File("/usr/share/schemasync/SchemaSync.jar");
-        File systemLauncher = new File("/usr/bin/schemasync");
         File userHome = new File(System.getProperty("user.home", "."));
         File userAppDir = new File(userHome, ".local/share/schemasync");
         if (!userAppDir.exists()) userAppDir.mkdirs();
@@ -572,29 +712,15 @@ public class UpdateChecker {
                 updatedLocalJar = extractJarFromDeb(downloadedFile, runningJar);
             }
 
-            // 3. Optionally update system package if /usr/share/schemasync exists and pkexec is available (non-fatal if skipped)
+            // 3. Optionally update system package if /usr/share/schemasync exists and pkexec is available (non-fatal)
             if (systemJar.exists() && new File("/usr/bin/pkexec").exists() && new File("/usr/bin/dpkg").exists()) {
                 try {
                     Process proc = new ProcessBuilder("pkexec", "dpkg", "-i", downloadedFile.getAbsolutePath())
                             .redirectErrorStream(true)
                             .start();
                     int exitCode = proc.waitFor();
-                    if (exitCode == 0) {
-                        updatedSystemPkg = true;
-                    }
+                    if (exitCode == 0) updatedSystemPkg = true;
                 } catch (Exception ignored) {}
-            }
-        } else if (fileName.endsWith(".rpm")) {
-            if (new File("/usr/bin/pkexec").exists() && new File("/usr/bin/rpm").exists()) {
-                Process proc = new ProcessBuilder("pkexec", "rpm", "-Uvh", "--force", downloadedFile.getAbsolutePath())
-                        .redirectErrorStream(true)
-                        .start();
-                int exitCode = proc.waitFor();
-                if (exitCode == 0) {
-                    updatedSystemPkg = true;
-                } else {
-                    throw new Exception("RPM package installation was cancelled or failed (exit code " + exitCode + ").");
-                }
             }
         } else if (fileName.endsWith(".jar")) {
             java.nio.file.Files.copy(downloadedFile.toPath(), userJar.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -604,6 +730,18 @@ public class UpdateChecker {
                 java.nio.file.Files.copy(downloadedFile.toPath(), runningJar.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 updatedLocalJar = true;
             }
+        } else if (fileName.endsWith(".rpm")) {
+            // If pkexec is available, optionally install RPM
+            if (new File("/usr/bin/pkexec").exists() && new File("/usr/bin/rpm").exists()) {
+                try {
+                    Process proc = new ProcessBuilder("pkexec", "rpm", "-Uvh", "--force", downloadedFile.getAbsolutePath())
+                            .redirectErrorStream(true)
+                            .start();
+                    int exitCode = proc.waitFor();
+                    if (exitCode == 0) updatedSystemPkg = true;
+                } catch (Exception ignored) {}
+            }
+            installUserLauncherAndDesktopEntry(userHome, userLauncher, userJar.exists() ? userJar : systemJar);
         }
 
         if (!updatedUserJar && !updatedLocalJar && !updatedSystemPkg) {
@@ -620,8 +758,7 @@ public class UpdateChecker {
             return;
         }
 
-        // Build restart command using the updated JAR
-        List<String> restartCmd = new ArrayList<>();
+        // Restart SchemaSync detached
         String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
         if (!new File(javaBin).exists()) javaBin = "java";
 
@@ -636,15 +773,48 @@ public class UpdateChecker {
             targetJar = (runningJar != null && runningJar.exists()) ? runningJar : userJar;
         }
 
-        restartCmd.add(javaBin);
-        restartCmd.add("-Duser.timezone=UTC");
-        restartCmd.add("-Dsun.java2d.pmoffscreen=false");
-        restartCmd.add("-jar");
-        restartCmd.add(targetJar.getAbsolutePath());
+        List<String> restartCmd = new ArrayList<>();
+        if (userLauncher.exists() && userLauncher.canExecute()) {
+            restartCmd.add(userLauncher.getAbsolutePath());
+        } else {
+            restartCmd.add(javaBin);
+            restartCmd.add("--add-opens");
+            restartCmd.add("java.desktop/sun.awt.X11=ALL-UNNAMED");
+            restartCmd.add("-Duser.timezone=UTC");
+            restartCmd.add("-Dsun.java2d.pmoffscreen=false");
+            restartCmd.add("-Dawt.useSystemAAFontSettings=on");
+            restartCmd.add("-Dswing.aatext=true");
+            restartCmd.add("-Dsun.java2d.uiScale.enabled=true");
+            restartCmd.add("-Djdk.gtk.version=3");
+            restartCmd.add("-jar");
+            restartCmd.add(targetJar.getAbsolutePath());
+        }
 
-        new ProcessBuilder(restartCmd).start();
-        Thread.sleep(500);
+        ProcessBuilder pb = new ProcessBuilder(restartCmd);
+        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+        pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+        pb.start();
+        Thread.sleep(400);
         System.exit(0);
+    }
+
+    public static void ensureLinuxDesktopIntegration() {
+        String os = System.getProperty("os.name", "").toLowerCase();
+        if (os.contains("win") || os.contains("mac")) return;
+        try {
+            File userHome = new File(System.getProperty("user.home", "."));
+            File hicolor512 = new File(userHome, ".local/share/icons/hicolor/512x512/apps/schemasync.png");
+            File desktopFile = new File(userHome, ".local/share/applications/schemasync.desktop");
+            if (!hicolor512.exists() || !desktopFile.exists()) {
+                File userAppDir = new File(userHome, ".local/share/schemasync");
+                if (!userAppDir.exists()) userAppDir.mkdirs();
+                File userJar = new File(userAppDir, "SchemaSync.jar");
+                File userBinDir = new File(userHome, ".local/bin");
+                if (!userBinDir.exists()) userBinDir.mkdirs();
+                File userLauncher = new File(userBinDir, "schemasync");
+                installUserLauncherAndDesktopEntry(userHome, userLauncher, userJar);
+            }
+        } catch (Throwable ignored) {}
     }
 
     private static void installUserLauncherAndDesktopEntry(File userHome, File userLauncher, File userJar) {
@@ -681,7 +851,75 @@ public class UpdateChecker {
                     + "MimeType=application/sql;application/x-sqlite3;\n"
                     + "Keywords=database;sql;postgres;mysql;sqlite;schema;diff;sync;\n";
             java.nio.file.Files.write(desktopFile.toPath(), desktop.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+            // Extract high-DPI and standard icons for desktop/dock
+            extractLinuxIcons(userHome);
+
+            try { new ProcessBuilder("update-desktop-database", appsDir.getAbsolutePath()).start(); } catch (Exception ignored) {}
+            try { new ProcessBuilder("gtk-update-icon-cache", "-f", "-t", new File(userHome, ".local/share/icons/hicolor").getAbsolutePath()).start(); } catch (Exception ignored) {}
         } catch (Exception ignored) {}
+    }
+
+    private static void extractLinuxIcons(File userHome) {
+        try {
+            File hicolor512 = new File(userHome, ".local/share/icons/hicolor/512x512/apps");
+            File hicolor64 = new File(userHome, ".local/share/icons/hicolor/64x64/apps");
+            File hicolor32 = new File(userHome, ".local/share/icons/hicolor/32x32/apps");
+            File hicolor16 = new File(userHome, ".local/share/icons/hicolor/16x16/apps");
+            File pixmaps = new File(userHome, ".local/share/pixmaps");
+            hicolor512.mkdirs();
+            hicolor64.mkdirs();
+            hicolor32.mkdirs();
+            hicolor16.mkdirs();
+            pixmaps.mkdirs();
+
+            extractResourceToFile("/icons/app-icon.png", new File(hicolor512, "schemasync.png"));
+            extractResourceToFile("/icons/app-icon.png", new File(pixmaps, "schemasync.png"));
+            extractResourceToFile("/icons/app-icon-64.png", new File(hicolor64, "schemasync.png"));
+            extractResourceToFile("/icons/app-icon-32.png", new File(hicolor32, "schemasync.png"));
+            extractResourceToFile("/icons/app-icon-16.png", new File(hicolor16, "schemasync.png"));
+        } catch (Exception ignored) {}
+    }
+
+    private static void extractResourceToFile(String resourcePath, File target) {
+        try (InputStream in = UpdateChecker.class.getResourceAsStream(resourcePath)) {
+            if (in != null) {
+                java.nio.file.Files.copy(in, target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private static boolean isRunningFromExe() {
+        if (!System.getProperty("os.name", "").toLowerCase().contains("win")) return false;
+        if (System.getProperty("launch4j.exefile") != null) return true;
+        try {
+            String cmd = ProcessHandle.current().info().command().orElse(null);
+            if (cmd != null && cmd.toLowerCase().endsWith(".exe") &&
+                !cmd.toLowerCase().endsWith("java.exe") &&
+                !cmd.toLowerCase().endsWith("javaw.exe")) {
+                return true;
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    private static File getRunningExeFile() {
+        if (!System.getProperty("os.name", "").toLowerCase().contains("win")) return null;
+        String l4j = System.getProperty("launch4j.exefile");
+        if (l4j != null && !l4j.trim().isEmpty()) {
+            File f = new File(l4j.trim());
+            if (f.exists()) return f;
+        }
+        try {
+            String cmd = ProcessHandle.current().info().command().orElse(null);
+            if (cmd != null && cmd.toLowerCase().endsWith(".exe") &&
+                !cmd.toLowerCase().endsWith("java.exe") &&
+                !cmd.toLowerCase().endsWith("javaw.exe")) {
+                File f = new File(cmd);
+                if (f.exists()) return f;
+            }
+        } catch (Throwable ignored) {}
+        return null;
     }
 
     private static File getRunningJarFile() {
