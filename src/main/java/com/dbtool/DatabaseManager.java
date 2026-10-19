@@ -36,6 +36,7 @@ public class DatabaseManager {
     private java.util.Properties learnedJoins = new java.util.Properties();
     private File learnedJoinsFile;
     private java.util.Map<String, java.util.List<String>> columnCache = new java.util.concurrent.ConcurrentHashMap<>();
+    void columnCachePutTest(String table, java.util.List<String> cols) { columnCache.put(table, cols); }
     private java.util.Map<String, java.util.Map<String, String[]>> fkCache = new java.util.concurrent.ConcurrentHashMap<>();
     private java.util.List<String> tableCache = null;
 
@@ -84,16 +85,34 @@ public class DatabaseManager {
     public void preloadAllColumns() {
         if (connection == null) return;
         try {
+            String currentSchema = null;
+            try {
+                currentSchema = connection.getSchema();
+            } catch (Throwable ignored) {}
+            if (currentSchema == null || currentSchema.trim().isEmpty()) {
+                currentSchema = "public";
+            }
+
             DatabaseMetaData metaData = connection.getMetaData();
             try (ResultSet rs = metaData.getColumns(null, null, "%", "%")) {
                 while (rs.next()) {
                     String sch = rs.getString("TABLE_SCHEM");
                     String tbl = rs.getString("TABLE_NAME");
                     String col = rs.getString("COLUMN_NAME");
-                    if (tbl != null && col != null) {
-                        columnCache.computeIfAbsent(tbl, k -> new ArrayList<>()).add(col);
-                        if (sch != null && !sch.equalsIgnoreCase("public") && !sch.isEmpty()) {
-                            columnCache.computeIfAbsent(sch + "." + tbl, k -> new ArrayList<>()).add(col);
+                    if (tbl != null && col != null && !col.trim().isEmpty()) {
+                        String cleanCol = col.trim();
+                        // Only cache under unadorned table name if it matches the current active schema or schema is empty/null
+                        if (sch == null || sch.isEmpty() || sch.equalsIgnoreCase(currentSchema)) {
+                            List<String> list = columnCache.computeIfAbsent(tbl, k -> new ArrayList<>());
+                            if (!list.contains(cleanCol)) {
+                                list.add(cleanCol);
+                            }
+                        }
+                        if (sch != null && !sch.isEmpty()) {
+                            List<String> listWithSchema = columnCache.computeIfAbsent(sch + "." + tbl, k -> new ArrayList<>());
+                            if (!listWithSchema.contains(cleanCol)) {
+                                listWithSchema.add(cleanCol);
+                            }
                         }
                     }
                 }
@@ -626,53 +645,91 @@ public class DatabaseManager {
     }
 
     public List<String> getColumnNames(String tableName) {
-        if (columnCache.containsKey(tableName)) return columnCache.get(tableName);
-        List<String> columns = new ArrayList<>();
-        if (connection == null || tableName == null) return columns;
+        if (columnCache.containsKey(tableName)) {
+            return new ArrayList<>(new LinkedHashSet<>(columnCache.get(tableName)));
+        }
+        if (connection == null || tableName == null) return new ArrayList<>();
 
         String schema = null;
+        String rawTable = tableName;
         if (tableName.contains(".")) {
             String[] parts = tableName.split("\\.", 2);
             schema = parts[0];
-            tableName = parts[1];
+            rawTable = parts[1];
+        } else {
+            try {
+                schema = connection.getSchema();
+            } catch (Throwable ignored) {}
         }
 
+        Set<String> columnSet = new LinkedHashSet<>();
         try {
             DatabaseMetaData metaData = connection.getMetaData();
             String escape = metaData.getSearchStringEscape();
-            String escapedTableName = tableName;
+            String escapedTableName = rawTable;
             if (escape != null && !escape.isEmpty()) {
-                escapedTableName = escapedTableName.replace("_" , escape + "_").replace("%" , escape + "%");
+                escapedTableName = escapedTableName.replace("_", escape + "_").replace("%", escape + "%");
             }
-            ResultSet rs = metaData.getColumns(null, schema, escapedTableName, "%");
-            while (rs.next()) {
-                if (tableName.equalsIgnoreCase(rs.getString("TABLE_NAME"))) {
-                    columns.add(rs.getString("COLUMN_NAME"));
+
+            final String targetTable = rawTable;
+            java.util.function.Consumer<ResultSet> processor = (rs) -> {
+                try {
+                    while (rs.next()) {
+                        String tName = rs.getString("TABLE_NAME");
+                        if (targetTable.equalsIgnoreCase(tName)) {
+                            String col = rs.getString("COLUMN_NAME");
+                            if (col != null && !col.trim().isEmpty()) {
+                                columnSet.add(col.trim());
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+            };
+
+            // 1. Specific schema query
+            try (ResultSet rs = metaData.getColumns(null, schema, escapedTableName, "%")) {
+                processor.accept(rs);
+            }
+
+            // 2. If nothing found and schema was non-null, try fallback with schema = null
+            if (columnSet.isEmpty() && schema != null) {
+                try (ResultSet rs = metaData.getColumns(null, null, escapedTableName, "%")) {
+                    processor.accept(rs);
                 }
             }
-            if (columns.isEmpty()) {
-                String escapedUpper = tableName.toUpperCase();
-                if (escape != null && !escape.isEmpty()) escapedUpper = escapedUpper.replace("_" , escape + "_").replace("%" , escape + "%");
-                rs = metaData.getColumns(null, schema, escapedUpper, "%");
-                while (rs.next()) {
-                    if (tableName.equalsIgnoreCase(rs.getString("TABLE_NAME"))) {
-                        columns.add(rs.getString("COLUMN_NAME"));
+
+            // 3. Fallback uppercase
+            if (columnSet.isEmpty()) {
+                String upper = rawTable.toUpperCase();
+                if (escape != null && !escape.isEmpty()) upper = upper.replace("_", escape + "_").replace("%", escape + "%");
+                try (ResultSet rs = metaData.getColumns(null, schema, upper, "%")) {
+                    processor.accept(rs);
+                }
+                if (columnSet.isEmpty() && schema != null) {
+                    try (ResultSet rs = metaData.getColumns(null, null, upper, "%")) {
+                        processor.accept(rs);
                     }
                 }
             }
-            if (columns.isEmpty()) {
-                String escapedLower = tableName.toLowerCase();
-                if (escape != null && !escape.isEmpty()) escapedLower = escapedLower.replace("_" , escape + "_").replace("%" , escape + "%");
-                rs = metaData.getColumns(null, schema, escapedLower, "%");
-                while (rs.next()) {
-                    if (tableName.equalsIgnoreCase(rs.getString("TABLE_NAME"))) {
-                        columns.add(rs.getString("COLUMN_NAME"));
+
+            // 4. Fallback lowercase
+            if (columnSet.isEmpty()) {
+                String lower = rawTable.toLowerCase();
+                if (escape != null && !escape.isEmpty()) lower = lower.replace("_", escape + "_").replace("%", escape + "%");
+                try (ResultSet rs = metaData.getColumns(null, schema, lower, "%")) {
+                    processor.accept(rs);
+                }
+                if (columnSet.isEmpty() && schema != null) {
+                    try (ResultSet rs = metaData.getColumns(null, null, lower, "%")) {
+                        processor.accept(rs);
                     }
                 }
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
+
+        List<String> columns = new ArrayList<>(columnSet);
         columnCache.put(tableName, columns);
         return columns;
     }
@@ -728,13 +785,18 @@ public class DatabaseManager {
             }
 
             final String finalRawTable = rawTable;
+            Set<String> seenCols = new HashSet<>();
             java.util.function.Consumer<ResultSet> processor = (rs) -> {
                 try {
                     while (rs.next()) {
                         String tblName = rs.getString("TABLE_NAME");
                         if (finalRawTable.equalsIgnoreCase(tblName)) {
+                            String colName = rs.getString("COLUMN_NAME");
+                            if (colName == null || colName.trim().isEmpty() || !seenCols.add(colName.trim().toLowerCase())) {
+                                continue;
+                            }
                             ColumnDefinition cd = new ColumnDefinition();
-                            cd.name = rs.getString("COLUMN_NAME");
+                            cd.name = colName.trim();
                             cd.dataType = rs.getInt("DATA_TYPE");
                             cd.typeName = rs.getString("TYPE_NAME");
                             cd.size = rs.getInt("COLUMN_SIZE");

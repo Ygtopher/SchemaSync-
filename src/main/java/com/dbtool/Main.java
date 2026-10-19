@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import com.dbtool.model.VisualJoinState;
 import com.dbtool.util.VisualJoinProjectManager;
 import com.dbtool.util.SqlSnippetsLibrary;
@@ -900,7 +901,9 @@ public class Main extends JFrame {
     private void openColumnSelector() {
             String selectedTable = (String) browseTableDropdown.getSelectedItem();
             if (selectedTable == null) return;
-            List<String> allCols = dbManager.getColumnNames(selectedTable);
+            List<String> rawCols = dbManager.getColumnNames(selectedTable);
+            if (rawCols == null || rawCols.isEmpty()) return;
+            List<String> allCols = new ArrayList<>(new LinkedHashSet<>(rawCols));
             if (allCols.isEmpty()) return;
     
             JDialog dialog = new JDialog(Main.this, "Select Columns", true);
@@ -908,10 +911,13 @@ public class Main extends JFrame {
             JPanel cbPanel = new JPanel();
             cbPanel.setLayout(new BoxLayout(cbPanel, BoxLayout.Y_AXIS));
             
+            Set<String> selectedSet = new LinkedHashSet<>(currentSelectedColumns);
+            Set<String> addedCheckboxes = new HashSet<>();
             List<JCheckBox> checkBoxes = new ArrayList<>();
             for (String col : allCols) {
-                JCheckBox cb = new JCheckBox(col);
-                if (currentSelectedColumns.isEmpty() || currentSelectedColumns.contains(col)) {
+                if (!addedCheckboxes.add(col.trim())) continue;
+                JCheckBox cb = new JCheckBox(col.trim());
+                if (selectedSet.isEmpty() || selectedSet.contains(col.trim())) {
                     cb.setSelected(true);
                 }
                 checkBoxes.add(cb);
@@ -937,18 +943,18 @@ public class Main extends JFrame {
             JButton okBtn = new JButton("OK");
             okBtn.addActionListener(e -> {
                 currentSelectedColumns.clear();
-                int selectedCount = 0;
+                Set<String> chosen = new LinkedHashSet<>();
                 for (JCheckBox cb : checkBoxes) {
                     if (cb.isSelected()) {
-                        currentSelectedColumns.add(cb.getText());
-                        selectedCount++;
+                        chosen.add(cb.getText().trim());
                     }
                 }
-                if (selectedCount == allCols.size() || selectedCount == 0) {
+                currentSelectedColumns.addAll(chosen);
+                if (currentSelectedColumns.size() == allCols.size() || currentSelectedColumns.isEmpty()) {
                     currentSelectedColumns.clear();
                     selectColsButton.setText("Columns (All)");
                 } else {
-                    selectColsButton.setText("Columns (" + selectedCount + ")");
+                    selectColsButton.setText("Columns (" + currentSelectedColumns.size() + ")");
                 }
                 dialog.dispose();
                 loadTableData();
@@ -961,7 +967,7 @@ public class Main extends JFrame {
             dialog.setSize(300, 400);
             dialog.setLocationRelativeTo(this);
             dialog.setVisible(true);
-        }
+    }
 
     private void openBrowseAggregatesDialog() {
         String selectedTable = (String) browseTableDropdown.getSelectedItem();
@@ -1241,18 +1247,25 @@ public class Main extends JFrame {
 
         String cols;
         if (!selectParts.isEmpty()) {
+            List<String> combined = new ArrayList<>();
+            Set<String> added = new HashSet<>();
             if (!currentSelectedColumns.isEmpty()) {
-                for (String c : currentSelectedColumns) {
+                for (String c : new LinkedHashSet<>(currentSelectedColumns)) {
                     String q = dbManager.quoteColumnName(c);
-                    if (!selectParts.contains(q)) selectParts.add(0, q);
+                    if (added.add(q)) combined.add(q);
                 }
             }
-            cols = String.join(", ", selectParts);
+            for (String part : selectParts) {
+                if (added.add(part)) combined.add(part);
+            }
+            cols = String.join(", ", combined);
         } else if (!currentSelectedColumns.isEmpty()) {
             StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < currentSelectedColumns.size(); i++) {
-                sb.append(dbManager.quoteColumnName(currentSelectedColumns.get(i)));
-                if (i < currentSelectedColumns.size() - 1) sb.append(", ");
+            Set<String> uniqueCols = new LinkedHashSet<>(currentSelectedColumns);
+            int i = 0;
+            for (String c : uniqueCols) {
+                sb.append(dbManager.quoteColumnName(c));
+                if (++i < uniqueCols.size()) sb.append(", ");
             }
             cols = sb.toString();
         } else {
@@ -1517,7 +1530,7 @@ public class Main extends JFrame {
             if (bs.limit != null) limitField.setText(bs.limit);
             if (bs.selectedColumns != null) {
                 currentSelectedColumns.clear();
-                currentSelectedColumns.addAll(bs.selectedColumns);
+                currentSelectedColumns.addAll(new LinkedHashSet<>(bs.selectedColumns));
                 selectColsButton.setText(currentSelectedColumns.isEmpty() ? "Columns (All)" : "Columns (" + currentSelectedColumns.size() + ")");
             }
             browseWherePanels.clear();
@@ -1855,14 +1868,18 @@ public class Main extends JFrame {
             List<String> tableOrder = new ArrayList<>();
             Map<String, List<JCheckBox>> tableCheckboxMap = new LinkedHashMap<>();
             List<JCheckBox> allCheckBoxes = new ArrayList<>();
+            Set<String> allFullCols = new HashSet<>();
             int totalCols = 0;
     
             // Base table
             tableOrder.add(baseTable);
             List<JCheckBox> baseCbs = new ArrayList<>();
-            for (String col : dbManager.getColumnNames(baseTable)) {
-                String fullCol = baseTable + "." + col;
-                JCheckBox cb = new JCheckBox(col); // show just col name in tab; full name is in text
+            List<String> rawBaseCols = dbManager.getColumnNames(baseTable);
+            List<String> baseCols = rawBaseCols != null ? new ArrayList<>(new LinkedHashSet<>(rawBaseCols)) : new ArrayList<>();
+            for (String col : baseCols) {
+                String fullCol = baseTable + "." + col.trim();
+                if (!allFullCols.add(fullCol)) continue;
+                JCheckBox cb = new JCheckBox(col.trim()); // show just col name in tab; full name is in text
                 cb.setText(fullCol);
                 if (joinSelectedColumns.isEmpty() || joinSelectedColumns.contains(fullCol)) cb.setSelected(true);
                 baseCbs.add(cb);
@@ -1877,8 +1894,11 @@ public class Main extends JFrame {
                 if (joinTable != null && !tableCheckboxMap.containsKey(joinTable)) {
                     tableOrder.add(joinTable);
                     List<JCheckBox> cbs = new ArrayList<>();
-                    for (String col : dbManager.getColumnNames(joinTable)) {
-                        String fullCol = joinTable + "." + col;
+                    List<String> rawJoinCols = dbManager.getColumnNames(joinTable);
+                    List<String> joinCols = rawJoinCols != null ? new ArrayList<>(new LinkedHashSet<>(rawJoinCols)) : new ArrayList<>();
+                    for (String col : joinCols) {
+                        String fullCol = joinTable + "." + col.trim();
+                        if (!allFullCols.add(fullCol)) continue;
                         JCheckBox cb = new JCheckBox(fullCol);
                         if (joinSelectedColumns.isEmpty() || joinSelectedColumns.contains(fullCol)) cb.setSelected(true);
                         cbs.add(cb);
@@ -1932,18 +1952,18 @@ public class Main extends JFrame {
             JButton okBtn = new JButton("OK");
             okBtn.addActionListener(e -> {
                 joinSelectedColumns.clear();
-                int selectedCount = 0;
+                Set<String> chosen = new LinkedHashSet<>();
                 for (JCheckBox cb : allCheckBoxes) {
                     if (cb.isSelected()) {
-                        joinSelectedColumns.add(cb.getText());
-                        selectedCount++;
+                        chosen.add(cb.getText().trim());
                     }
                 }
-                if (selectedCount == finalTotalCols || selectedCount == 0) {
+                joinSelectedColumns.addAll(chosen);
+                if (joinSelectedColumns.size() == finalTotalCols || joinSelectedColumns.isEmpty()) {
                     joinSelectedColumns.clear();
                     joinSelectColsButton.setText("Columns (All)");
                 } else {
-                    joinSelectColsButton.setText("Columns (" + selectedCount + ")");
+                    joinSelectColsButton.setText("Columns (" + joinSelectedColumns.size() + ")");
                 }
                 dialog.dispose();
             });
@@ -2588,18 +2608,25 @@ public class Main extends JFrame {
 
             String cols;
             if (!selectParts.isEmpty()) {
+                List<String> combined = new ArrayList<>();
+                Set<String> added = new HashSet<>();
                 if (!joinSelectedColumns.isEmpty()) {
-                    for (String c : joinSelectedColumns) {
+                    for (String c : new LinkedHashSet<>(joinSelectedColumns)) {
                         String q = dbManager.quoteColumnName(c);
-                        if (!selectParts.contains(q)) selectParts.add(0, q);
+                        if (added.add(q)) combined.add(q);
                     }
                 }
-                cols = String.join(", ", selectParts);
+                for (String part : selectParts) {
+                    if (added.add(part)) combined.add(part);
+                }
+                cols = String.join(", ", combined);
             } else if (!joinSelectedColumns.isEmpty()) {
                 StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < joinSelectedColumns.size(); i++) {
-                    sb.append(dbManager.quoteColumnName(joinSelectedColumns.get(i)));
-                    if (i < joinSelectedColumns.size() - 1) sb.append(", ");
+                Set<String> uniqueCols = new LinkedHashSet<>(joinSelectedColumns);
+                int i = 0;
+                for (String c : uniqueCols) {
+                    sb.append(dbManager.quoteColumnName(c));
+                    if (++i < uniqueCols.size()) sb.append(", ");
                 }
                 cols = sb.toString();
             } else {
