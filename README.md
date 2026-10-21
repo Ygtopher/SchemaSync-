@@ -1,10 +1,29 @@
 # SchemaSync
 
-**Version:** 1.6.4  
+**Version:** 1.6.9  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
-SchemaSync is a high-performance, lightweight Java database synchronization and management tool for **PostgreSQL, MySQL, SQLite, MS Access, and H2**. It features a modern Dark Mode UI, 1-Click Schema Migration & Rollback generation, Database Health Diagnostics, Interactive Visual Data Charting, a Visual Join Builder, live Schema & Data diffing, an SSH Terminal, in-app update checks, and native Fedora 44 RPM packaging with full Wayland dock icon binding.
+SchemaSync is a high-performance, lightweight Java database synchronization and management tool for **PostgreSQL, MySQL, SQLite, MS Access, and H2**. It features a modern Dark Mode UI, 1-Click Schema Migration & Rollback generation, Database Health Diagnostics, Interactive Visual Data Charting, a Visual Join Builder, live Schema & Data diffing, an SSH Terminal, in-app update checks, and native packaging for **Windows 11 (Smart App Control compliant), Ubuntu (.deb), and Fedora (.rpm)**.
+
+---
+
+## 📚 Complete System Documentation (`docs/`)
+
+Explore the comprehensive documentation suite located in the [`docs/`](docs/README.md) directory:
+
+* **[Codebase, Module & Function Map](docs/codebase-map.md):** Complete code, class, and method inventory across all packages.
+* **[Technology Stack & Integration Guide](docs/tech-stack-integration.md):** Full breakdown of all 20+ libraries and end-to-end synergy workflows.
+* **[Architecture & Design](docs/architecture.md):** Modular Swing/FlatLaf layers, threading model, and transaction safety.
+* **[Supported Databases](docs/supported-databases.md):** Complete guide for PostgreSQL, MySQL, SQLite, MS Access, and embedded H2.
+* **[Comprehensive Features](docs/features.md):** Deep-dive into all 15+ workbench tools, telemetry, and editors.
+* **[Security & Cryptography](docs/security.md):** AES-256-GCM Credential Vault, PII masking, and Windows Smart App Control compliance.
+* **[Installation & Packaging](docs/installation-and-packaging.md):** Guides for Windows (`.exe`), Ubuntu (`.deb`), Fedora (`.rpm`), and Fat JAR.
+* **[Troubleshooting & FAQ](docs/troubleshooting.md):** Solutions for Smart App Control, Java runtime, and Wayland dock icons.
+* **[Changelog & History](docs/changelog.md):** Full version history from v1.0.0 through v1.6.9.
+* **[CLI & Configuration Guide](docs/api-and-cli.md):** JVM runtime tuning, system properties, and psql meta-commands.
+
+---
 
 ## Key Features
 
