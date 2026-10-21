@@ -1,8 +1,23 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.6.9  
+**Current Version:** 1.7.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v1.7.0] - 2026-10-21
+### Added
+* **Complete System Documentation Suite:** Added comprehensive architecture documentation in `docs/`:
+  * [`docs/codebase-map.md`](codebase-map.md): Package, class, and method inventory across all modules.
+  * [`docs/tech-stack-integration.md`](tech-stack-integration.md): Deep-dive into all 20+ technologies and cross-cutting synergy workflows.
+  * [`docs/architecture.md`](architecture.md), [`docs/supported-databases.md`](supported-databases.md), [`docs/features.md`](features.md), [`docs/security.md`](security.md), [`docs/installation-and-packaging.md`](installation-and-packaging.md), [`docs/troubleshooting.md`](troubleshooting.md), and [`docs/api-and-cli.md`](api-and-cli.md).
+* **Lightweight 54MB Setup Packaging:** Optimized Inno Setup configuration to eliminate duplicate payload embedding, cutting installer size in half while maintaining full Smart App Control compatibility.
+
+### Fixed
+* **Windows 11 Smart App Control (Error 4551):** Seamless execution via signed Adoptium Temurin `javaw.exe` runtime.
+* **Column Deduplication:** Resolved multi-schema duplicate column names in browse and join checkbox selectors.
+* **Installer Adoptium Auto-Download:** Switched download endpoint to official Adoptium `.msi` URL with `PrepareToInstall` pre-install check.
 
 ---
 

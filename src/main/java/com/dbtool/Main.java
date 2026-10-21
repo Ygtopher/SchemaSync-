@@ -29,7 +29,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.6.9";
+    public static final String APP_VERSION = "1.7.0";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;

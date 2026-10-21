@@ -1,6 +1,6 @@
 # Troubleshooting & FAQ Guide
 
-**Version:** 1.6.9  
+**Version:** 1.7.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -73,7 +73,7 @@ Your machine has an outdated Java 8 (1.8) runtime set as the default Java. Schem
 SchemaSync launches and operates normally, but the dock/taskbar displays a generic grey icon instead of the SchemaSync 3D crystal cube.
 
 #### Solution
-1. Ensure the package was installed via `sudo dnf install ./schemasync-1.6.9-1.fc44.noarch.rpm`.
+1. Ensure the package was installed via `sudo dnf install ./schemasync-1.7.0-1.fc44.noarch.rpm`.
 2. Verify that `/usr/share/applications/schemasync.desktop` contains:
    ```ini
    StartupWMClass=schemasync
@@ -92,10 +92,10 @@ SchemaSync launches and operates normally, but the dock/taskbar displays a gener
 Clicking **Update & Restart** fails to replace files in `/usr/lib/schemasync/`.
 
 #### Solution
-System directories under `/usr/lib/` are owned by `root`. SchemaSync v1.6.9 automatically manages updates in user-space (`~/.local/share/schemasync/`) so that updates succeed without prompting for `sudo` passwords. If running from the system directory, install new releases via:
+System directories under `/usr/lib/` are owned by `root`. SchemaSync v1.7.0 automatically manages updates in user-space (`~/.local/share/schemasync/`) so that updates succeed without prompting for `sudo` passwords. If running from the system directory, install new releases via:
 ```bash
-sudo apt install ./schemasync_1.6.9_all.deb     # Ubuntu
-sudo dnf install ./schemasync-1.6.9-1.fc44.noarch.rpm # Fedora
+sudo apt install ./schemasync_1.7.0_all.deb     # Ubuntu
+sudo dnf install ./schemasync-1.7.0-1.fc44.noarch.rpm # Fedora
 ```
 
 ---

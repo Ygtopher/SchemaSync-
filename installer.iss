@@ -1,5 +1,5 @@
 #define MyAppName "SchemaSync"
-#define MyAppVersion "1.6.9"
+#define MyAppVersion "1.7.0"
 #define MyAppPublisher "NSENGIYUMVA Christophe"
 #define MyAppURL "https://github.com/Ygtopher/SchemaSync-"
 #define MyAppExeName "SchemaSync.exe"

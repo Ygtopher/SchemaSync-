@@ -1,6 +1,6 @@
 # SchemaSync Security & Cryptography Guide
 
-**Version:** 1.6.9  
+**Version:** 1.7.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
