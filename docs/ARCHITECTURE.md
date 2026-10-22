@@ -1,6 +1,6 @@
 # SchemaSync System Architecture & Design
 
-**Version:** 1.7.0  
+**Version:** 1.7.1  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 

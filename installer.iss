@@ -1,5 +1,5 @@
 #define MyAppName "SchemaSync"
-#define MyAppVersion "1.7.0"
+#define MyAppVersion "1.7.1"
 #define MyAppPublisher "NSENGIYUMVA Christophe"
 #define MyAppURL "https://github.com/Ygtopher/SchemaSync-"
 #define MyAppExeName "SchemaSync.exe"
@@ -16,9 +16,9 @@ AppUpdatesURL={#MyAppURL}
 AppCopyright={#MyAppCopyright}
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
-OutputDir=d:\projects\DBTOOL\release
+OutputDir=release
 OutputBaseFilename=SchemaSync-Setup
-SetupIconFile=d:\projects\DBTOOL\src\main\resources\icons\app.ico
+SetupIconFile=src\main\resources\icons\app.ico
 UninstallDisplayIcon={app}\app.ico
 UninstallDisplayName={#MyAppName}
 Compression=lzma2/max
@@ -35,8 +35,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "d:\projects\DBTOOL\release\SchemaSync.jar"; DestDir: "{app}"; Flags: ignoreversion
-Source: "d:\projects\DBTOOL\src\main\resources\icons\app.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "release\SchemaSync.jar"; DestDir: "{app}"; Flags: ignoreversion
+Source: "src\main\resources\icons\app.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{code:GetJavaWExe}"; Parameters: "-Duser.timezone=UTC -jar ""{app}\SchemaSync.jar"""; WorkingDir: "{app}"; IconFilename: "{app}\app.ico"; AppUserModelID: "SchemaSync.DatabaseTool"

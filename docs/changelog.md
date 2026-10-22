@@ -1,18 +1,24 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.7.0  
+**Current Version:** 1.7.1  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
 ---
 
-## [v1.7.0] - 2026-10-21
+## [v1.7.1] - 2026-10-22
 ### Added
 * **Dual DB Compare Unified SQL Mode ("One Query Affects All Databases"):** Added a unified query mode to `DualDatabaseComparePanel` and `DataCompareTabPanel` alongside Quick Table Match and Custom SQL Query modes:
   * Allows writing ONE SQL statement that executes simultaneously across all connected databases in the pool.
   * **SELECT Data Diff:** Concurrently queries all target databases, auto-detects primary/key columns, and displays side-by-side tables and cell-level unified diffs.
   * **Multi-DB DML/DDL Execution:** Safely executes `UPDATE`, `INSERT`, `DELETE`, `CREATE`, `ALTER`, and `DROP` statements across all databases with safety confirmation prompts, transaction-safe multi-statement script splitting, and automatic catalog cache invalidation.
   * **Execution Results & Audit Tab (`⚡ Execution Results (All DBs)`):** Dedicated results log displaying per-database status, rows affected, latency (ms), and diagnostic messages.
+  * **Shortcut:** `Ctrl+Enter` directly triggers execution across all connected databases from the query editor.
+
+---
+
+## [v1.7.0] - 2026-10-21
+### Added
 * **Complete System Documentation Suite:** Added comprehensive architecture documentation in `docs/`:
   * [`docs/codebase-map.md`](codebase-map.md): Package, class, and method inventory across all modules.
   * [`docs/tech-stack-integration.md`](tech-stack-integration.md): Deep-dive into all 20+ technologies and cross-cutting synergy workflows.
