@@ -80,7 +80,7 @@ public class DualDatabaseComparePanel extends JPanel {
     private final JButton btnAddDatabase = new JButton("+ Add Database (DB C...)");
     private final JButton btnNewTab = new JButton("+ New Table Compare Tab");
     private final JButton btnDuplicateTab = new JButton("Duplicate Current Tab");
-    private final JLabel tipLabel = new JLabel("💡 Open multiple tabs to compare different tables (e.g. employees, orders) simultaneously.");
+    private final JLabel tipLabel = new JLabel("💡 Compare Modes: Quick Table Match, Unified SQL (one query affects all DBs), and Custom SQL per database.");
 
     public DualDatabaseComparePanel(DatabaseManager primaryDbManager) {
         this.primaryDbManager = primaryDbManager;

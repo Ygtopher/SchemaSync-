@@ -28,8 +28,28 @@ public class DataCompareTabPanel extends JPanel {
     private JLabel tabTitleLabel;
 
     // Mode Switcher
+    public enum CompareMode {
+        QUICK_TABLE,
+        UNIFIED_SQL,
+        CUSTOM_SQL
+    }
+
     private final JRadioButton radioQuickTable = new JRadioButton("Quick Table Match", true);
+    private final JRadioButton radioUnifiedSql = new JRadioButton("Unified SQL (Affect All DBs)");
     private final JRadioButton radioCustomSql = new JRadioButton("Custom SQL Query");
+
+    // Unified SQL Query Controls
+    private final RSyntaxTextArea unifiedQueryArea = new RSyntaxTextArea(6, 40);
+    private final JPanel unifiedSqlPanel = new JPanel(new BorderLayout());
+    private final JComboBox<String> comboUnifiedScope = new JComboBox<>(new String[]{
+        "🌐 All Connected Databases", "Selected DBs (Source & Target)"
+    });
+    private final SearchableComboBox<String> comboUnifiedKeyCol = new SearchableComboBox<>();
+    private final JButton btnRunUnified = new JButton("▶ Run on All Databases");
+    private final JLabel unifiedActiveDbsLabel = new JLabel("● 2 DBs Connected");
+
+    private final CardLayout modeCardLayout = new CardLayout();
+    private final JPanel modeContentContainer = new JPanel(modeCardLayout);
 
     // Database Selectors
     private final JComboBox<DatabaseEntry> comboDbA = new JComboBox<>();
@@ -83,6 +103,11 @@ public class DataCompareTabPanel extends JPanel {
     private final JTable sideTableB = new JTable();
     private final JTabbedPane dataViewsTabbedPane = new JTabbedPane();
 
+    // Multi-Database Statement Execution Log
+    private final JTable executionResultsTable = new JTable();
+    private DefaultTableModel executionResultsModel;
+    private JScrollPane executionScroll;
+
     private DefaultTableModel unifiedDiffModel;
     private TableRowSorter<DefaultTableModel> unifiedDiffSorter;
     private final JTextField dataSearchField = new JTextField(12);
@@ -116,10 +141,22 @@ public class DataCompareTabPanel extends JPanel {
         // 1. Mode Switcher
         JPanel modeSwitcherPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 10, 2));
         ButtonGroup modeBg = new ButtonGroup();
-        modeBg.add(radioQuickTable); modeBg.add(radioCustomSql);
+        modeBg.add(radioQuickTable);
+        modeBg.add(radioUnifiedSql);
+        modeBg.add(radioCustomSql);
         modeSwitcherPanel.add(new JLabel("Mode: "));
         modeSwitcherPanel.add(radioQuickTable);
+        modeSwitcherPanel.add(radioUnifiedSql);
         modeSwitcherPanel.add(radioCustomSql);
+
+        radioQuickTable.setToolTipText("Interactive visual table picker with automated WHERE, JOIN, and filter builders");
+        radioUnifiedSql.setToolTipText("Write ONE query that affects all databases (SELECT row diffing or UPDATE/INSERT/DELETE/DDL execution across all DBs)");
+        radioCustomSql.setToolTipText("Write independent, separate custom SQL queries for Source and Target databases");
+
+        radioQuickTable.addActionListener(e -> setCompareMode(CompareMode.QUICK_TABLE));
+        radioUnifiedSql.addActionListener(e -> setCompareMode(CompareMode.UNIFIED_SQL));
+        radioCustomSql.addActionListener(e -> setCompareMode(CompareMode.CUSTOM_SQL));
+
         topConfigPanel.add(modeSwitcherPanel, BorderLayout.NORTH);
 
         // 2. Quick Table Container
@@ -263,16 +300,16 @@ public class DataCompareTabPanel extends JPanel {
                     JOptionPane.YES_NO_CANCEL_OPTION,
                     JOptionPane.QUESTION_MESSAGE,
                     null,
-                    new String[]{"Load into Custom SQL", "Copy to Clipboard", "Cancel"},
-                    "Load into Custom SQL");
+                    new String[]{"Load into Unified SQL", "Load into Custom SQL", "Copy to Clipboard", "Cancel"},
+                    "Load into Unified SQL");
                 if (opt == 0) {
-                    radioCustomSql.setSelected(true);
-                    quickTableContainer.setVisible(false);
-                    customSqlPanel.setVisible(true);
+                    unifiedQueryArea.setText(sql);
+                    setCompareMode(CompareMode.UNIFIED_SQL);
+                } else if (opt == 1) {
                     queryAArea.setText(sql);
                     queryBArea.setText(sql);
-                    revalidate(); repaint();
-                } else if (opt == 1) {
+                    setCompareMode(CompareMode.CUSTOM_SQL);
+                } else if (opt == 2) {
                     Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(sql), null);
                     JOptionPane.showMessageDialog(this, "Snippet copied to clipboard!");
                 }
@@ -284,12 +321,8 @@ public class DataCompareTabPanel extends JPanel {
         cheatSheetBtn.setToolTipText("Open interactive Advanced SQL Mastery Cheat Sheet");
         cheatSheetBtn.addActionListener(e -> {
             new com.dbtool.panels.SqlMasteryReferenceDialog(SwingUtilities.getWindowAncestor(this), sql -> {
-                radioCustomSql.setSelected(true);
-                quickTableContainer.setVisible(false);
-                customSqlPanel.setVisible(true);
-                queryAArea.setText(sql);
-                queryBArea.setText(sql);
-                revalidate(); repaint();
+                unifiedQueryArea.setText(sql);
+                setCompareMode(CompareMode.UNIFIED_SQL);
             }).setVisible(true);
         });
 
@@ -322,6 +355,9 @@ public class DataCompareTabPanel extends JPanel {
         clausesScrollPane.setVisible(false);
         quickTableContainer.add(clausesScrollPane);
 
+        // 2b. Unified SQL Controls
+        buildUnifiedSqlPanel();
+
         // 3. Custom SQL Controls
         queryAArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_SQL);
         queryAArea.setText("SELECT * FROM employees;");
@@ -333,23 +369,11 @@ public class DataCompareTabPanel extends JPanel {
                 wrapQueryEditor("Query for Target Database", queryBArea));
         sqlSplit.setResizeWeight(0.5);
         customSqlPanel.add(sqlSplit, BorderLayout.CENTER);
-        customSqlPanel.setVisible(false);
 
-        radioQuickTable.addActionListener(e -> {
-            quickTableContainer.setVisible(true);
-            customSqlPanel.setVisible(false);
-            revalidate(); repaint();
-        });
-        radioCustomSql.addActionListener(e -> {
-            quickTableContainer.setVisible(false);
-            customSqlPanel.setVisible(true);
-            revalidate(); repaint();
-        });
-
-        JPanel container = new JPanel(new BorderLayout());
-        container.add(quickTableContainer, BorderLayout.NORTH);
-        container.add(customSqlPanel, BorderLayout.CENTER);
-        topConfigPanel.add(container, BorderLayout.CENTER);
+        modeContentContainer.add(quickTableContainer, CompareMode.QUICK_TABLE.name());
+        modeContentContainer.add(unifiedSqlPanel, CompareMode.UNIFIED_SQL.name());
+        modeContentContainer.add(customSqlPanel, CompareMode.CUSTOM_SQL.name());
+        topConfigPanel.add(modeContentContainer, BorderLayout.CENTER);
 
         // 4. Execution & Filters Toolbar
         JToolBar tbData = new JToolBar();
@@ -389,9 +413,23 @@ public class DataCompareTabPanel extends JPanel {
         tbData.add(dataSearchField);
 
         JButton exportCsvBtn = new JButton("📥 Export CSV");
-        exportCsvBtn.addActionListener(e -> ExportUtil.exportCsv(unifiedDiffTable, this));
+        exportCsvBtn.addActionListener(e -> {
+            Component sel = dataViewsTabbedPane.getSelectedComponent();
+            if (sel != null && sel == executionScroll) {
+                ExportUtil.exportCsv(executionResultsTable, this);
+            } else {
+                ExportUtil.exportCsv(unifiedDiffTable, this);
+            }
+        });
         JButton exportPdfBtn = new JButton("📥 Export PDF");
-        exportPdfBtn.addActionListener(e -> ExportUtil.exportPdf(unifiedDiffTable, this));
+        exportPdfBtn.addActionListener(e -> {
+            Component sel = dataViewsTabbedPane.getSelectedComponent();
+            if (sel != null && sel == executionScroll) {
+                ExportUtil.exportPdf(executionResultsTable, this);
+            } else {
+                ExportUtil.exportPdf(unifiedDiffTable, this);
+            }
+        });
 
         tbData.add(Box.createHorizontalGlue());
         tbData.add(exportCsvBtn);
@@ -405,7 +443,7 @@ public class DataCompareTabPanel extends JPanel {
         configScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         configScroll.getVerticalScrollBar().setUnitIncrement(16);
 
-        // 5. Result Views (Unified Diff vs Side-by-Side)
+        // 5. Result Views (Unified Diff vs Side-by-Side vs Execution Results)
         dataViewsTabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
         dataViewsTabbedPane.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
         unifiedDiffTable.setDefaultRenderer(Object.class, new DiffTableCellRenderer());
@@ -424,6 +462,19 @@ public class DataCompareTabPanel extends JPanel {
         sideSplit.setResizeWeight(0.5);
         dataViewsTabbedPane.addTab("Side-by-Side View", sideSplit);
 
+        executionResultsModel = new DefaultTableModel(new String[]{
+            "Database", "Status", "Rows Affected / Returned", "Duration", "Execution Details"
+        }, 0) {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
+        };
+        executionResultsTable.setModel(executionResultsModel);
+        executionResultsTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        executionResultsTable.setDefaultRenderer(Object.class, new ExecutionResultsCellRenderer());
+        executionScroll = new JScrollPane(executionResultsTable);
+        executionScroll.setBorder(BorderFactory.createTitledBorder("Multi-Database Statement Execution & Audit Log"));
+        com.dbtool.util.TableRowUtilities.addRowNumbers(executionResultsTable, executionScroll);
+        dataViewsTabbedPane.addTab("⚡ Execution Results (All DBs)", executionScroll);
+
         JSplitPane dataCompareSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, configScroll, dataViewsTabbedPane);
         dataCompareSplit.setResizeWeight(0.35);
         dataCompareSplit.setDividerSize(5);
@@ -439,6 +490,550 @@ public class DataCompareTabPanel extends JPanel {
         p.setBorder(BorderFactory.createTitledBorder(title));
         p.add(new RTextScrollPane(area), BorderLayout.CENTER);
         return p;
+    }
+
+    private JPanel buildUnifiedSqlPanel() {
+        unifiedSqlPanel.setLayout(new BorderLayout(4, 4));
+        unifiedSqlPanel.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+
+        // Top toolbar
+        JToolBar tbUnified = new JToolBar();
+        tbUnified.setFloatable(false);
+        tbUnified.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
+
+        btnRunUnified.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnRunUnified.setForeground(ThemeManager.getSuccessColor());
+        btnRunUnified.setToolTipText("Execute query on all databases simultaneously (Ctrl+Enter)");
+        btnRunUnified.addActionListener(e -> runDataComparison());
+        tbUnified.add(btnRunUnified);
+
+        tbUnified.addSeparator();
+
+        tbUnified.add(new JLabel("Target Scope: "));
+        comboUnifiedScope.setPreferredSize(new Dimension(190, 26));
+        comboUnifiedScope.setToolTipText("Choose whether to execute on all connected databases or only Source & Target DBs");
+        tbUnified.add(comboUnifiedScope);
+
+        tbUnified.add(new JLabel(" | Key Column: "));
+        comboUnifiedKeyCol.setPreferredSize(new Dimension(130, 26));
+        comboUnifiedKeyCol.setToolTipText("Column used to align and diff records for SELECT queries (auto-detected if empty)");
+        tbUnified.add(comboUnifiedKeyCol);
+
+        tbUnified.addSeparator();
+
+        JButton btnTemplates = new JButton("📝 SQL Templates ▾");
+        btnTemplates.setToolTipText("Access advanced SQL templates and clauses");
+        btnTemplates.addActionListener(e -> {
+            JPopupMenu menu = new JPopupMenu();
+            com.dbtool.util.SqlSnippetsLibrary.populatePopupMenu(menu, sql -> {
+                unifiedQueryArea.setText(sql);
+            });
+            menu.show(btnTemplates, 0, btnTemplates.getHeight());
+        });
+        tbUnified.add(btnTemplates);
+
+        JButton btnCheatSheet = new JButton("💡 Cheat Sheet");
+        btnCheatSheet.setToolTipText("Open interactive Advanced SQL Mastery Cheat Sheet");
+        btnCheatSheet.addActionListener(e -> {
+            new com.dbtool.panels.SqlMasteryReferenceDialog(SwingUtilities.getWindowAncestor(this), sql -> {
+                unifiedQueryArea.setText(sql);
+            }).setVisible(true);
+        });
+        tbUnified.add(btnCheatSheet);
+
+        JButton btnClear = new JButton("Clear");
+        btnClear.addActionListener(e -> unifiedQueryArea.setText(""));
+        tbUnified.add(btnClear);
+
+        tbUnified.add(Box.createHorizontalGlue());
+        unifiedActiveDbsLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        unifiedActiveDbsLabel.setForeground(ThemeManager.getPrimaryActionColor());
+        tbUnified.add(unifiedActiveDbsLabel);
+
+        unifiedSqlPanel.add(tbUnified, BorderLayout.NORTH);
+
+        // Center Query Area
+        unifiedQueryArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_SQL);
+        unifiedQueryArea.setCodeFoldingEnabled(true);
+        unifiedQueryArea.setText("SELECT * FROM employees ORDER BY id;");
+
+        // Shortcut: Ctrl+Enter or Cmd+Enter to run
+        int shortcutMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+        KeyStroke ctrlEnter = KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ENTER, shortcutMask);
+        unifiedQueryArea.getInputMap().put(ctrlEnter, "runUnified");
+        unifiedQueryArea.getActionMap().put("runUnified", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                runDataComparison();
+            }
+        });
+
+        RTextScrollPane scroll = new RTextScrollPane(unifiedQueryArea);
+        scroll.setPreferredSize(new Dimension(800, 130));
+        scroll.setBorder(BorderFactory.createTitledBorder("Unified SQL Query (Runs on all databases)"));
+        unifiedSqlPanel.add(scroll, BorderLayout.CENTER);
+
+        // Bottom status note
+        JLabel tip = new JLabel(" 💡 Unified Mode: Write ONE query. SELECT statements perform row diffing across all DBs; UPDATE, INSERT, DELETE, and DDL affect all DBs concurrently.");
+        tip.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+        tip.setForeground(ThemeManager.getMutedTextColor());
+        unifiedSqlPanel.add(tip, BorderLayout.SOUTH);
+
+        return unifiedSqlPanel;
+    }
+
+    public void setCompareMode(CompareMode mode) {
+        radioQuickTable.setSelected(mode == CompareMode.QUICK_TABLE);
+        radioUnifiedSql.setSelected(mode == CompareMode.UNIFIED_SQL);
+        radioCustomSql.setSelected(mode == CompareMode.CUSTOM_SQL);
+
+        modeCardLayout.show(modeContentContainer, mode.name());
+
+        if (mode == CompareMode.UNIFIED_SQL) {
+            executeDataDiffBtn.setText("▶ Execute on All Databases & Compare");
+        } else {
+            executeDataDiffBtn.setText("Run Data Diff (Compare Rows)");
+        }
+        revalidate();
+        repaint();
+    }
+
+    public void runUnifiedSqlExecution() {
+        List<DatabaseEntry> targets = getUnifiedTargetDatabases();
+        if (targets.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "No connected databases found. Please connect at least one database to execute.",
+                "Missing Database Connection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String sql = unifiedQueryArea.getText().trim();
+        if (sql.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "Please enter a SQL query to execute across databases.",
+                "Empty Query", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        boolean isSelect = isQueryReturningRows(sql);
+
+        if (isSelect) {
+            executeUnifiedSelectQuery(targets, sql);
+        } else {
+            executeUnifiedDmlQuery(targets, sql);
+        }
+    }
+
+    public List<DatabaseEntry> getUnifiedTargetDatabases() {
+        List<DatabaseEntry> targets = new ArrayList<>();
+        if (comboUnifiedScope.getSelectedIndex() == 0) { // All Connected Databases
+            for (DatabaseEntry entry : parentPanel.getDatabaseEntries()) {
+                if (entry.getDbManager().isConnected()) {
+                    targets.add(entry);
+                }
+            }
+        } else { // Selected DBs (Source & Target)
+            DatabaseEntry dbA = getSelectedDatabaseA();
+            DatabaseEntry dbB = getSelectedDatabaseB();
+            if (dbA != null && dbA.getDbManager().isConnected()) targets.add(dbA);
+            if (dbB != null && dbB.getDbManager().isConnected() && !targets.contains(dbB)) targets.add(dbB);
+        }
+        return targets;
+    }
+
+    private void executeUnifiedSelectQuery(List<DatabaseEntry> targets, String sql) {
+        if (targets.size() < 2) {
+            executeSingleDatabaseQuery(targets.get(0), sql);
+            return;
+        }
+
+        DatabaseEntry dbA = targets.get(0);
+        DatabaseEntry dbB = targets.get(1);
+
+        btnRunUnified.setEnabled(false);
+        executeDataDiffBtn.setEnabled(false);
+        dataStatusLabel.setText("Executing unified query across " + targets.size() + " databases...");
+
+        new Thread(() -> {
+            try {
+                long start = System.currentTimeMillis();
+                DefaultTableModel modelA = dbA.getDbManager().executeQuery(sql);
+                DefaultTableModel modelB = dbB.getDbManager().executeQuery(sql);
+                long duration = System.currentTimeMillis() - start;
+
+                List<Object[]> auditLogs = new ArrayList<>();
+                auditLogs.add(new Object[]{dbA.getLabel(), "🟢 Success", modelA.getRowCount() + " rows returned", duration + " ms", "Query executed successfully"});
+                auditLogs.add(new Object[]{dbB.getLabel(), "🟢 Success", modelB.getRowCount() + " rows returned", duration + " ms", "Query executed successfully"});
+
+                for (int i = 2; i < targets.size(); i++) {
+                    DatabaseEntry extraDb = targets.get(i);
+                    long s = System.currentTimeMillis();
+                    try {
+                        DefaultTableModel extraModel = extraDb.getDbManager().executeQuery(sql);
+                        long d = System.currentTimeMillis() - s;
+                        auditLogs.add(new Object[]{extraDb.getLabel(), "🟢 Success", extraModel.getRowCount() + " rows returned", d + " ms", "Query executed successfully"});
+                    } catch (Exception ex) {
+                        long d = System.currentTimeMillis() - s;
+                        auditLogs.add(new Object[]{extraDb.getLabel(), "🔴 Failed", "0 rows", d + " ms", ex.getMessage()});
+                    }
+                }
+
+                SwingUtilities.invokeLater(() -> {
+                    btnRunUnified.setEnabled(true);
+                    executeDataDiffBtn.setEnabled(true);
+
+                    sideTableA.setModel(modelA);
+                    sideTableB.setModel(modelB);
+
+                    // Update Audit Log
+                    executionResultsModel.setRowCount(0);
+                    for (Object[] row : auditLogs) {
+                        executionResultsModel.addRow(row);
+                    }
+
+                    // Determine key column
+                    String keyCol = resolveKeyColumn(modelA, modelB);
+                    if (keyCol == null) {
+                        dataStatusLabel.setText("Query succeeded (" + modelA.getRowCount() + " vs " + modelB.getRowCount() + " rows), but no matching column found for unified diff.");
+                        dataViewsTabbedPane.setSelectedIndex(1); // Show side-by-side
+                        return;
+                    }
+
+                    computeUnifiedDataDiff(modelA, modelB, keyCol, duration, dbA.getLabel(), dbB.getLabel());
+                    dataViewsTabbedPane.setSelectedIndex(0); // Show unified diff
+                });
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> {
+                    btnRunUnified.setEnabled(true);
+                    executeDataDiffBtn.setEnabled(true);
+                    dataStatusLabel.setText("Unified query failed: " + ex.getMessage());
+                    JOptionPane.showMessageDialog(this, "Failed to execute unified query: " + ex.getMessage(), "Execution Error", JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        }).start();
+    }
+
+    private void executeSingleDatabaseQuery(DatabaseEntry db, String sql) {
+        btnRunUnified.setEnabled(false);
+        executeDataDiffBtn.setEnabled(false);
+        dataStatusLabel.setText("Executing query on " + db.getLabel() + "...");
+
+        new Thread(() -> {
+            try {
+                long start = System.currentTimeMillis();
+                DefaultTableModel model = db.getDbManager().executeQuery(sql);
+                long duration = System.currentTimeMillis() - start;
+
+                SwingUtilities.invokeLater(() -> {
+                    btnRunUnified.setEnabled(true);
+                    executeDataDiffBtn.setEnabled(true);
+
+                    sideTableA.setModel(model);
+                    dataViewsTabbedPane.setSelectedIndex(1); // Show in Side-by-Side View
+
+                    executionResultsModel.setRowCount(0);
+                    executionResultsModel.addRow(new Object[]{
+                        db.getLabel(), "🟢 Success", model.getRowCount() + " rows returned", duration + " ms", "Query executed successfully"
+                    });
+
+                    dataStatusLabel.setText(String.format("Executed on %s in %d ms: %d rows returned. (Connect a 2nd DB to compare diff)",
+                        db.getLabel(), duration, model.getRowCount()));
+                });
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> {
+                    btnRunUnified.setEnabled(true);
+                    executeDataDiffBtn.setEnabled(true);
+                    dataStatusLabel.setText("Execution failed: " + ex.getMessage());
+                    JOptionPane.showMessageDialog(this, "Failed to execute query: " + ex.getMessage(), "Execution Error", JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        }).start();
+    }
+
+    private void executeUnifiedDmlQuery(List<DatabaseEntry> targets, String sql) {
+        StringBuilder dbsSummary = new StringBuilder();
+        for (DatabaseEntry d : targets) {
+            dbsSummary.append("  • ").append(d.getLabel()).append("\n");
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "⚠️ Multi-Database Statement Execution\n\n" +
+            "This statement will modify data or structure across " + targets.size() + " database(s):\n" +
+            dbsSummary + "\n" +
+            "Statement Preview:\n" +
+            (sql.length() > 220 ? sql.substring(0, 220) + "..." : sql) + "\n\n" +
+            "Do you want to proceed and affect all selected databases?",
+            "Confirm Execution on All Databases",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE);
+
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        executeUnifiedDmlInternal(targets, sql);
+    }
+
+    public void executeUnifiedDmlInternal(List<DatabaseEntry> targets, String sql) {
+        btnRunUnified.setEnabled(false);
+        executeDataDiffBtn.setEnabled(false);
+        dataStatusLabel.setText("Executing statement across " + targets.size() + " database(s)...");
+
+        new Thread(() -> {
+            List<Object[]> auditLogs = new ArrayList<>();
+            int successCount = 0;
+            int failCount = 0;
+            long totalStart = System.currentTimeMillis();
+
+            List<String> statements = splitSqlStatements(sql);
+
+            for (DatabaseEntry dbEntry : targets) {
+                long dbStart = System.currentTimeMillis();
+                try {
+                    int totalAffected = 0;
+                    if (dbEntry.getDbManager().connection == null) {
+                        throw new java.sql.SQLException("Not connected to " + dbEntry.getLabel());
+                    }
+                    try (java.sql.Statement stmt = dbEntry.getDbManager().connection.createStatement()) {
+                        for (String singleStmt : statements) {
+                            String trimmed = singleStmt.trim();
+                            if (!trimmed.isEmpty()) {
+                                totalAffected += stmt.executeUpdate(trimmed);
+                            }
+                        }
+                    }
+                    long dbDur = System.currentTimeMillis() - dbStart;
+                    auditLogs.add(new Object[]{
+                        dbEntry.getLabel(),
+                        "🟢 Success",
+                        totalAffected + " row(s) affected",
+                        dbDur + " ms",
+                        "Executed " + statements.size() + " statement(s) successfully"
+                    });
+                    successCount++;
+
+                    if (isDdlStatement(sql)) {
+                        dbEntry.getDbManager().clearCache();
+                    }
+                } catch (Exception ex) {
+                    long dbDur = System.currentTimeMillis() - dbStart;
+                    auditLogs.add(new Object[]{
+                        dbEntry.getLabel(),
+                        "🔴 Failed",
+                        "0 rows",
+                        dbDur + " ms",
+                        ex.getMessage() != null ? ex.getMessage() : ex.toString()
+                    });
+                    failCount++;
+                }
+            }
+            long totalDur = System.currentTimeMillis() - totalStart;
+            final int finalSuccess = successCount;
+            final int finalFail = failCount;
+
+            SwingUtilities.invokeLater(() -> {
+                btnRunUnified.setEnabled(true);
+                executeDataDiffBtn.setEnabled(true);
+
+                executionResultsModel.setRowCount(0);
+                for (Object[] row : auditLogs) {
+                    executionResultsModel.addRow(row);
+                }
+
+                dataViewsTabbedPane.setSelectedIndex(2); // Switch to ⚡ Execution Results (All DBs)
+                dataStatusLabel.setText(String.format("Executed across %d databases in %d ms: 🟢 %d Succeeded | 🔴 %d Failed",
+                        targets.size(), totalDur, finalSuccess, finalFail));
+
+                if (isDdlStatement(sql)) {
+                    parentPanel.refreshDatabaseSelectors();
+                }
+
+                JOptionPane.showMessageDialog(this,
+                    String.format("Statement execution finished across %d database(s):\n• 🟢 %d Succeeded\n• 🔴 %d Failed\n\nSee 'Execution Results' tab for details.",
+                        targets.size(), finalSuccess, finalFail),
+                    finalFail == 0 ? "Execution Completed" : "Execution Completed with Errors",
+                    finalFail == 0 ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.WARNING_MESSAGE);
+            });
+        }).start();
+    }
+
+    private String resolveKeyColumn(DefaultTableModel modelA, DefaultTableModel modelB) {
+        String keyCol = (String) comboUnifiedKeyCol.getSelectedItem();
+        if (keyCol != null && !keyCol.trim().isEmpty() && hasColumn(modelA, keyCol.trim()) && hasColumn(modelB, keyCol.trim())) {
+            return keyCol.trim();
+        }
+        keyCol = (String) comboKeyCol.getSelectedItem();
+        if (keyCol != null && !keyCol.trim().isEmpty() && hasColumn(modelA, keyCol.trim()) && hasColumn(modelB, keyCol.trim())) {
+            return keyCol.trim();
+        }
+        // Auto-detect: check "id"
+        if (hasColumn(modelA, "id") && hasColumn(modelB, "id")) {
+            return "id";
+        }
+        // Fallback: first column common to both
+        for (int i = 0; i < modelA.getColumnCount(); i++) {
+            String col = modelA.getColumnName(i);
+            if (hasColumn(modelB, col)) {
+                return col;
+            }
+        }
+        // If no common column name, use column 0 if available
+        if (modelA.getColumnCount() > 0 && modelB.getColumnCount() > 0) {
+            return modelA.getColumnName(0);
+        }
+        return null;
+    }
+
+    private boolean hasColumn(DefaultTableModel model, String colName) {
+        if (model == null || colName == null) return false;
+        for (int i = 0; i < model.getColumnCount(); i++) {
+            if (colName.equalsIgnoreCase(model.getColumnName(i))) return true;
+        }
+        return false;
+    }
+
+    public static boolean isQueryReturningRows(String sql) {
+        if (sql == null) return false;
+        String clean = stripComments(sql).trim();
+        if (clean.isEmpty()) return false;
+        String upper = clean.toUpperCase();
+        return upper.startsWith("SELECT") || upper.startsWith("WITH") || 
+               upper.startsWith("EXPLAIN") || upper.startsWith("SHOW") || 
+               upper.startsWith("DESCRIBE") || upper.startsWith("DESC") ||
+               upper.startsWith("PRAGMA");
+    }
+
+    private static String stripComments(String sql) {
+        if (sql == null) return "";
+        String noLineComments = sql.replaceAll("(?m)^\\s*--.*$", "");
+        return noLineComments.replaceAll("/\\*.*?\\*/", "");
+    }
+
+    private static boolean isDdlStatement(String sql) {
+        String clean = stripComments(sql).trim();
+        String upper = clean.toUpperCase();
+        return upper.startsWith("CREATE") || upper.startsWith("ALTER") ||
+               upper.startsWith("DROP") || upper.startsWith("TRUNCATE");
+    }
+
+    public static List<String> splitSqlStatements(String script) {
+        List<String> list = new ArrayList<>();
+        if (script == null || script.trim().isEmpty()) return list;
+
+        StringBuilder current = new StringBuilder();
+        boolean inSingleQuotes = false;
+        boolean inDoubleQuotes = false;
+        boolean inLineComment = false;
+        boolean inBlockComment = false;
+
+        for (int i = 0; i < script.length(); i++) {
+            char c = script.charAt(i);
+            char next = (i + 1 < script.length()) ? script.charAt(i + 1) : '\0';
+
+            if (inLineComment) {
+                if (c == '\n' || c == '\r') inLineComment = false;
+                current.append(c);
+            } else if (inBlockComment) {
+                if (c == '*' && next == '/') {
+                    inBlockComment = false;
+                    current.append(c);
+                    current.append(next);
+                    i++;
+                } else {
+                    current.append(c);
+                }
+            } else if (inSingleQuotes) {
+                if (c == '\'') {
+                    if (next == '\'') {
+                        current.append(c);
+                        current.append(next);
+                        i++;
+                    } else {
+                        inSingleQuotes = false;
+                        current.append(c);
+                    }
+                } else {
+                    current.append(c);
+                }
+            } else if (inDoubleQuotes) {
+                if (c == '"') {
+                    if (next == '"') {
+                        current.append(c);
+                        current.append(next);
+                        i++;
+                    } else {
+                        inDoubleQuotes = false;
+                        current.append(c);
+                    }
+                } else {
+                    current.append(c);
+                }
+            } else {
+                if (c == '-' && next == '-') {
+                    inLineComment = true;
+                    current.append(c);
+                    current.append(next);
+                    i++;
+                } else if (c == '/' && next == '*') {
+                    inBlockComment = true;
+                    current.append(c);
+                    current.append(next);
+                    i++;
+                } else if (c == '\'') {
+                    inSingleQuotes = true;
+                    current.append(c);
+                } else if (c == '"') {
+                    inDoubleQuotes = true;
+                    current.append(c);
+                } else if (c == ';') {
+                    String stmt = current.toString().trim();
+                    if (!stmt.isEmpty()) {
+                        list.add(stmt);
+                    }
+                    current.setLength(0);
+                } else {
+                    current.append(c);
+                }
+            }
+        }
+        String trailing = current.toString().trim();
+        if (!trailing.isEmpty()) {
+            list.add(trailing);
+        }
+        return list;
+    }
+
+    public void updateUnifiedActiveDbsLabel() {
+        int connectedCount = 0;
+        List<DatabaseEntry> entries = parentPanel.getDatabaseEntries();
+        for (DatabaseEntry d : entries) {
+            if (d.getDbManager().isConnected()) connectedCount++;
+        }
+        unifiedActiveDbsLabel.setText("● " + connectedCount + " of " + entries.size() + " DBs Connected");
+        unifiedActiveDbsLabel.setForeground(connectedCount > 0 ? ThemeManager.getSuccessColor() : ThemeManager.getMutedTextColor());
+    }
+
+    static class ExecutionResultsCellRenderer extends javax.swing.table.DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            if (!isSelected) {
+                if (column == 1) { // Status
+                    String status = value != null ? value.toString() : "";
+                    if (status.contains("Success")) {
+                        c.setForeground(ThemeManager.getSuccessColor());
+                        setFont(getFont().deriveFont(Font.BOLD));
+                    } else if (status.contains("Failed")) {
+                        c.setForeground(ThemeManager.getDangerColor());
+                        setFont(getFont().deriveFont(Font.BOLD));
+                    }
+                } else {
+                    c.setForeground(null);
+                    setFont(getFont().deriveFont(Font.PLAIN));
+                }
+            }
+            return c;
+        }
     }
 
     public void refreshDatabaseSelectors() {
@@ -470,6 +1065,7 @@ public class DataCompareTabPanel extends JPanel {
 
         onDatabaseSelectionChanged(true);
         onDatabaseSelectionChanged(false);
+        updateUnifiedActiveDbsLabel();
     }
 
     private void onDatabaseSelectionChanged(boolean isSource) {
@@ -514,8 +1110,19 @@ public class DataCompareTabPanel extends JPanel {
         return comboDbB;
     }
 
+    public JRadioButton getRadioQuickTable() { return radioQuickTable; }
+    public JRadioButton getRadioUnifiedSql() { return radioUnifiedSql; }
+    public JRadioButton getRadioCustomSql() { return radioCustomSql; }
+    public RSyntaxTextArea getUnifiedQueryArea() { return unifiedQueryArea; }
+    public JComboBox<String> getComboUnifiedScope() { return comboUnifiedScope; }
+    public SearchableComboBox<String> getComboUnifiedKeyCol() { return comboUnifiedKeyCol; }
+    public JTable getExecutionResultsTable() { return executionResultsTable; }
+    public DefaultTableModel getExecutionResultsModel() { return executionResultsModel; }
+
     public void updateThemeColors() {
         executeDataDiffBtn.setForeground(ThemeManager.getSuccessColor());
+        btnRunUnified.setForeground(ThemeManager.getSuccessColor());
+        updateUnifiedActiveDbsLabel();
         repaint();
     }
 
@@ -535,8 +1142,12 @@ public class DataCompareTabPanel extends JPanel {
             if (colsB.contains(c)) commonCols.add(c);
         }
         comboKeyCol.setAllItems(commonCols);
+        comboUnifiedKeyCol.setAllItems(commonCols);
         if (comboKeyCol.getItemCount() > 0) {
             comboKeyCol.setSelectedIndex(0);
+        }
+        if (comboUnifiedKeyCol.getItemCount() > 0) {
+            comboUnifiedKeyCol.setSelectedIndex(0);
         }
         updateClauseDropdowns();
     }
@@ -599,6 +1210,20 @@ public class DataCompareTabPanel extends JPanel {
         if (other.comboLock.getSelectedItem() != null) comboLock.setSelectedItem(other.comboLock.getSelectedItem());
         queryAArea.setText(other.queryAArea.getText());
         queryBArea.setText(other.queryBArea.getText());
+
+        if (other.radioUnifiedSql.isSelected()) {
+            setCompareMode(CompareMode.UNIFIED_SQL);
+        } else if (other.radioCustomSql.isSelected()) {
+            setCompareMode(CompareMode.CUSTOM_SQL);
+        } else {
+            setCompareMode(CompareMode.QUICK_TABLE);
+        }
+        unifiedQueryArea.setText(other.unifiedQueryArea.getText());
+        comboUnifiedScope.setSelectedIndex(other.comboUnifiedScope.getSelectedIndex());
+        if (other.comboUnifiedKeyCol.getSelectedItem() != null) {
+            comboUnifiedKeyCol.setSelectedItem(other.comboUnifiedKeyCol.getSelectedItem());
+        }
+
         updateTabTitle();
     }
 
@@ -787,16 +1412,16 @@ public class DataCompareTabPanel extends JPanel {
             JOptionPane.YES_NO_CANCEL_OPTION,
             JOptionPane.QUESTION_MESSAGE,
             null,
-            new String[]{"Load into Custom SQL", "Copy to Clipboard", "Cancel"},
-            "Load into Custom SQL");
+            new String[]{"Load into Unified SQL", "Load into Custom SQL", "Copy to Clipboard", "Cancel"},
+            "Load into Unified SQL");
         if (choice == 0) {
-            radioCustomSql.setSelected(true);
-            quickTableContainer.setVisible(false);
-            customSqlPanel.setVisible(true);
+            unifiedQueryArea.setText(explainSql);
+            setCompareMode(CompareMode.UNIFIED_SQL);
+        } else if (choice == 1) {
             queryAArea.setText(explainSql);
             queryBArea.setText(explainSql);
-            revalidate(); repaint();
-        } else if (choice == 1) {
+            setCompareMode(CompareMode.CUSTOM_SQL);
+        } else if (choice == 2) {
             Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(explainSql), null);
             JOptionPane.showMessageDialog(this, "EXPLAIN query copied to clipboard!");
         }
@@ -958,14 +1583,21 @@ public class DataCompareTabPanel extends JPanel {
         });
         btnP.add(copyBBtn);
 
+        JButton openUnifiedBtn = new JButton("Open in Unified SQL Mode");
+        openUnifiedBtn.setToolTipText("Load this query into Unified SQL Mode to run simultaneously on all databases");
+        openUnifiedBtn.addActionListener(e -> {
+            unifiedQueryArea.setText(sqlA);
+            setCompareMode(CompareMode.UNIFIED_SQL);
+            dlg.dispose();
+        });
+        btnP.add(openUnifiedBtn);
+
         JButton openCustomBtn = new JButton("Open in Custom SQL Mode");
+        openCustomBtn.setToolTipText("Load into Custom SQL Mode with separate Query A and Query B");
         openCustomBtn.addActionListener(e -> {
             queryAArea.setText(sqlA);
             queryBArea.setText(sqlB);
-            radioCustomSql.setSelected(true);
-            quickTableContainer.setVisible(false);
-            customSqlPanel.setVisible(true);
-            revalidate(); repaint();
+            setCompareMode(CompareMode.CUSTOM_SQL);
             dlg.dispose();
         });
         btnP.add(openCustomBtn);
@@ -1083,6 +1715,11 @@ public class DataCompareTabPanel extends JPanel {
     }
 
     private void runDataComparison() {
+        if (radioUnifiedSql.isSelected()) {
+            runUnifiedSqlExecution();
+            return;
+        }
+
         DatabaseEntry dbA = getSelectedDatabaseA();
         DatabaseEntry dbB = getSelectedDatabaseB();
 

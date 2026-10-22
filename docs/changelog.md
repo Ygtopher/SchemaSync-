@@ -8,6 +8,11 @@
 
 ## [v1.7.0] - 2026-10-21
 ### Added
+* **Dual DB Compare Unified SQL Mode ("One Query Affects All Databases"):** Added a unified query mode to `DualDatabaseComparePanel` and `DataCompareTabPanel` alongside Quick Table Match and Custom SQL Query modes:
+  * Allows writing ONE SQL statement that executes simultaneously across all connected databases in the pool.
+  * **SELECT Data Diff:** Concurrently queries all target databases, auto-detects primary/key columns, and displays side-by-side tables and cell-level unified diffs.
+  * **Multi-DB DML/DDL Execution:** Safely executes `UPDATE`, `INSERT`, `DELETE`, `CREATE`, `ALTER`, and `DROP` statements across all databases with safety confirmation prompts, transaction-safe multi-statement script splitting, and automatic catalog cache invalidation.
+  * **Execution Results & Audit Tab (`⚡ Execution Results (All DBs)`):** Dedicated results log displaying per-database status, rows affected, latency (ms), and diagnostic messages.
 * **Complete System Documentation Suite:** Added comprehensive architecture documentation in `docs/`:
   * [`docs/codebase-map.md`](codebase-map.md): Package, class, and method inventory across all modules.
   * [`docs/tech-stack-integration.md`](tech-stack-integration.md): Deep-dive into all 20+ technologies and cross-cutting synergy workflows.

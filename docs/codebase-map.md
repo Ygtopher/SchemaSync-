@@ -155,6 +155,17 @@ Interactive Entity-Relationship visualizer powered by `JGraphX`:
 * **`exportToImage(file)`**: Renders the graph canvas to high-DPI PNG image files.
 * **`exportToMermaid()`**: Generates Mermaid.js `erDiagram` syntax for markdown documentation.
 
+#### [`DualDatabaseComparePanel.java`](file:///d:/projects/DBTOOL/src/main/java/com/dbtool/panels/DualDatabaseComparePanel.java) & [`DataCompareTabPanel.java`](file:///d:/projects/DBTOOL/src/main/java/com/dbtool/panels/DataCompareTabPanel.java)
+Multi-Database & Multi-Table cross-connection compare workbench:
+* **`addDatabaseEntry()`**: Adds Database A, B, C, D... to a dynamic connection pool.
+* **`runSchemaComparison()`**: Inspects and compares full schema metadata across databases, producing reversible migration DDL.
+* **`addDataCompareTab(title)`**: Opens independent, concurrent table and query comparison sessions.
+* **`setCompareMode(mode)`**: Switches between 3 operational data diff modes:
+  * `QUICK_TABLE`: Visual table selectors with automated query generation, dynamic WHERE, JOIN, and ORDER BY clauses.
+  * `UNIFIED_SQL`: Single SQL editor executing ONE query across all databases simultaneously. SELECT queries compare row differences side-by-side; UPDATE, INSERT, DELETE, and DDL queries affect all databases concurrently with safety confirmations and transaction-safe multi-statement execution.
+  * `CUSTOM_SQL`: Dual independent query editors (Query A vs Query B) for asymmetric SQL comparisons.
+* **`runUnifiedSqlExecution()`**: Orchestrates concurrent execution across database connections, logs execution metrics into the `⚡ Execution Results (All DBs)` audit table, and computes unified row diffs.
+
 #### [`EntityCodeGeneratorDialog.java`](file:///d:/projects/DBTOOL/src/main/java/com/dbtool/panels/EntityCodeGeneratorDialog.java)
 Multi-language ORM entity generator:
 * **`generateJpa(table)`**: Produces Spring Boot `@Entity` class with typed annotations.

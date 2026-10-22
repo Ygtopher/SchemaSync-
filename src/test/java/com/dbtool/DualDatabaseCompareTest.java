@@ -286,4 +286,124 @@ public class DualDatabaseCompareTest {
         com.dbtool.util.ThemeManager.toggleTheme(null);
         com.dbtool.util.ThemeManager.removeThemeChangeListener(testListener);
     }
+
+    @Test
+    public void testUnifiedSqlModeSwitchingAndTabDuplication() {
+        com.dbtool.panels.DualDatabaseComparePanel panel = new com.dbtool.panels.DualDatabaseComparePanel(dbManagerA);
+        panel.getDbManagerA().useExistingConnection(dbManagerA);
+        panel.getDbManagerB().useExistingConnection(dbManagerB);
+
+        com.dbtool.panels.DataCompareTabPanel tab = panel.getDataCompareTabs().get(0);
+        assertNotNull(tab);
+
+        // Initially in Quick Table Match mode
+        assertTrue(tab.getRadioQuickTable().isSelected(), "Initially should be in Quick Table mode");
+        assertFalse(tab.getRadioUnifiedSql().isSelected(), "Unified SQL radio should not be selected initially");
+        assertFalse(tab.getRadioCustomSql().isSelected(), "Custom SQL radio should not be selected initially");
+
+        // Switch to Unified SQL mode
+        tab.setCompareMode(com.dbtool.panels.DataCompareTabPanel.CompareMode.UNIFIED_SQL);
+        assertTrue(tab.getRadioUnifiedSql().isSelected(), "Unified SQL should now be selected");
+        assertFalse(tab.getRadioQuickTable().isSelected(), "Quick Table should no longer be selected");
+        assertFalse(tab.getRadioCustomSql().isSelected(), "Custom SQL should not be selected");
+
+        // Set Unified Query text and Key Column
+        tab.getUnifiedQueryArea().setText("SELECT id, name, salary FROM employees WHERE dept = 'IT' ORDER BY id;");
+        tab.getComboUnifiedKeyCol().setSelectedItem("id");
+
+        // Duplicate Tab and verify state is preserved
+        com.dbtool.panels.DataCompareTabPanel tabCopy = panel.addDataCompareTab("Tab Copy");
+        tabCopy.copyStateFrom(tab);
+
+        assertTrue(tabCopy.getRadioUnifiedSql().isSelected(), "Duplicated tab should inherit Unified SQL mode");
+        assertEquals("SELECT id, name, salary FROM employees WHERE dept = 'IT' ORDER BY id;",
+                tabCopy.getUnifiedQueryArea().getText(), "Duplicated tab should inherit unified query text");
+        assertEquals("id", tabCopy.getComboUnifiedKeyCol().getSelectedItem(), "Duplicated tab should inherit unified key col");
+
+        // Switch to Custom SQL mode
+        tab.setCompareMode(com.dbtool.panels.DataCompareTabPanel.CompareMode.CUSTOM_SQL);
+        assertTrue(tab.getRadioCustomSql().isSelected(), "Custom SQL should now be selected");
+        assertFalse(tab.getRadioUnifiedSql().isSelected(), "Unified SQL should no longer be selected");
+    }
+
+    @Test
+    public void testUnifiedSqlQueryClassificationAndSplitting() {
+        // Query classification tests
+        assertTrue(com.dbtool.panels.DataCompareTabPanel.isQueryReturningRows("SELECT * FROM employees;"));
+        assertTrue(com.dbtool.panels.DataCompareTabPanel.isQueryReturningRows("  with cte as (select 1) select * from cte;"));
+        assertTrue(com.dbtool.panels.DataCompareTabPanel.isQueryReturningRows("-- Comment\nSELECT id FROM users;"));
+        assertTrue(com.dbtool.panels.DataCompareTabPanel.isQueryReturningRows("/* Block comment */ EXPLAIN SELECT * FROM orders;"));
+
+        assertFalse(com.dbtool.panels.DataCompareTabPanel.isQueryReturningRows("UPDATE employees SET salary = salary * 1.1;"));
+        assertFalse(com.dbtool.panels.DataCompareTabPanel.isQueryReturningRows("INSERT INTO departments VALUES (10, 'R&D', 'HQ', 0);"));
+        assertFalse(com.dbtool.panels.DataCompareTabPanel.isQueryReturningRows("DELETE FROM audit_log WHERE emp_id = 99;"));
+        assertFalse(com.dbtool.panels.DataCompareTabPanel.isQueryReturningRows("ALTER TABLE employees ADD COLUMN status VARCHAR(20);"));
+        assertFalse(com.dbtool.panels.DataCompareTabPanel.isQueryReturningRows("CREATE TABLE temp_table (x INT);"));
+        assertFalse(com.dbtool.panels.DataCompareTabPanel.isQueryReturningRows("DROP TABLE temp_table;"));
+
+        // Statement splitting tests
+        String multiScript = "UPDATE employees SET salary = 75000 WHERE id = 1;\n" +
+                             "UPDATE employees SET salary = 85000 WHERE id = 2;\n" +
+                             "INSERT INTO departments (id, dept_name, location, closed) VALUES (9, 'Ops;Team', 'London', 0);";
+
+        List<String> stmts = com.dbtool.panels.DataCompareTabPanel.splitSqlStatements(multiScript);
+        assertEquals(3, stmts.size(), "Should accurately split into 3 statements without breaking semicolons inside quotes");
+        assertTrue(stmts.get(0).contains("id = 1"));
+        assertTrue(stmts.get(1).contains("id = 2"));
+        assertTrue(stmts.get(2).contains("Ops;Team"), "Semicolon within string literal should be preserved");
+    }
+
+    @Test
+    public void testUnifiedQueryAffectsAllDatabasesDml() throws Exception {
+        com.dbtool.panels.DualDatabaseComparePanel panel = new com.dbtool.panels.DualDatabaseComparePanel(dbManagerA);
+        panel.getDbManagerA().useExistingConnection(dbManagerA);
+        panel.getDbManagerB().useExistingConnection(dbManagerB);
+
+        com.dbtool.panels.DataCompareTabPanel tab = panel.getDataCompareTabs().get(0);
+        tab.setCompareMode(com.dbtool.panels.DataCompareTabPanel.CompareMode.UNIFIED_SQL);
+
+        // Verify initial salaries for IT employees in DB A and DB B
+        DefaultTableModel beforeA = dbManagerA.executeQuery("SELECT salary FROM employees WHERE id = 1;");
+        DefaultTableModel beforeB = dbManagerB.executeQuery("SELECT salary FROM employees WHERE id = 1;");
+        assertNotNull(beforeA);
+        assertNotNull(beforeB);
+        double initialSalaryA = Double.parseDouble(beforeA.getValueAt(0, 0).toString());
+        double initialSalaryB = Double.parseDouble(beforeB.getValueAt(0, 0).toString());
+
+        // Write ONE query that affects all databases
+        String updateQuery = "UPDATE employees SET salary = salary + 1500.00 WHERE id = 1;";
+        tab.getUnifiedQueryArea().setText(updateQuery);
+
+        List<com.dbtool.panels.DualDatabaseComparePanel.DatabaseEntry> targets = tab.getUnifiedTargetDatabases();
+        assertEquals(2, targets.size(), "Target scope should include both connected databases");
+
+        // Execute unified DML across all databases
+        tab.executeUnifiedDmlInternal(targets, updateQuery);
+
+        // Wait for background worker to complete
+        long startWait = System.currentTimeMillis();
+        while (tab.getExecutionResultsModel().getRowCount() < 2 && (System.currentTimeMillis() - startWait) < 5000) {
+            Thread.sleep(100);
+        }
+
+        // Verify that BOTH database A and database B were affected by the single query
+        DefaultTableModel afterA = dbManagerA.executeQuery("SELECT salary FROM employees WHERE id = 1;");
+        DefaultTableModel afterB = dbManagerB.executeQuery("SELECT salary FROM employees WHERE id = 1;");
+        assertNotNull(afterA);
+        assertNotNull(afterB);
+
+        double updatedSalaryA = Double.parseDouble(afterA.getValueAt(0, 0).toString());
+        double updatedSalaryB = Double.parseDouble(afterB.getValueAt(0, 0).toString());
+
+        assertEquals(initialSalaryA + 1500.00, updatedSalaryA, 0.01, "Database A employee salary should be updated by +1500");
+        assertEquals(initialSalaryB + 1500.00, updatedSalaryB, 0.01, "Database B employee salary should also be updated by +1500");
+
+        // Verify Execution Results Audit Log
+        DefaultTableModel execModel = tab.getExecutionResultsModel();
+        assertEquals(2, execModel.getRowCount(), "Execution log should record results for all 2 target databases");
+        assertTrue(execModel.getValueAt(0, 1).toString().contains("Success"), "Database A should report Success");
+        assertTrue(execModel.getValueAt(1, 1).toString().contains("Success"), "Database B should report Success");
+        assertTrue(execModel.getValueAt(0, 2).toString().contains("affected"), "Database A should report rows affected");
+        assertTrue(execModel.getValueAt(1, 2).toString().contains("affected"), "Database B should report rows affected");
+    }
 }

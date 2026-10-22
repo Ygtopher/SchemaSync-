@@ -151,3 +151,20 @@ Select any table to generate production-ready backend code:
 * Integrated SSH terminal powered by `JSch` for direct database server management.
 * Supports password and private key authentication (`RSA`, `ECDSA`, `Ed25519`).
 * Built-in SFTP file transfer workbench to upload SQL dumps or download remote backups.
+
+---
+
+## 16. Multi-Database & Multi-Table Compare Studio (`Dual DB Compare`)
+An advanced cross-database and multi-table comparison environment supporting 2, 3, or more databases concurrently:
+* **Dynamic Database Pool (DB A, B, C, D...):** Connect multiple databases (Postgres, SQLite, Sandbox, App connection) simultaneously in a single workspace.
+* **Structural Schema Diff:** Detects missing tables, modified columns, type discrepancies, altered default values, and nullable drift between Source and Target databases, generating reversible migration DDL scripts.
+* **Multi-Tab Data Comparison Sessions:** Open multiple concurrent comparison tabs to inspect distinct tables or queries side-by-side.
+* **Three Flexible Data Comparison Modes:**
+  1. **Quick Table Match:** Interactive visual table dropdowns, auto-matching corresponding tables, column selection dialog, and full visual SQL clause builders (`WHERE`, `JOIN`, `ORDER BY`, `GROUP BY`, `HAVING`, `WINDOW`, `TABLESAMPLE`, `FOR UPDATE`).
+  2. **Unified SQL Query Mode (Affect All Databases):**
+     * **Write ONE Query for All DBs:** Write a single query that executes concurrently across all target databases without manual duplication.
+     * **SELECT Comparison:** Queries all databases simultaneously, auto-detects primary/key columns, and computes side-by-side and unified cell-level diffs highlighting Identical, Modified, Source-only, and Target-only records.
+     * **Multi-Database DML / DDL Execution:** Run statements (`UPDATE`, `INSERT`, `DELETE`, `CREATE`, `ALTER`, `DROP`) that affect all selected databases in parallel. Includes confirmation safeguards, transaction-safe multi-statement script execution, and automatic catalog cache invalidation.
+     * **⚡ Execution Results & Audit Log Tab:** Dedicated execution audit table tracking per-database execution status (`🟢 Success` / `🔴 Failed`), rows affected, duration in milliseconds, and error diagnostics.
+  3. **Custom SQL Query Mode:** Independent SQL editors (`Query A` and `Query B`) with full SQL syntax highlighting, code folding, and line numbers for comparing differing queries between databases.
+* **One-Click Export:** Export unified diff tables or multi-database execution audit logs directly to CSV or formatted PDF documents.
