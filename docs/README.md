@@ -56,6 +56,8 @@ Explore the complete system documentation categorized by domain:
 ### 3. [Workbench Tools & Features](file:///d:/projects/DBTOOL/docs/features.md)
 * **Executive Telemetry & Dashboard:** Real-time health gauges, storage distribution, and inventory.
 * **Browse & Search Studio:** Multi-column selection, dynamic WHERE/HAVING filters, order-by clauses.
+* **Smart SQL INSERT Row Copying:** Context-menu `INSERT INTO` generation that automatically omits primary key / auto-increment columns (with optional explicit PK inclusion).
+* **Dual DB Compare Unified SQL Mode:** Execute a single query (`SELECT` data diff or multi-DB `UPDATE`/`INSERT`/`DELETE`/`ALTER`) across all connected databases simultaneously.
 * **Visual Join Builder & Reverse Parser:** Drag-free join constructor with JSqlParser bidirectional SQL sync.
 * **Interactive ER Diagram Canvas:** High-contrast relationship graphing with PNG and Mermaid.js export.
 * **Schema Drift & Migration Studio:** Forward (UP) and Rollback (DOWN) DDL with Dry-Run validation.

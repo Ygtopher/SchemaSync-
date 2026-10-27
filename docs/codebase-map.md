@@ -225,6 +225,11 @@ Crash recovery and editor draft autosave:
 * **`saveEditorDraft(sql)`**: Debounces and writes active SQL editor text to `Documents/SchemaSyncSaves/sql_editor_draft.sql`.
 * **`loadEditorDraft()`**: Automatically restores active SQL queries upon application startup.
 
+#### [`SqlInsertGenerator.java`](file:///d:/projects/DBTOOL/src/main/java/com/dbtool/util/SqlInsertGenerator.java)
+Smart SQL `INSERT` statement generator for JTable selections:
+* **`generateInsertStatements(table, selectedRows, tableName, dbManager, excludePrimaryKey)`**: Formats selected table rows into SQL `INSERT INTO` statements while automatically omitting primary key and auto-increment columns when `excludePrimaryKey` is `true` (with automatic fallback if all columns are primary keys).
+* **`resolvePrimaryKeyColumns(tableName, dbManager)`**: Queries `dbManager.getPrimaryKeys(tableName)` and `dbManager.getDetailedColumns(tableName)` (checking `isPrimaryKey` and `isAutoIncrement`) with case-insensitive normalization and fallback heuristic for `id`.
+
 ---
 
 ### Package `com.dbtool.packaging` (Native Linux Packaging)
