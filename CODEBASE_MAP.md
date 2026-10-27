@@ -1,6 +1,6 @@
 # SchemaSync — Codebase, Feature & Technology Architecture Map
 
-**Version:** 1.7.1  
+**Version:** 1.7.2  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -144,6 +144,7 @@ D:\projects\DBTOOL\
     │           ├── SqlFormatter.java         # Multi-line indented SQL query beautifier
     │           ├── SqlSnippetsLibrary.java   # 15+ built-in SQL query patterns and templates
     │           ├── VisualJoinProjectManager.java # Visual query join canvas serialization
+    │           ├── SqlInsertGenerator.java   # Smart SQL INSERT generator (omits primary keys for safe re-insertion)
     │           └── ExportUtil.java           # PDF, Excel, and CSV multi-grid export helpers
     └── test\                                 # 134 automated unit and integration tests (JUnit 5)
 ```

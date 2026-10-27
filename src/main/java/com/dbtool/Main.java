@@ -29,7 +29,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.7.1";
+    public static final String APP_VERSION = "1.7.2";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -3117,35 +3117,28 @@ public class Main extends JFrame {
                 String tableName = tableNameSupplier.get();
                 if (tableName == null) return;
                 
-                StringBuilder sb = new StringBuilder();
-                for (int row : rows) {
-                    StringBuilder sql = new StringBuilder("INSERT INTO " + dbManager.quoteTableName(tableName) + " (");
-                    StringBuilder vals = new StringBuilder("VALUES (");
-                    for (int c = 0; c < getColumnCount(); c++) {
-                        String colName = getColumnName(c);
-                        if (colName.contains(".")) {
-                            String[] p = colName.split("\\.");
-                            if (p.length == 2 && !p[0].equals(tableName)) continue;
-                            colName = p.length == 2 ? p[1] : colName;
-                        }
-                        sql.append(dbManager.quoteColumnName(colName)).append(c < getColumnCount() - 1 ? ", " : "");
-                        Object val = getValueAt(row, c);
-                        if (val == null) {
-                            vals.append("NULL");
-                        } else {
-                            vals.append("'").append(val.toString().replace("'", "''")).append("'");
-                        }
-                        vals.append(c < getColumnCount() - 1 ? ", " : "");
-                    }
-                    if (sql.toString().endsWith(", ")) sql.setLength(sql.length() - 2);
-                    if (vals.toString().endsWith(", ")) vals.setLength(vals.length() - 2);
-                    sql.append(") ").append(vals).append(");\n");
-                    sb.append(sql);
+                String sql = com.dbtool.util.SqlInsertGenerator.generateInsertStatements(this, rows, tableName, dbManager, true);
+                if (!sql.isEmpty()) {
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(sql), null);
                 }
-                java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
-                    new java.awt.datatransfer.StringSelection(sb.toString()), null);
             });
             popupMenu.add(copyInsertItem);
+
+            JMenuItem copyInsertWithPkItem = new JMenuItem("Copy Row as SQL INSERT (Include Primary Key)");
+            copyInsertWithPkItem.addActionListener(e -> {
+                int[] rows = this.getSelectedRows();
+                if (rows.length == 0 || tableNameSupplier == null) return;
+                String tableName = tableNameSupplier.get();
+                if (tableName == null) return;
+                
+                String sql = com.dbtool.util.SqlInsertGenerator.generateInsertStatements(this, rows, tableName, dbManager, false);
+                if (!sql.isEmpty()) {
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(sql), null);
+                }
+            });
+            popupMenu.add(copyInsertWithPkItem);
             
             JMenuItem exportCsvItem = new JMenuItem("Export Selected to CSV");
             exportCsvItem.addActionListener(e -> {

@@ -1,8 +1,18 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.7.1  
+**Current Version:** 1.7.2  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v1.7.2] - 2026-10-27
+### Added
+* **Smart SQL INSERT Row Copying (`SqlInsertGenerator`):**
+  * When using **Copy Row as SQL INSERT** on table rows in Browse, Join, or SQL Editor results, primary key / identity / auto-increment columns (e.g. `id`, `SERIAL`, `AUTO_INCREMENT`) are automatically omitted from the generated `INSERT INTO ...` statement.
+  * Eliminates unique constraint violations and duplicate key errors when duplicating existing rows or copying test records.
+  * Added secondary option **Copy Row as SQL INSERT (Include Primary Key)** in the context menu when explicit primary key insertion is required.
+  * SQL Editor result tabs now support context-menu copying: "Copy Cell", "Copy Row as SQL INSERT" (omitting PK), "Copy Row as SQL INSERT (Include Primary Key)", and "Export Selected to CSV".
 
 ---
 

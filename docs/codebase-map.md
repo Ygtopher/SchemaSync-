@@ -1,6 +1,6 @@
 # SchemaSync Codebase, Module & Function Map
 
-**Version:** 1.7.1  
+**Version:** 1.7.2  
 **Creator & Lead Architect:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 

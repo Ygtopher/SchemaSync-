@@ -1,6 +1,6 @@
 # Supported Databases & Dialect Matrix
 
-**Version:** 1.7.1  
+**Version:** 1.7.2  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 

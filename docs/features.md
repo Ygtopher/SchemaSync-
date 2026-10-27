@@ -1,6 +1,6 @@
 # SchemaSync Comprehensive Feature Guide
 
-**Version:** 1.7.1  
+**Version:** 1.7.2  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -27,6 +27,7 @@ A high-productivity data exploration workbench featuring:
   * **Concurrency Locking:** Add `FOR UPDATE`, `FOR UPDATE SKIP LOCKED`, or `FOR SHARE` clauses.
   * **Table Sampling:** Inspect large tables using `TABLESAMPLE BERNOULLI` or `SYSTEM` percentages.
 * **Inline Table Editing:** Double-click any cell to edit data directly with automatic `UPDATE ... WHERE pk = ?` execution.
+* **Safe Row Re-Insertion (`Copy Row as SQL INSERT`):** Right-click any selected row to copy clean SQL `INSERT` statements with primary key / identity / auto-increment columns automatically excluded, preventing duplicate key violations when duplicating records or transferring test data. Also provides a dedicated option to include primary keys if needed.
 
 ---
 

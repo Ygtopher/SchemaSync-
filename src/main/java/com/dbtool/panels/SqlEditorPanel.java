@@ -816,11 +816,13 @@ public class SqlEditorPanel extends JPanel {
                                 }
                                 com.dbtool.util.TypedTableModel model = new com.dbtool.util.TypedTableModel(data, columnNames, columnTypes);
                                 String tabTitle = (statements.size() > 1 ? kind + " #" + stmtNum : kind) + " (" + model.getRowCount() + " rows)";
+                                final String finalTableQuery = queryToRun;
                                 SwingUtilities.invokeLater(() -> {
                                     JTable table = new JTable(model);
                                     table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
                                     table.setAutoCreateRowSorter(true);
                                     com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(table);
+                                    attachResultTableContextMenu(table, finalTableQuery);
                                     JScrollPane scrollPane = new JScrollPane(table);
                                     com.dbtool.util.TableRowUtilities.addRowNumbers(table, scrollPane);
                                     addResultTab(tabTitle, scrollPane);
@@ -987,5 +989,85 @@ public class SqlEditorPanel extends JPanel {
         JPopupMenu menu = new JPopupMenu();
         SqlSnippetsLibrary.populatePopupMenu(menu, this::insertSnippet, this::openMasteryCheatSheet);
         menu.show(invoker, 0, invoker.getHeight());
+    }
+
+    private void attachResultTableContextMenu(JTable table, String querySql) {
+        JPopupMenu popup = new JPopupMenu();
+        JMenuItem copyCell = new JMenuItem("Copy Cell");
+        copyCell.addActionListener(e -> {
+            int r = table.getSelectedRow();
+            int c = table.getSelectedColumn();
+            if (r >= 0 && c >= 0) {
+                Object val = table.getValueAt(r, c);
+                if (val != null) {
+                    Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(val.toString()), null);
+                }
+            }
+        });
+        popup.add(copyCell);
+
+        String detectedTable = extractTableNameFromQuery(querySql);
+        if (detectedTable != null && !detectedTable.isEmpty()) {
+            JMenuItem copyInsert = new JMenuItem("Copy Row as SQL INSERT");
+            copyInsert.addActionListener(e -> {
+                int[] rows = table.getSelectedRows();
+                if (rows.length == 0) return;
+                String insertSql = com.dbtool.util.SqlInsertGenerator.generateInsertStatements(table, rows, detectedTable, dbManager, true);
+                if (!insertSql.isEmpty()) {
+                    Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(insertSql), null);
+                }
+            });
+            popup.add(copyInsert);
+
+            JMenuItem copyInsertWithPk = new JMenuItem("Copy Row as SQL INSERT (Include Primary Key)");
+            copyInsertWithPk.addActionListener(e -> {
+                int[] rows = table.getSelectedRows();
+                if (rows.length == 0) return;
+                String insertSql = com.dbtool.util.SqlInsertGenerator.generateInsertStatements(table, rows, detectedTable, dbManager, false);
+                if (!insertSql.isEmpty()) {
+                    Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(insertSql), null);
+                }
+            });
+            popup.add(copyInsertWithPk);
+        }
+
+        JMenuItem exportCsv = new JMenuItem("Export Selected to CSV");
+        exportCsv.addActionListener(e -> {
+            int[] rows = table.getSelectedRows();
+            if (rows.length == 0) return;
+            StringBuilder sb = new StringBuilder();
+            for (int c = 0; c < table.getColumnCount(); c++) {
+                sb.append("\"").append(table.getColumnName(c)).append("\"").append(c < table.getColumnCount() - 1 ? "," : "");
+            }
+            sb.append("\n");
+            for (int row : rows) {
+                for (int c = 0; c < table.getColumnCount(); c++) {
+                    Object val = table.getValueAt(row, c);
+                    String s = val == null ? "" : val.toString().replace("\"", "\"\"");
+                    sb.append("\"").append(s).append("\"").append(c < table.getColumnCount() - 1 ? "," : "");
+                }
+                sb.append("\n");
+            }
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                new java.awt.datatransfer.StringSelection(sb.toString()), null);
+        });
+        popup.add(exportCsv);
+
+        table.setComponentPopupMenu(popup);
+    }
+
+    private static String extractTableNameFromQuery(String sql) {
+        if (sql == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)\\bFROM\\s+([a-zA-Z0-9_.\"]+)").matcher(sql);
+        if (m.find()) {
+            String t = m.group(1).trim().replace("\"", "");
+            if (!t.isEmpty() && !t.equalsIgnoreCase("SELECT")) {
+                return t;
+            }
+        }
+        return null;
     }
 }
