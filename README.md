@@ -1,6 +1,6 @@
 # SchemaSync
 
-**Version:** 1.7.2  
+**Version:** 1.7.3  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -20,16 +20,25 @@ Explore the comprehensive documentation suite located in the [`docs/`](docs/READ
 * **[Security & Cryptography](docs/security.md):** AES-256-GCM Credential Vault, PII masking, and Windows Smart App Control compliance.
 * **[Installation & Packaging](docs/installation-and-packaging.md):** Guides for Windows (`.exe`), Ubuntu (`.deb`), Fedora (`.rpm`), and Fat JAR.
 * **[Troubleshooting & FAQ](docs/troubleshooting.md):** Solutions for Smart App Control, Java runtime, and Wayland dock icons.
-* **[Changelog & History](docs/changelog.md):** Full version history from v1.0.0 through v1.7.2.
+* **[Changelog & History](docs/changelog.md):** Full version history from v1.0.0 through v1.7.3.
 * **[CLI & Configuration Guide](docs/api-and-cli.md):** JVM runtime tuning, system properties, and psql meta-commands.
 
 ---
 
 ## Key Features
 
-* **📋 Smart SQL INSERT Row Copying (Primary Key Exclusion):** When copying rows via **Copy Row as SQL INSERT** in Browse, Join, or SQL Editor result tables, primary key / identity / auto-increment columns (`id`, `SERIAL`, `AUTO_INCREMENT`) are automatically excluded to prevent duplicate key and unique constraint errors when duplicating records. Includes a secondary context menu option **Copy Row as SQL INSERT (Include Primary Key)** when explicit primary key insertion is needed.
+* **🧠 Smart Query Authoring, Linter & Dry-Run Studio (`SqlEditorPanel`, `SqlQueryAnalyzer`):**
+  * **Multi-Tab SQL Scratchpads (`Query 1`, `+ New Tab`):** Work across multiple concurrent SQL scratchpad buffers with auto-saved draft persistence.
+  * **Context-Aware SQL Autocomplete (`Ctrl+Space`):** Resolves table aliases (`FROM employees e`), suggests table-specific columns (`e.first_name`), and auto-completes Foreign Key `JOIN ... ON` conditions.
+  * **Parameterized Query Variables (`:param` / `${param}`):** Automatically prompts for named variables on execution and remembers previous values while preserving PostgreSQL `::type` casts.
+  * **Static Query Linter (`🔍 Lint`) & `⭐ Expand *`:** Detects unfiltered `UPDATE`/`DELETE` statements, `SELECT *`, non-sargable `WHERE` functions, leading wildcard `LIKE '%...'`, and missing `LIMIT` clauses with 1-click auto-fixes and `SELECT *` column expansion.
+  * **🛡️ Destructive DML Guardrail & Dry-Run Preview:** Intercepts unfiltered `UPDATE`/`DELETE` queries and converts DML into safe read-only `SELECT *` preview tabs so you can inspect the exact rows affected before committing.
+* **📊 Interactive Result Grid Power Tools (`SqlInsertGenerator`):**
+  * **Instant Client-Side Filter Bar & Live Selection Telemetry:** Filter returned rows in real time as you type, and highlight any cells/rows to view instant **`Selected Rows` | `Cells` | `Nulls` || `Numeric` | `Sum` | `Avg` | `Min` | `Max`** statistics in the footer.
+  * **Smart Row Copying (`INSERT` without PK, `UPDATE`, `JSON`, `Markdown`):** Right-click any table row in Browse, Join, or SQL Editor results to copy as **SQL INSERT** (automatically omitting primary keys), **SQL INSERT (Include Primary Key)**, **SQL UPDATE**, **JSON Array**, or **GitHub Markdown Table**.
+* **📜 Upgraded Query History & Favorites:** Searchable Query History sidebar with `⭐ Pinned` favorites filter, execution latency/row count telemetry badges (`[14ms, 25r]`), and 1-click promotion to Named Saved Queries.
 * **⚡ Dual DB Compare Unified SQL Mode ("One Query Affects All Databases"):** Write a single SQL query that executes simultaneously across all connected databases in the pool alongside **Quick Table Match** and **Custom SQL Query** modes. Supports concurrent `SELECT` data diffs (side-by-side grids + cell-level unified diffs) and multi-DB DML/DDL execution (`UPDATE`, `INSERT`, `DELETE`, `CREATE`, `ALTER`, `DROP`) with confirmation safeguards and per-database telemetry logs.
-* **🐧 Native Fedora 44 RPM Package (`.rpm`) & Wayland Dock Integration:** Full native integration for Fedora 44 (and compatible RPM-based Linux distributions). Installs seamlessly via `sudo dnf install ./schemasync-1.7.2-1.fc44.noarch.rpm` with automatic OpenJDK dependency resolution (`java-headless >= 11`), `/usr/bin/schemasync` system command launcher, GNOME/KDE `.desktop` application grid integration, automatic Wayland dock icon binding via `--add-opens` and X11/Wayland `awtAppClassName` matching, system `/usr/share/pixmaps` fallbacks, and multi-resolution hicolor icons.
+* **🐧 Native Fedora 44 RPM Package (`.rpm`) & Wayland Dock Integration:** Full native integration for Fedora 44 (and compatible RPM-based Linux distributions). Installs seamlessly via `sudo dnf install ./schemasync-1.7.3-1.fc44.noarch.rpm` with automatic OpenJDK dependency resolution (`java-headless >= 11`), `/usr/bin/schemasync` system command launcher, GNOME/KDE `.desktop` application grid integration, automatic Wayland dock icon binding via `--add-opens` and X11/Wayland `awtAppClassName` matching, system `/usr/share/pixmaps` fallbacks, and multi-resolution hicolor icons.
 * **📝 Automatic SQL Editor Session Recovery (Draft Persistence):** Never lose your work across app updates or reboots. Automatically saves the active SQL editor buffer into `Documents/SchemaSyncSaves/sql_editor_draft.sql` with real-time keystroke debouncing, instant execution saving, and graceful shutdown hooks, automatically restoring your draft upon launch.
 * **📜 Persistent & Isolated Query History:** Relocates Query History and Saved Queries to `Documents/SchemaSyncSaves/` with automatic legacy migration, expanded 100-query capacity, thread-safe asynchronous execution, and complete test isolation.
 * **⚡ 1-Click In-App Auto-Updater & Silent Restarter:** Automatic background update checks on launch, interactive What's New changelog viewer, live-streamed download progress bar, and 1-click automated silent installation & seamless application restart (with permanent options for direct installer downloads and GitHub release navigation).
@@ -103,11 +112,11 @@ This will generate a self-contained executable JAR in the `target/` directory.
 ### Ubuntu Desktop Linux (DEB Package)
 Install SchemaSync natively on Ubuntu Desktop (20.04, 22.04, 24.04 LTS+) with automatic Java dependency resolution:
 ```bash
-sudo apt install ./schemasync_1.7.2_all.deb
+sudo apt install ./schemasync_1.7.3_all.deb
 ```
 Or install using `dpkg`:
 ```bash
-sudo dpkg -i ./schemasync_1.7.2_all.deb
+sudo dpkg -i ./schemasync_1.7.3_all.deb
 sudo apt-get install -f  # resolves dependencies if needed
 ```
 Launch directly from the Ubuntu App Grid, dock, or terminal:
@@ -118,7 +127,7 @@ schemasync
 ### Fedora 44 Linux (RPM Package)
 Install SchemaSync natively on Fedora 44 with automatic Java dependency resolution:
 ```bash
-sudo dnf install ./schemasync-1.7.2-1.fc44.noarch.rpm
+sudo dnf install ./schemasync-1.7.3-1.fc44.noarch.rpm
 ```
 Launch directly from the GNOME/KDE App Menu or from terminal:
 ```bash

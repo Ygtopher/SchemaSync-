@@ -80,4 +80,28 @@ public class QueryHistoryTest {
         assertEquals(1, list.size());
         assertEquals("SELECT legacy_col FROM legacy_tbl", list.get(0));
     }
+
+    @Test
+    void testPinningMetadataAndSearch() {
+        QueryHistory.addWithMetadata("SELECT * FROM employees", 14L, 25);
+        QueryHistory.addWithMetadata("SELECT * FROM departments", 5L, 4);
+
+        assertFalse(QueryHistory.isPinned("SELECT * FROM employees"));
+        assertTrue(QueryHistory.togglePin("SELECT * FROM employees"));
+        assertTrue(QueryHistory.isPinned("SELECT * FROM employees"));
+
+        QueryHistory.HistoryMetadata meta = QueryHistory.getMetadata("SELECT * FROM employees");
+        assertNotNull(meta);
+        assertEquals(14L, meta.durationMs);
+        assertEquals(25, meta.rowCount);
+        assertTrue(meta.pinned);
+
+        List<String> pinnedOnly = QueryHistory.search("", true);
+        assertEquals(1, pinnedOnly.size());
+        assertEquals("SELECT * FROM employees", pinnedOnly.get(0));
+
+        List<String> filtered = QueryHistory.search("departments", false);
+        assertEquals(1, filtered.size());
+        assertEquals("SELECT * FROM departments", filtered.get(0));
+    }
 }

@@ -1,6 +1,6 @@
 # SchemaSync Codebase, Module & Function Map
 
-**Version:** 1.7.2  
+**Version:** 1.7.3  
 **Creator & Lead Architect:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -226,9 +226,20 @@ Crash recovery and editor draft autosave:
 * **`loadEditorDraft()`**: Automatically restores active SQL queries upon application startup.
 
 #### [`SqlInsertGenerator.java`](file:///d:/projects/DBTOOL/src/main/java/com/dbtool/util/SqlInsertGenerator.java)
-Smart SQL `INSERT` statement generator for JTable selections:
+Smart SQL `INSERT` / `UPDATE`, JSON, Markdown, and selection telemetry generator for JTable selections:
 * **`generateInsertStatements(table, selectedRows, tableName, dbManager, excludePrimaryKey)`**: Formats selected table rows into SQL `INSERT INTO` statements while automatically omitting primary key and auto-increment columns when `excludePrimaryKey` is `true` (with automatic fallback if all columns are primary keys).
-* **`resolvePrimaryKeyColumns(tableName, dbManager)`**: Queries `dbManager.getPrimaryKeys(tableName)` and `dbManager.getDetailedColumns(tableName)` (checking `isPrimaryKey` and `isAutoIncrement`) with case-insensitive normalization and fallback heuristic for `id`.
+* **`generateUpdateStatements(table, selectedRows, tableName, dbManager)`**: Generates targeted `UPDATE <table> SET ... WHERE pk = ...` statements using primary keys in the `WHERE` clause and non-PK columns in `SET`.
+* **`generateJsonArray(table, selectedRows)`**: Exports selected rows as a formatted JSON array of objects.
+* **`generateMarkdownTable(table, selectedRows)`**: Exports selected rows as a GitHub-flavored Markdown table.
+* **`calculateSelectionStats(table)`**: Computes live numeric/cell selection telemetry (`Selected Rows`, `Cells`, `Nulls`, `Numeric`, `Sum`, `Avg`, `Min`, `Max`).
+
+#### [`SqlQueryAnalyzer.java`](file:///d:/projects/DBTOOL/src/main/java/com/dbtool/util/SqlQueryAnalyzer.java)
+Static SQL query linter, optimizer, parameter binder, autocomplete resolver, and Dry-Run DML generator:
+* **`analyze(sql, dbManager)`**: Detects unfiltered `UPDATE`/`DELETE` statements, `SELECT *` usage, non-sargable `WHERE` functions, leading wildcard `LIKE '%...'`, accidental Cartesian joins, and missing `LIMIT` clauses.
+* **`buildDryRunSelectSql(dmlSql)`**: Converts `UPDATE` and `DELETE` queries into safe `SELECT * FROM ... WHERE ...` preview queries.
+* **`expandSelectStar(sql, dbManager)`**: Expands `SELECT * FROM <table>` into explicit column names from live catalog metadata.
+* **`extractNamedParameters(sql)` & `bindParameters(sql, values)`**: Parses and binds `:param` and `${param}` variables while preserving PostgreSQL `::type` casts and string literals.
+* **`suggestCompletions(fullText, caretPos, dbManager)`**: Context-aware alias, column, and Foreign Key `JOIN ... ON` completion engine.
 
 ---
 

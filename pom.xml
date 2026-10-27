@@ -6,7 +6,7 @@
 
     <groupId>com.dbtool</groupId>
     <artifactId>access-db-tool</artifactId>
-    <version>1.7.2</version>
+    <version>1.7.3</version>
 
     <properties>
         <maven.compiler.source>11</maven.compiler.source>

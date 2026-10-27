@@ -1,8 +1,27 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.7.2  
+**Current Version:** 1.7.3  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v1.7.3] - 2026-10-27
+### Added
+* **Smart SQL Authoring & Editor Intelligence (`SqlEditorPanel`, `SqlFormatter`, `SqlQueryAnalyzer`):**
+  * **Multi-Tab SQL Scratchpads:** Added a scratchpad tab bar (`Query 1`, `Query 2`, `+ New Tab`) inside the SQL Editor for working across multiple concurrent SQL scripts.
+  * **Context-Aware SQL Autocomplete (`Ctrl+Space`):** Resolves table aliases (`FROM employees e`), suggests table-specific columns (`e.first_name`), and auto-completes Foreign Key `JOIN ... ON` conditions.
+  * **Parameterized Query Variables (`:param` / `${param}`):** Automatically prompts for named variables on query run and remembers previous values while preserving PostgreSQL `::type` casts.
+  * **1-Click Format (`✨ Format`, `Ctrl+Shift+F`) & `⭐ Expand *`:** Formats complex queries cleanly and expands `SELECT *` into explicit table column names.
+* **Static Query Linter & Destructive DML Safety (`SqlQueryAnalyzer`):**
+  * **🔍 Lint & Analyze:** Detects unfiltered `UPDATE`/`DELETE` queries, `SELECT *`, non-sargable `WHERE` functions (`UPPER(col) = ...`), leading wildcard `LIKE '%...'`, Cartesian joins, and missing `LIMIT` clauses with 1-click auto-fixes.
+  * **🛡️ Dry-Run Preview & Unfiltered DML Guardrail:** Intercepts `UPDATE`/`DELETE` statements without a `WHERE` clause before execution and converts DML into safe `SELECT *` preview queries to inspect affected rows first.
+* **Interactive Result Grid Power Tools (`SqlEditorPanel`, `SqlInsertGenerator`):**
+  * **Instant Client-Side Filter Bar:** Live substring/regex filtering above every result tab without re-querying the database.
+  * **Live Selection Statistics Footer:** Real-time calculation of `Selected Rows`, `Cells`, `Nulls`, `Numeric Count`, `Sum`, `Avg`, `Min`, and `Max` as cells/rows are highlighted.
+  * **Extended Row Copying (`UPDATE`, `JSON`, `Markdown`):** Context menu in Browse, Join, and SQL Editor result tables now supports **Copy Row as SQL UPDATE**, **Copy Selected as JSON Array**, and **Copy Selected as Markdown Table** alongside **Copy Row as SQL INSERT** (omitting Primary Key by default).
+* **Upgraded Query History & Favorites (`QueryHistory`):**
+  * Live search filter box, `⭐ Pinned` favorites filter, execution telemetry badges (`[ms, rows]`), and context menu to Pin/Unpin or promote history items to Named Saved Queries.
 
 ---
 
@@ -12,7 +31,6 @@
   * When using **Copy Row as SQL INSERT** on table rows in Browse, Join, or SQL Editor results, primary key / identity / auto-increment columns (e.g. `id`, `SERIAL`, `AUTO_INCREMENT`) are automatically omitted from the generated `INSERT INTO ...` statement.
   * Eliminates unique constraint violations and duplicate key errors when duplicating existing rows or copying test records.
   * Added secondary option **Copy Row as SQL INSERT (Include Primary Key)** in the context menu when explicit primary key insertion is required.
-  * SQL Editor result tabs now support context-menu copying: "Copy Cell", "Copy Row as SQL INSERT" (omitting PK), "Copy Row as SQL INSERT (Include Primary Key)", and "Export Selected to CSV".
 
 ---
 

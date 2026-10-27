@@ -5,6 +5,9 @@ import com.dbtool.util.ExportUtil;
 import com.dbtool.util.FileUtil;
 import com.dbtool.util.QueryHistory;
 import com.dbtool.util.SavedQueries;
+import com.dbtool.util.SqlFormatter;
+import com.dbtool.util.SqlInsertGenerator;
+import com.dbtool.util.SqlQueryAnalyzer;
 import com.dbtool.util.SqlSnippetsLibrary;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
@@ -13,12 +16,15 @@ import org.fife.ui.rtextarea.RTextScrollPane;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -36,11 +42,20 @@ public class SqlEditorPanel extends JPanel {
     private final JTabbedPane resultTabs = new JTabbedPane();
     private final DefaultListModel<String> historyModel = new DefaultListModel<>();
     private final JList<String> historyList = new JList<>(historyModel);
+    private final JTextField historySearchField = new JTextField();
+    private final JCheckBox historyPinnedOnlyCheck = new JCheckBox("⭐ Pinned");
     private final JLabel statusLabel = new JLabel("Ready.");
     private final javax.swing.JProgressBar progressBar = new javax.swing.JProgressBar();
     private final JComboBox<String> savedQueriesDropdown = new JComboBox<>();
     private java.util.function.Consumer<String> sendToVisualBuilderAction;
     private Runnable onSchemaModified;
+
+    // Multi-Tab SQL Scratchpads state
+    private final List<String> scratchpadTitles = new ArrayList<>();
+    private final List<String> scratchpadContents = new ArrayList<>();
+    private int activeScratchpadIndex = 0;
+    private boolean suppressScratchpadSync = false;
+    private final JPanel scratchpadTabBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
 
     public void setOnSchemaModified(Runnable action) {
         this.onSchemaModified = action;
@@ -60,28 +75,58 @@ public class SqlEditorPanel extends JPanel {
         editor.setCodeFoldingEnabled(true);
         editor.setAntiAliasingEnabled(true);
         loadEditorDraft();
+
+        // Initialize Scratchpad 1 with loaded draft
+        scratchpadTitles.add("Query 1");
+        scratchpadContents.add(editor.getText());
+        activeScratchpadIndex = 0;
+        rebuildScratchpadTabBar();
+
         RTextScrollPane editorScroll = new RTextScrollPane(editor);
         editorScroll.setLineNumbersEnabled(true);
 
         draftSaveTimer.setRepeats(false);
         editor.getDocument().addDocumentListener(new DocumentListener() {
+            private void onChange() {
+                if (!suppressScratchpadSync && activeScratchpadIndex >= 0 && activeScratchpadIndex < scratchpadContents.size()) {
+                    scratchpadContents.set(activeScratchpadIndex, editor.getText());
+                }
+                draftSaveTimer.restart();
+            }
             @Override
             public void insertUpdate(DocumentEvent e) {
-                draftSaveTimer.restart();
+                onChange();
             }
             @Override
             public void removeUpdate(DocumentEvent e) {
-                draftSaveTimer.restart();
+                onChange();
             }
             @Override
             public void changedUpdate(DocumentEvent e) {
-                draftSaveTimer.restart();
+                onChange();
             }
         });
 
         // Right-click context menu integration
         JPopupMenu editorPopup = editor.getPopupMenu();
         if (editorPopup != null) {
+            editorPopup.addSeparator();
+            JMenuItem formatMenuItem = new JMenuItem("✨ Format & Beautify SQL (Ctrl+Shift+F)");
+            formatMenuItem.addActionListener(e -> formatCurrentEditorSql());
+            editorPopup.add(formatMenuItem);
+
+            JMenuItem expandStarItem = new JMenuItem("⭐ Expand SELECT * to Columns");
+            expandStarItem.addActionListener(e -> expandSelectStarInEditor());
+            editorPopup.add(expandStarItem);
+
+            JMenuItem lintMenuItem = new JMenuItem("🔍 Lint & Analyze Query...");
+            lintMenuItem.addActionListener(e -> runQueryLinterDialog());
+            editorPopup.add(lintMenuItem);
+
+            JMenuItem dryRunMenuItem = new JMenuItem("🛡️ Dry-Run Preview Affected Rows");
+            dryRunMenuItem.addActionListener(e -> runDryRunPreview());
+            editorPopup.add(dryRunMenuItem);
+
             editorPopup.addSeparator();
             JMenuItem cheatSheetItem = new JMenuItem("📚 SQL Mastery Reference Library...");
             cheatSheetItem.addActionListener(e -> openMasteryCheatSheet());
@@ -102,6 +147,22 @@ public class SqlEditorPanel extends JPanel {
         JButton runAllBtn = new JButton("▶▶ Run All");
         runAllBtn.setToolTipText("Run all statements in the editor (Ctrl+Shift+Enter)");
         JButton explainBtn = new JButton("⚡ Explain");
+        JButton dryRunBtn = new JButton("🛡️ Dry-Run");
+        dryRunBtn.setToolTipText("Preview exact rows affected by an UPDATE or DELETE query without modifying data");
+        dryRunBtn.addActionListener(e -> runDryRunPreview());
+
+        JButton lintBtn = new JButton("🔍 Lint");
+        lintBtn.setToolTipText("Analyze SQL query for performance anti-patterns, missing indexes, and safety risks");
+        lintBtn.addActionListener(e -> runQueryLinterDialog());
+
+        JButton formatBtn = new JButton("✨ Format");
+        formatBtn.setToolTipText("Format & beautify SQL query (Ctrl+Shift+F) or expand SELECT *");
+        formatBtn.addActionListener(e -> formatCurrentEditorSql());
+
+        JButton expandStarBtn = new JButton("⭐ Expand *");
+        expandStarBtn.setToolTipText("Replace SELECT * with explicit table column names");
+        expandStarBtn.addActionListener(e -> expandSelectStarInEditor());
+
         JButton profilerBtn = new JButton("⏱️ Profiler");
         profilerBtn.setToolTipText("Open SQL Query Profiler & Latency Bottleneck Analyzer");
         profilerBtn.addActionListener(e -> new QueryProfilerDialog(SwingUtilities.getWindowAncestor(this), dbManager, this::setEditorText).setVisible(true));
@@ -120,7 +181,7 @@ public class SqlEditorPanel extends JPanel {
         JButton snippetsBtn = new JButton("📝 SQL Templates ▾");
         snippetsBtn.setToolTipText("Insert SQL templates and query patterns (Core Foundations & Advanced SQL Mastery)");
         snippetsBtn.addActionListener(e -> showSnippetsMenu(snippetsBtn));
-        
+
         JButton sandboxBtn = new JButton("⚡ Sandbox DB");
         sandboxBtn.setToolTipText("Load built-in in-memory sandbox with sample employees & departments data");
         sandboxBtn.addActionListener(e -> {
@@ -162,13 +223,13 @@ public class SqlEditorPanel extends JPanel {
         JButton exportPdfBtn = new JButton("Export PDF");
         JButton chartBtn = new JButton("📊 Chart");
         chartBtn.setToolTipText("Visualize active query results as Bar, Line, or Donut Chart");
-        
+
         JCheckBox autoCommitCheck = new JCheckBox("Auto-Commit", true);
         JButton commitBtn = new JButton("Commit");
         JButton rollbackBtn = new JButton("Rollback");
         commitBtn.setEnabled(false);
         rollbackBtn.setEnabled(false);
-        
+
         autoCommitCheck.addActionListener(e -> {
             boolean ac = autoCommitCheck.isSelected();
             try {
@@ -189,6 +250,10 @@ public class SqlEditorPanel extends JPanel {
         toolbar.add(runBtn);
         toolbar.add(runAllBtn);
         toolbar.add(explainBtn);
+        toolbar.add(dryRunBtn);
+        toolbar.add(lintBtn);
+        toolbar.add(formatBtn);
+        toolbar.add(expandStarBtn);
         toolbar.add(profilerBtn);
         toolbar.add(toJoinBtn);
         toolbar.add(snippetsBtn);
@@ -212,16 +277,20 @@ public class SqlEditorPanel extends JPanel {
 
         JPanel toolbarWrapper = new JPanel(new BorderLayout());
         toolbarWrapper.add(toolbar, BorderLayout.CENTER);
-        
+
         JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         rightToolbar.add(toggleHistoryBtn);
         toolbarWrapper.add(rightToolbar, BorderLayout.EAST);
 
+        JPanel northContainer = new JPanel(new BorderLayout());
+        northContainer.add(toolbarWrapper, BorderLayout.NORTH);
+        northContainer.add(scratchpadTabBar, BorderLayout.SOUTH);
+
         // Editor + toolbar top section
         JPanel topSection = new JPanel(new BorderLayout());
-        topSection.add(toolbarWrapper, BorderLayout.NORTH);
+        topSection.add(northContainer, BorderLayout.NORTH);
         topSection.add(editorScroll, BorderLayout.CENTER);
-        
+
         progressBar.setIndeterminate(true);
         progressBar.setVisible(false);
         JPanel statusPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
@@ -229,16 +298,53 @@ public class SqlEditorPanel extends JPanel {
         statusPanel.add(progressBar);
         topSection.add(statusPanel, BorderLayout.SOUTH);
 
-
-        // History sidebar
+        // Upgraded History sidebar with Search & Pin filter
         historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        historyList.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                JLabel lbl = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                String q = value != null ? value.toString() : "";
+                String oneLine = q.replaceAll("\\s+", " ").trim();
+                if (oneLine.length() > 65) oneLine = oneLine.substring(0, 62) + "...";
+                QueryHistory.HistoryMetadata meta = QueryHistory.getMetadata(q);
+                String prefix = (meta != null && meta.pinned) ? "⭐ " : "";
+                String suffix = "";
+                if (meta != null && meta.durationMs >= 0) {
+                    suffix = " [" + meta.durationMs + "ms" + (meta.rowCount >= 0 ? ", " + meta.rowCount + "r" : "") + "]";
+                }
+                lbl.setText(prefix + oneLine + suffix);
+                lbl.setToolTipText("<html><pre>" + q.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") + "</pre></html>");
+                return lbl;
+            }
+        });
+
         JScrollPane historyScroll = new JScrollPane(historyList);
-        historyScroll.setPreferredSize(new Dimension(220, 0));
-        JPanel historyPanel = new JPanel(new BorderLayout());
+        historyScroll.setPreferredSize(new Dimension(250, 0));
+        JPanel historyPanel = new JPanel(new BorderLayout(2, 2));
+
+        JPanel histHeader = new JPanel(new BorderLayout(2, 2));
+        JPanel histTitleRow = new JPanel(new BorderLayout());
         JLabel histLabel = new JLabel(" Query History");
         histLabel.setFont(histLabel.getFont().deriveFont(Font.BOLD));
+        histTitleRow.add(histLabel, BorderLayout.WEST);
+        historyPinnedOnlyCheck.setToolTipText("Show only pinned favorite queries");
+        historyPinnedOnlyCheck.addActionListener(e -> refreshHistory());
+        histTitleRow.add(historyPinnedOnlyCheck, BorderLayout.EAST);
+
+        historySearchField.setToolTipText("Search query history...");
+        historySearchField.putClientProperty("JTextField.placeholderText", "🔍 Search history...");
+        historySearchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent e) { refreshHistory(); }
+            @Override public void removeUpdate(DocumentEvent e) { refreshHistory(); }
+            @Override public void changedUpdate(DocumentEvent e) { refreshHistory(); }
+        });
+
+        histHeader.add(histTitleRow, BorderLayout.NORTH);
+        histHeader.add(historySearchField, BorderLayout.SOUTH);
+
         JButton clearHistBtn = new JButton("Clear History");
-        historyPanel.add(histLabel, BorderLayout.NORTH);
+        historyPanel.add(histHeader, BorderLayout.NORTH);
         historyPanel.add(historyScroll, BorderLayout.CENTER);
         historyPanel.add(clearHistBtn, BorderLayout.SOUTH);
 
@@ -248,7 +354,7 @@ public class SqlEditorPanel extends JPanel {
 
         // Main split: vertSplit left, history right
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, vertSplit, historyPanel);
-        mainSplit.setResizeWeight(0.82);
+        mainSplit.setResizeWeight(0.80);
 
         add(mainSplit, BorderLayout.CENTER);
 
@@ -266,7 +372,8 @@ public class SqlEditorPanel extends JPanel {
             }
         });
 
-        // Developer keyboard shortcuts (Ctrl+Enter / F5 = Run, Ctrl+Shift+Enter = Run All)
+        // Keyboard Shortcuts:
+        // Ctrl+Enter / F5 = Run, Ctrl+Shift+Enter = Run All, Ctrl+Shift+F = Format SQL, Ctrl+Space = Autocomplete
         editor.getInputMap().put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ENTER, java.awt.event.InputEvent.CTRL_DOWN_MASK), "runCurrent");
         editor.getActionMap().put("runCurrent", new AbstractAction() {
             @Override
@@ -289,6 +396,22 @@ public class SqlEditorPanel extends JPanel {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
                 executeQuery(getCurrentSql(), false);
+            }
+        });
+
+        editor.getInputMap().put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F, java.awt.event.InputEvent.CTRL_DOWN_MASK | java.awt.event.InputEvent.SHIFT_DOWN_MASK), "formatSql");
+        editor.getActionMap().put("formatSql", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                formatCurrentEditorSql();
+            }
+        });
+
+        editor.getInputMap().put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_SPACE, java.awt.event.InputEvent.CTRL_DOWN_MASK), "sqlAutocomplete");
+        editor.getActionMap().put("sqlAutocomplete", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                showContextAutocompletePopup();
             }
         });
 
@@ -320,7 +443,7 @@ public class SqlEditorPanel extends JPanel {
             boolean isVisible = historyPanel.isVisible();
             historyPanel.setVisible(!isVisible);
             if (!isVisible) {
-                mainSplit.setDividerLocation(0.82);
+                mainSplit.setDividerLocation(0.80);
             }
         });
         historyList.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -335,14 +458,41 @@ public class SqlEditorPanel extends JPanel {
                 int idx = historyList.locationToIndex(e.getPoint());
                 if (idx != -1) {
                     historyList.setSelectedIndex(idx);
+                    String sel = historyList.getSelectedValue();
+                    if (sel == null) return;
                     javax.swing.JPopupMenu popup = new javax.swing.JPopupMenu();
-                    javax.swing.JMenuItem delItem = new javax.swing.JMenuItem("Delete");
-                    delItem.addActionListener(evt -> {
-                        String sel = historyList.getSelectedValue();
-                        if (sel != null) {
-                            QueryHistory.remove(sel);
-                            refreshHistory();
+
+                    JMenuItem loadItem = new JMenuItem("📥 Load into Editor");
+                    loadItem.addActionListener(evt -> editor.setText(sel));
+                    popup.add(loadItem);
+
+                    boolean isPinned = QueryHistory.isPinned(sel);
+                    JMenuItem pinItem = new JMenuItem(isPinned ? "☆ Unpin Favorite" : "⭐ Pin to Top (Favorite)");
+                    pinItem.addActionListener(evt -> {
+                        QueryHistory.togglePin(sel);
+                        refreshHistory();
+                    });
+                    popup.add(pinItem);
+
+                    JMenuItem copyItem = new JMenuItem("📋 Copy SQL");
+                    copyItem.addActionListener(evt -> Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(sel), null));
+                    popup.add(copyItem);
+
+                    JMenuItem saveNamedItem = new JMenuItem("💾 Save to Named Queries...");
+                    saveNamedItem.addActionListener(evt -> {
+                        String name = JOptionPane.showInputDialog(SqlEditorPanel.this, "Query name:", "Save Query", JOptionPane.PLAIN_MESSAGE);
+                        if (name != null && !name.trim().isEmpty()) {
+                            SavedQueries.save(name.trim(), sel);
+                            refreshSavedQueries();
                         }
+                    });
+                    popup.add(saveNamedItem);
+
+                    popup.addSeparator();
+                    javax.swing.JMenuItem delItem = new javax.swing.JMenuItem("🗑 Delete");
+                    delItem.addActionListener(evt -> {
+                        QueryHistory.remove(sel);
+                        refreshHistory();
                     });
                     popup.add(delItem);
                     popup.show(e.getComponent(), e.getX(), e.getY());
@@ -387,6 +537,261 @@ public class SqlEditorPanel extends JPanel {
 
         refreshHistory();
         refreshSavedQueries();
+    }
+
+    // --- Multi-Tab SQL Scratchpad Management ---
+    private void rebuildScratchpadTabBar() {
+        scratchpadTabBar.removeAll();
+        JLabel label = new JLabel(" 📑 Scratchpads: ");
+        label.setFont(label.getFont().deriveFont(Font.BOLD, 11f));
+        scratchpadTabBar.add(label);
+
+        for (int i = 0; i < scratchpadTitles.size(); i++) {
+            final int idx = i;
+            String title = scratchpadTitles.get(i);
+            JButton tabBtn = new JButton(title);
+            tabBtn.setMargin(new Insets(1, 8, 1, 8));
+            if (i == activeScratchpadIndex) {
+                tabBtn.setFont(tabBtn.getFont().deriveFont(Font.BOLD));
+                tabBtn.setBackground(new Color(52, 101, 164));
+                tabBtn.setForeground(Color.WHITE);
+            }
+            tabBtn.addActionListener(e -> switchToScratchpad(idx));
+            scratchpadTabBar.add(tabBtn);
+
+            if (scratchpadTitles.size() > 1) {
+                JButton closeTabBtn = new JButton("×");
+                closeTabBtn.setMargin(new Insets(1, 4, 1, 4));
+                closeTabBtn.setToolTipText("Close " + title);
+                closeTabBtn.addActionListener(e -> closeScratchpad(idx));
+                scratchpadTabBar.add(closeTabBtn);
+            }
+        }
+
+        JButton addTabBtn = new JButton("+ New Tab");
+        addTabBtn.setMargin(new Insets(1, 8, 1, 8));
+        addTabBtn.setToolTipText("Open a new SQL scratchpad tab");
+        addTabBtn.addActionListener(e -> addNewScratchpad());
+        scratchpadTabBar.add(addTabBtn);
+
+        scratchpadTabBar.revalidate();
+        scratchpadTabBar.repaint();
+    }
+
+    private void switchToScratchpad(int index) {
+        if (index < 0 || index >= scratchpadContents.size() || index == activeScratchpadIndex) return;
+        scratchpadContents.set(activeScratchpadIndex, editor.getText());
+        activeScratchpadIndex = index;
+        suppressScratchpadSync = true;
+        try {
+            editor.setText(scratchpadContents.get(index));
+            editor.setCaretPosition(0);
+        } finally {
+            suppressScratchpadSync = false;
+        }
+        rebuildScratchpadTabBar();
+        editor.requestFocusInWindow();
+    }
+
+    private void addNewScratchpad() {
+        scratchpadContents.set(activeScratchpadIndex, editor.getText());
+        int nextNum = scratchpadTitles.size() + 1;
+        scratchpadTitles.add("Query " + nextNum);
+        scratchpadContents.add("-- Scratchpad Query " + nextNum + "\nSELECT 1;");
+        activeScratchpadIndex = scratchpadTitles.size() - 1;
+        suppressScratchpadSync = true;
+        try {
+            editor.setText(scratchpadContents.get(activeScratchpadIndex));
+            editor.setCaretPosition(0);
+        } finally {
+            suppressScratchpadSync = false;
+        }
+        rebuildScratchpadTabBar();
+        editor.requestFocusInWindow();
+    }
+
+    private void closeScratchpad(int index) {
+        if (scratchpadTitles.size() <= 1 || index < 0 || index >= scratchpadTitles.size()) return;
+        scratchpadTitles.remove(index);
+        scratchpadContents.remove(index);
+        if (activeScratchpadIndex >= scratchpadTitles.size()) {
+            activeScratchpadIndex = scratchpadTitles.size() - 1;
+        }
+        suppressScratchpadSync = true;
+        try {
+            editor.setText(scratchpadContents.get(activeScratchpadIndex));
+            editor.setCaretPosition(0);
+        } finally {
+            suppressScratchpadSync = false;
+        }
+        rebuildScratchpadTabBar();
+    }
+
+    // --- Smart Editor Actions (Format, Expand *, Autocomplete, Lint, Dry-Run) ---
+    public void formatCurrentEditorSql() {
+        String selected = editor.getSelectedText();
+        if (selected != null && !selected.trim().isEmpty()) {
+            editor.replaceSelection(SqlFormatter.format(selected));
+        } else {
+            String full = editor.getText();
+            if (full != null && !full.trim().isEmpty()) {
+                editor.setText(SqlFormatter.format(full));
+            }
+        }
+        statusLabel.setText("SQL formatted.");
+    }
+
+    public void expandSelectStarInEditor() {
+        String selected = editor.getSelectedText();
+        if (selected != null && !selected.trim().isEmpty()) {
+            String expanded = SqlQueryAnalyzer.expandSelectStar(selected, dbManager);
+            editor.replaceSelection(expanded);
+        } else {
+            String currentStmt = getCurrentSql();
+            String expanded = SqlQueryAnalyzer.expandSelectStar(currentStmt, dbManager);
+            if (!expanded.equals(currentStmt)) {
+                editor.setText(editor.getText().replace(currentStmt, expanded));
+                statusLabel.setText("Expanded SELECT * to explicit columns.");
+            } else {
+                statusLabel.setText("Connect to a database and place cursor on a 'SELECT * FROM <table>' query to expand.");
+            }
+        }
+    }
+
+    private void showContextAutocompletePopup() {
+        String text = editor.getText();
+        int caret = editor.getCaretPosition();
+        List<String> suggestions = SqlQueryAnalyzer.suggestCompletions(text, caret, dbManager);
+        if (suggestions.isEmpty()) return;
+
+        JPopupMenu popup = new JPopupMenu();
+        int limit = Math.min(suggestions.size(), 20);
+        for (int i = 0; i < limit; i++) {
+            String itemText = suggestions.get(i);
+            JMenuItem item = new JMenuItem(itemText);
+            item.addActionListener(e -> applyAutocompleteSuggestion(itemText));
+            popup.add(item);
+        }
+
+        try {
+            Rectangle rect = editor.modelToView(caret);
+            if (rect != null) {
+                popup.show(editor, rect.x, rect.y + rect.height);
+            } else {
+                popup.show(editor, 20, 20);
+            }
+        } catch (Exception ex) {
+            popup.show(editor, 20, 20);
+        }
+    }
+
+    private void applyAutocompleteSuggestion(String suggestion) {
+        int caret = editor.getCaretPosition();
+        String text = editor.getText();
+        int start = caret;
+        while (start > 0) {
+            char c = text.charAt(start - 1);
+            if (Character.isLetterOrDigit(c) || c == '_' || c == '.') {
+                start--;
+            } else {
+                break;
+            }
+        }
+        String token = text.substring(start, caret);
+        if (token.contains(".") && !suggestion.contains(".")) {
+            start = start + token.lastIndexOf('.') + 1;
+        }
+        editor.select(start, caret);
+        editor.replaceSelection(suggestion);
+        editor.requestFocusInWindow();
+    }
+
+    public void runQueryLinterDialog() {
+        String sql = getCurrentSql();
+        if (sql == null || sql.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Write or select a SQL query first.", "SQL Linter", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        List<SqlQueryAnalyzer.LintIssue> issues = SqlQueryAnalyzer.analyze(sql, dbManager);
+        if (issues.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "✅ No anti-patterns or safety issues detected in the query!", "SQL Linter — Clean", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        DefaultListModel<String> listModel = new DefaultListModel<>();
+        String suggestedRewrite = null;
+        for (SqlQueryAnalyzer.LintIssue issue : issues) {
+            String icon = issue.severity == SqlQueryAnalyzer.Severity.CRITICAL ? "🛑 CRITICAL"
+                    : (issue.severity == SqlQueryAnalyzer.Severity.WARNING ? "⚠️ WARNING" : "ℹ️ INFO");
+            listModel.addElement(icon + " — " + issue.title + ": " + issue.message);
+            if (issue.suggestedSql != null && suggestedRewrite == null) {
+                suggestedRewrite = issue.suggestedSql;
+            }
+        }
+
+        JList<String> issueList = new JList<>(listModel);
+        JScrollPane sp = new JScrollPane(issueList);
+        sp.setPreferredSize(new Dimension(620, 180));
+        panel.add(new JLabel("Detected " + issues.size() + " query optimization / safety notice(s):"), BorderLayout.NORTH);
+        panel.add(sp, BorderLayout.CENTER);
+
+        if (suggestedRewrite != null) {
+            final String fix = suggestedRewrite;
+            Object[] options = {"✨ Apply Suggested Fix", "Close"};
+            int choice = JOptionPane.showOptionDialog(this, panel, "SQL Query Linter & Optimizer",
+                    JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, options, options[0]);
+            if (choice == 0) {
+                editor.setText(fix);
+                statusLabel.setText("Applied suggested SQL optimization.");
+            }
+        } else {
+            JOptionPane.showMessageDialog(this, panel, "SQL Query Linter & Optimizer", JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    public void runDryRunPreview() {
+        String sql = getCurrentSql();
+        if (sql == null || sql.trim().isEmpty()) return;
+        String previewSelect = SqlQueryAnalyzer.buildDryRunSelectSql(sql);
+        statusLabel.setText("Running Dry-Run Preview: " + previewSelect);
+        executeQueryInternal(previewSelect, false, true);
+    }
+
+    private Map<String, String> promptForQueryParameters(List<String> paramNames) {
+        JPanel form = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(4, 6, 4, 6);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        Map<String, JTextField> fields = new LinkedHashMap<>();
+        Map<String, String> lastVals = SqlQueryAnalyzer.getLastParameterValues();
+
+        for (int i = 0; i < paramNames.size(); i++) {
+            String p = paramNames.get(i);
+            gbc.gridx = 0;
+            gbc.gridy = i;
+            gbc.weightx = 0.0;
+            form.add(new JLabel(":" + p + " ="), gbc);
+
+            gbc.gridx = 1;
+            gbc.weightx = 1.0;
+            JTextField tf = new JTextField(lastVals.getOrDefault(p, ""), 22);
+            fields.put(p, tf);
+            form.add(tf, gbc);
+        }
+
+        int res = JOptionPane.showConfirmDialog(this, form, "Enter Query Parameters",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+        if (res != JOptionPane.OK_OPTION) {
+            return null;
+        }
+
+        Map<String, String> values = new LinkedHashMap<>();
+        for (Map.Entry<String, JTextField> entry : fields.entrySet()) {
+            values.put(entry.getKey(), entry.getValue().getText());
+        }
+        return values;
     }
 
     public static class SqlRange {
@@ -605,15 +1010,12 @@ public class SqlEditorPanel extends JPanel {
         boolean isPgOrH2 = dbManager.isPostgres() || dbManager.isH2();
 
         if (isPgOrH2) {
-            // SHOW TABLES -> PostgreSQL information_schema
             if (upper.equals("SHOW TABLES")) {
                 return "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;";
             }
-            // SHOW DATABASES -> pg_database
             if (upper.equals("SHOW DATABASES")) {
                 return "SELECT datname AS database_name FROM pg_database WHERE datistemplate = false ORDER BY datname;";
             }
-            // DESCRIBE / DESC <table>
             if (upper.startsWith("DESCRIBE ") || upper.startsWith("DESC ")) {
                 String[] parts = clean.split("\\s+", 2);
                 if (parts.length > 1) {
@@ -621,7 +1023,6 @@ public class SqlEditorPanel extends JPanel {
                     return "SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name = '" + tbl + "' ORDER BY ordinal_position;";
                 }
             }
-            // USE <dbname>
             if (upper.startsWith("USE ")) {
                 String[] parts = clean.split("\\s+", 2);
                 if (parts.length > 1) {
@@ -629,7 +1030,6 @@ public class SqlEditorPanel extends JPanel {
                     return "SET search_path TO " + sch + ", public;";
                 }
             }
-            // AUTO_INCREMENT in CREATE TABLE
             if (upper.contains("AUTO_INCREMENT") && upper.startsWith("CREATE TABLE")) {
                 sql = sql.replaceAll("(?i)\\bINT\\s+PRIMARY\\s+KEY\\s+AUTO_INCREMENT\\b", "SERIAL PRIMARY KEY")
                          .replaceAll("(?i)\\bINT\\s+AUTO_INCREMENT\\s+PRIMARY\\s+KEY\\b", "SERIAL PRIMARY KEY")
@@ -637,7 +1037,6 @@ public class SqlEditorPanel extends JPanel {
                 upper = sql.toUpperCase();
             }
 
-            // SQL Server PIVOT syntax -> ANSI SQL Conditional Aggregation
             if (upper.contains(" PIVOT") || upper.contains("\nPIVOT")) {
                 Pattern pivotPat = Pattern.compile("(?is)^\\s*SELECT\\s+.*?\\s+FROM\\s+([a-zA-Z0-9_]+)\\s+PIVOT\\s*\\(\\s*([a-zA-Z0-9_]+)\\s*\\(\\s*([a-zA-Z0-9_]+)\\s*\\)\\s+FOR\\s+([a-zA-Z0-9_]+)\\s+IN\\s*\\(([^)]+)\\)\\s*\\)(?:\\s+AS\\s+[a-zA-Z0-9_]+)?;?\\s*$");
                 Matcher pm = pivotPat.matcher(sql);
@@ -647,7 +1046,6 @@ public class SqlEditorPanel extends JPanel {
                     String aggCol = pm.group(3);
                     String pivotCol = pm.group(4);
                     String inList = pm.group(5);
-
                     String[] items = inList.split(",");
                     StringBuilder sb = new StringBuilder("SELECT ");
                     for (int i = 0; i < items.length; i++) {
@@ -662,7 +1060,6 @@ public class SqlEditorPanel extends JPanel {
             }
         }
 
-        // H2 in-memory sandbox enhancements for advanced constructs
         if (dbManager.isH2()) {
             if (upper.contains("FULL OUTER JOIN") || upper.contains("FULL JOIN")) {
                 Pattern foj = Pattern.compile("(?is)^\\s*SELECT\\s+(.+?)\\s+FROM\\s+(.+?)\\s+FULL\\s+(?:OUTER\\s+)?JOIN\\s+(.+?)\\s+ON\\s+(.+?)(?:(\\s+(?:WHERE|GROUP|HAVING|ORDER|LIMIT).*)|;?\\s*)$");
@@ -721,8 +1118,46 @@ public class SqlEditorPanel extends JPanel {
     }
 
     private void executeQuery(String sql, boolean isExplain) {
+        executeQueryInternal(sql, isExplain, false);
+    }
+
+    private void executeQueryInternal(String sql, boolean isExplain, boolean isDryRun) {
         if (sql == null || sql.trim().isEmpty()) return;
         saveEditorDraft();
+
+        // 1. Named Parameter Detection (:param or ${param})
+        List<String> params = SqlQueryAnalyzer.extractNamedParameters(sql);
+        if (!params.isEmpty()) {
+            Map<String, String> boundValues = promptForQueryParameters(params);
+            if (boundValues == null) {
+                statusLabel.setText("Execution cancelled.");
+                return;
+            }
+            sql = SqlQueryAnalyzer.bindParameters(sql, boundValues);
+        }
+
+        // 2. Destructive Unfiltered UPDATE / DELETE Guardrail
+        if (!isExplain && !isDryRun && SqlQueryAnalyzer.isUnfilteredDestructiveDml(sql)) {
+            Object[] options = {"🔍 Preview Affected Rows (Dry-Run)", "⚠️ Execute Anyway", "Cancel"};
+            int choice = JOptionPane.showOptionDialog(this,
+                    "⚠️ SAFETY WARNING: Unfiltered UPDATE / DELETE Detected!\n\n" +
+                    "The statement below has no WHERE filter (or uses a tautology like 1=1) and will affect EVERY row in the table:\n\n" +
+                    sql + "\n\nWould you like to preview the affected rows safely first?",
+                    "Destructive Query Guardrail",
+                    JOptionPane.YES_NO_CANCEL_OPTION,
+                    JOptionPane.WARNING_MESSAGE,
+                    null,
+                    options,
+                    options[0]);
+            if (choice == 0) {
+                String previewSelect = SqlQueryAnalyzer.buildDryRunSelectSql(sql);
+                executeQueryInternal(previewSelect, false, true);
+                return;
+            } else if (choice != 1) {
+                statusLabel.setText("Destructive query cancelled.");
+                return;
+            }
+        }
 
         // Auto-connect Sandbox if no database is connected
         if (dbManager.connection == null) {
@@ -748,17 +1183,19 @@ public class SqlEditorPanel extends JPanel {
             }
         }
 
-        statusLabel.setText("Running...");
+        final String finalSqlToExecute = sql;
+        statusLabel.setText(isDryRun ? "Running Dry-Run Preview..." : "Running...");
         progressBar.setVisible(true);
 
         new Thread(() -> {
             long totalStart = System.currentTimeMillis();
-            List<SqlRange> statements = extractStatements(sql);
+            List<SqlRange> statements = extractStatements(finalSqlToExecute);
             if (statements.isEmpty()) {
-                statements.add(new SqlRange(0, sql.length(), sql.trim()));
+                statements.add(new SqlRange(0, finalSqlToExecute.length(), finalSqlToExecute.trim()));
             }
 
             int executedCount = 0;
+            int lastRowCount = -1;
             boolean hadDdl = false;
 
             for (int i = 0; i < statements.size(); i++) {
@@ -768,7 +1205,7 @@ public class SqlEditorPanel extends JPanel {
                 }
 
                 String queryToRun = translateCompatibilitySql(rawStmt, dbManager);
-                String kind = getStatementKind(rawStmt);
+                String kind = isDryRun ? "Dry-Run Preview" : getStatementKind(rawStmt);
                 if ("DDL".equals(kind)) hadDdl = true;
                 int stmtNum = i + 1;
                 long stmtStart = System.currentTimeMillis();
@@ -815,21 +1252,17 @@ public class SqlEditorPanel extends JPanel {
                                     data.add(vector);
                                 }
                                 com.dbtool.util.TypedTableModel model = new com.dbtool.util.TypedTableModel(data, columnNames, columnTypes);
+                                lastRowCount = model.getRowCount();
                                 String tabTitle = (statements.size() > 1 ? kind + " #" + stmtNum : kind) + " (" + model.getRowCount() + " rows)";
                                 final String finalTableQuery = queryToRun;
                                 SwingUtilities.invokeLater(() -> {
-                                    JTable table = new JTable(model);
-                                    table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-                                    table.setAutoCreateRowSorter(true);
-                                    com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(table);
-                                    attachResultTableContextMenu(table, finalTableQuery);
-                                    JScrollPane scrollPane = new JScrollPane(table);
-                                    com.dbtool.util.TableRowUtilities.addRowNumbers(table, scrollPane);
-                                    addResultTab(tabTitle, scrollPane);
+                                    JComponent resultContainer = buildInteractiveResultTab(model, finalTableQuery, stmtElapsed);
+                                    addResultTab(tabTitle, resultContainer);
                                 });
                             }
                         } else {
                             int affected = stmt.getUpdateCount();
+                            lastRowCount = affected;
                             String tabTitle = (statements.size() > 1 ? kind + " #" + stmtNum : kind + " Result");
                             String msg = ("DDL".equals(kind) || "DCL".equals(kind) || "TCL".equals(kind))
                                     ? kind + " statement executed successfully." + (affected > 0 ? " (" + affected + " rows)" : "") + " [" + stmtElapsed + "ms]"
@@ -860,13 +1293,86 @@ public class SqlEditorPanel extends JPanel {
 
             long totalElapsed = System.currentTimeMillis() - totalStart;
             final int finalExecuted = executedCount;
-            QueryHistory.add(sql);
+            QueryHistory.addWithMetadata(finalSqlToExecute, totalElapsed, lastRowCount);
             SwingUtilities.invokeLater(() -> {
                 progressBar.setVisible(false);
                 statusLabel.setText("Executed " + finalExecuted + " statement(s) in " + totalElapsed + "ms");
                 refreshHistory();
             });
         }).start();
+    }
+
+    /**
+     * Builds an interactive query result panel featuring:
+     * 1. Instant client-side regex row filter bar
+     * 2. Sortable JTable with row numbers & column type tooltips
+     * 3. Live Selection Statistics footer (Selected Rows, Cells, Nulls, Numeric Count, Sum, Avg, Min, Max)
+     */
+    private JComponent buildInteractiveResultTab(com.dbtool.util.TypedTableModel model, String querySql, long elapsedMs) {
+        JPanel container = new JPanel(new BorderLayout(0, 2));
+
+        JTable table = new JTable(model);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        table.setCellSelectionEnabled(true);
+        TableRowSorter<TableModel> sorter = new TableRowSorter<>(model);
+        table.setRowSorter(sorter);
+
+        com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(table);
+        attachResultTableContextMenu(table, querySql);
+
+        // Top client-side filter bar
+        JPanel filterBar = new JPanel(new BorderLayout(6, 0));
+        filterBar.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
+        JLabel filterLbl = new JLabel("🔍 Filter Results:");
+        JTextField filterField = new JTextField();
+        filterField.setToolTipText("Filter returned rows instantly (case-insensitive substring or regex)");
+        JLabel matchCountLbl = new JLabel(" " + model.getRowCount() + " rows [" + elapsedMs + "ms] ");
+
+        filterField.getDocument().addDocumentListener(new DocumentListener() {
+            private void applyFilter() {
+                String text = filterField.getText().trim();
+                if (text.isEmpty()) {
+                    sorter.setRowFilter(null);
+                } else {
+                    try {
+                        sorter.setRowFilter(RowFilter.regexFilter("(?i)" + Pattern.quote(text)));
+                    } catch (Exception ignored) {
+                        sorter.setRowFilter(null);
+                    }
+                }
+                matchCountLbl.setText(" Showing " + table.getRowCount() + " / " + model.getRowCount() + " rows [" + elapsedMs + "ms] ");
+            }
+            @Override public void insertUpdate(DocumentEvent e) { applyFilter(); }
+            @Override public void removeUpdate(DocumentEvent e) { applyFilter(); }
+            @Override public void changedUpdate(DocumentEvent e) { applyFilter(); }
+        });
+
+        filterBar.add(filterLbl, BorderLayout.WEST);
+        filterBar.add(filterField, BorderLayout.CENTER);
+        filterBar.add(matchCountLbl, BorderLayout.EAST);
+
+        // Center scroll pane with row numbers
+        JScrollPane scrollPane = new JScrollPane(table);
+        com.dbtool.util.TableRowUtilities.addRowNumbers(table, scrollPane);
+
+        // Bottom live selection statistics footer
+        JLabel statsFooter = new JLabel(" " + SqlInsertGenerator.calculateSelectionStats(table));
+        statsFooter.setFont(statsFooter.getFont().deriveFont(Font.PLAIN, 11f));
+        statsFooter.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
+
+        Runnable updateStats = () -> statsFooter.setText(" " + SqlInsertGenerator.calculateSelectionStats(table));
+        table.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) updateStats.run();
+        });
+        table.getColumnModel().getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) updateStats.run();
+        });
+
+        container.add(filterBar, BorderLayout.NORTH);
+        container.add(scrollPane, BorderLayout.CENTER);
+        container.add(statsFooter, BorderLayout.SOUTH);
+        container.putClientProperty("resultTable", table);
+        return container;
     }
 
     private void addResultTab(String title, JComponent content) {
@@ -905,18 +1411,25 @@ public class SqlEditorPanel extends JPanel {
 
     private void refreshHistory() {
         historyModel.clear();
-        for (String q : QueryHistory.load()) historyModel.addElement(q);
+        String kw = historySearchField != null ? historySearchField.getText() : "";
+        boolean pinnedOnly = historyPinnedOnlyCheck != null && historyPinnedOnlyCheck.isSelected();
+        for (String q : QueryHistory.search(kw, pinnedOnly)) {
+            historyModel.addElement(q);
+        }
     }
 
     public void setEditorText(String text) {
         editor.setText(text);
+        if (activeScratchpadIndex >= 0 && activeScratchpadIndex < scratchpadContents.size()) {
+            scratchpadContents.set(activeScratchpadIndex, text);
+        }
         saveEditorDraft();
     }
 
     public String getEditorText() {
         return editor != null ? editor.getText() : "";
     }
-    
+
     public void refreshSavedQueries() {
         savedQueriesDropdown.removeAllItems();
         for (String name : SavedQueries.load().keySet()) savedQueriesDropdown.addItem(name);
@@ -958,6 +1471,12 @@ public class SqlEditorPanel extends JPanel {
 
     private JTable getActiveResultTable() {
         Component sel = resultTabs.getSelectedComponent();
+        if (sel instanceof JComponent) {
+            Object prop = ((JComponent) sel).getClientProperty("resultTable");
+            if (prop instanceof JTable) {
+                return (JTable) prop;
+            }
+        }
         if (sel instanceof JScrollPane) {
             JScrollPane sp = (JScrollPane) sel;
             Component view = sp.getViewport().getView();
@@ -1013,7 +1532,7 @@ public class SqlEditorPanel extends JPanel {
             copyInsert.addActionListener(e -> {
                 int[] rows = table.getSelectedRows();
                 if (rows.length == 0) return;
-                String insertSql = com.dbtool.util.SqlInsertGenerator.generateInsertStatements(table, rows, detectedTable, dbManager, true);
+                String insertSql = SqlInsertGenerator.generateInsertStatements(table, rows, detectedTable, dbManager, true);
                 if (!insertSql.isEmpty()) {
                     Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
                         new java.awt.datatransfer.StringSelection(insertSql), null);
@@ -1025,14 +1544,48 @@ public class SqlEditorPanel extends JPanel {
             copyInsertWithPk.addActionListener(e -> {
                 int[] rows = table.getSelectedRows();
                 if (rows.length == 0) return;
-                String insertSql = com.dbtool.util.SqlInsertGenerator.generateInsertStatements(table, rows, detectedTable, dbManager, false);
+                String insertSql = SqlInsertGenerator.generateInsertStatements(table, rows, detectedTable, dbManager, false);
                 if (!insertSql.isEmpty()) {
                     Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
                         new java.awt.datatransfer.StringSelection(insertSql), null);
                 }
             });
             popup.add(copyInsertWithPk);
+
+            JMenuItem copyUpdate = new JMenuItem("Copy Row as SQL UPDATE");
+            copyUpdate.addActionListener(e -> {
+                int[] rows = table.getSelectedRows();
+                if (rows.length == 0) return;
+                String updateSql = SqlInsertGenerator.generateUpdateStatements(table, rows, detectedTable, dbManager);
+                if (!updateSql.isEmpty()) {
+                    Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(updateSql), null);
+                }
+            });
+            popup.add(copyUpdate);
         }
+
+        JMenuItem copyJson = new JMenuItem("Copy Selected as JSON Array");
+        copyJson.addActionListener(e -> {
+            int[] rows = table.getSelectedRows();
+            if (rows.length == 0) return;
+            String json = SqlInsertGenerator.generateJsonArray(table, rows);
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                new java.awt.datatransfer.StringSelection(json), null);
+        });
+        popup.add(copyJson);
+
+        JMenuItem copyMarkdown = new JMenuItem("Copy Selected as Markdown Table");
+        copyMarkdown.addActionListener(e -> {
+            int[] rows = table.getSelectedRows();
+            if (rows.length == 0) return;
+            String md = SqlInsertGenerator.generateMarkdownTable(table, rows);
+            if (!md.isEmpty()) {
+                Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                    new java.awt.datatransfer.StringSelection(md), null);
+            }
+        });
+        popup.add(copyMarkdown);
 
         JMenuItem exportCsv = new JMenuItem("Export Selected to CSV");
         exportCsv.addActionListener(e -> {

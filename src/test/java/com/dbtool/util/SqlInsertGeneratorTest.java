@@ -139,4 +139,41 @@ public class SqlInsertGeneratorTest {
         assertTrue(sql.contains("id"), "If all columns are PK, should fallback to including to avoid empty syntax: " + sql);
         assertTrue(sql.contains("'101'"));
     }
+
+    @Test
+    public void testGenerateUpdateStatements() {
+        String[] cols = new String[]{"id", "first_name", "salary"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0);
+        model.addRow(new Object[]{7, "Elena", 95000});
+
+        JTable table = new JTable(model);
+        String updateSql = SqlInsertGenerator.generateUpdateStatements(table, new int[]{0}, "employees", dbManager);
+        assertTrue(updateSql.startsWith("UPDATE employees SET "));
+        assertTrue(updateSql.contains("first_name = 'Elena'"));
+        assertTrue(updateSql.contains("salary = '95000'"));
+        assertTrue(updateSql.contains("WHERE id = '7';"));
+    }
+
+    @Test
+    public void testGenerateJsonArrayAndMarkdownAndStats() {
+        String[] cols = new String[]{"id", "first_name", "salary"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0);
+        model.addRow(new Object[]{1, "Alice", 50000});
+        model.addRow(new Object[]{2, "Bob", 70000});
+
+        JTable table = new JTable(model);
+        table.setRowSelectionInterval(0, 1);
+
+        String json = SqlInsertGenerator.generateJsonArray(table, new int[]{0, 1});
+        assertTrue(json.contains("\"first_name\": \"Alice\""));
+        assertTrue(json.contains("\"salary\": 70000"));
+
+        String md = SqlInsertGenerator.generateMarkdownTable(table, new int[]{0, 1});
+        assertTrue(md.contains("| id | first_name | salary |"));
+        assertTrue(md.contains("| 1 | Alice | 50000 |"));
+
+        String stats = SqlInsertGenerator.calculateSelectionStats(table);
+        assertTrue(stats.contains("Selected Rows: 2"));
+        assertTrue(stats.contains("Sum:"));
+    }
 }

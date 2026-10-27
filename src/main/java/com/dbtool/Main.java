@@ -29,7 +29,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.7.2";
+    public static final String APP_VERSION = "1.7.3";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -3139,6 +3139,43 @@ public class Main extends JFrame {
                 }
             });
             popupMenu.add(copyInsertWithPkItem);
+
+            JMenuItem copyUpdateItem = new JMenuItem("Copy Row as SQL UPDATE");
+            copyUpdateItem.addActionListener(e -> {
+                int[] rows = this.getSelectedRows();
+                if (rows.length == 0 || tableNameSupplier == null) return;
+                String tableName = tableNameSupplier.get();
+                if (tableName == null) return;
+
+                String sql = com.dbtool.util.SqlInsertGenerator.generateUpdateStatements(this, rows, tableName, dbManager);
+                if (!sql.isEmpty()) {
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(sql), null);
+                }
+            });
+            popupMenu.add(copyUpdateItem);
+
+            JMenuItem copyJsonItem = new JMenuItem("Copy Selected as JSON Array");
+            copyJsonItem.addActionListener(e -> {
+                int[] rows = this.getSelectedRows();
+                if (rows.length == 0) return;
+                String json = com.dbtool.util.SqlInsertGenerator.generateJsonArray(this, rows);
+                java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                    new java.awt.datatransfer.StringSelection(json), null);
+            });
+            popupMenu.add(copyJsonItem);
+
+            JMenuItem copyMarkdownItem = new JMenuItem("Copy Selected as Markdown Table");
+            copyMarkdownItem.addActionListener(e -> {
+                int[] rows = this.getSelectedRows();
+                if (rows.length == 0) return;
+                String md = com.dbtool.util.SqlInsertGenerator.generateMarkdownTable(this, rows);
+                if (!md.isEmpty()) {
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(
+                        new java.awt.datatransfer.StringSelection(md), null);
+                }
+            });
+            popupMenu.add(copyMarkdownItem);
             
             JMenuItem exportCsvItem = new JMenuItem("Export Selected to CSV");
             exportCsvItem.addActionListener(e -> {
