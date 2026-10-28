@@ -1,6 +1,6 @@
 # SchemaSync
 
-**Version:** 1.7.3  
+**Version:** 1.7.4  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -20,13 +20,17 @@ Explore the comprehensive documentation suite located in the [`docs/`](docs/READ
 * **[Security & Cryptography](docs/security.md):** AES-256-GCM Credential Vault, PII masking, and Windows Smart App Control compliance.
 * **[Installation & Packaging](docs/installation-and-packaging.md):** Guides for Windows (`.exe`), Ubuntu (`.deb`), Fedora (`.rpm`), and Fat JAR.
 * **[Troubleshooting & FAQ](docs/troubleshooting.md):** Solutions for Smart App Control, Java runtime, and Wayland dock icons.
-* **[Changelog & History](docs/changelog.md):** Full version history from v1.0.0 through v1.7.3.
+* **[Changelog & History](docs/changelog.md):** Full version history from v1.0.0 through v1.7.4.
 * **[CLI & Configuration Guide](docs/api-and-cli.md):** JVM runtime tuning, system properties, and psql meta-commands.
 
 ---
 
 ## Key Features
 
+* **🏠 Executive Telemetry, Live Health & Application Usage Dashboard (`DashboardPanel`, `AppUsageTracker`):**
+  * **12 Live Telemetry Cards (3×4 Grid):** Tracks **Sessions & Activity Streak** (`🔥 Xd`), **Queries Executed & Daily Volume** (`Today | 7d`), **Query Success Rate**, **Latency Percentiles** (`Avg`, `P50`, `P95`, `Max ms`), **Slow Queries (`> 500 ms` / `> 1s`)**, **Rows Read vs. Mutated**, **Safety & Linter Governance** (Dry-Run previews, auto-fixes, PII rows masked), **Data Movement & CodeGen** (Connections, Exports, Imports, Mock Rows, Dual-DB Compares, ORM Models), **Most Queried Table (`🔥`)**, **Most Used Tool & DB Engine**, **Saved Queries & Pinned History**, and **JVM Heap RAM (`Used / Max MB`)** with 1-click **⚡ Optimize Memory (GC)**.
+  * **Comprehensive Usage & Telemetry Breakdown Table:** Interactive category filter (`All Categories`, `🛠️ Workbench Tools`, `🔥 Hot Queried Tables`, `⚡ SQL Workload`, `📅 Daily Activity (7d)`, `🛡️ Safety & Data Movement`, `🗄️ DB Engines & Column Types`) with percentage bars and 1-click **🧹 Reset Usage Stats**.
+  * **Deep Schema Quality & Column Type Distribution:** Inspects Populated vs. Empty tables, Missing Primary Keys, Orphan/Isolated tables (`0` FKs), In-Memory Metadata Cache counts, and Column Data-Type Distribution (`Text/VARCHAR`, `Numeric`, `Date/Time`, `Boolean`, `JSON/Binary`).
 * **🧠 Smart Query Authoring, Linter & Dry-Run Studio (`SqlEditorPanel`, `SqlQueryAnalyzer`):**
   * **Multi-Tab SQL Scratchpads (`Query 1`, `+ New Tab`):** Work across multiple concurrent SQL scratchpad buffers with auto-saved draft persistence.
   * **Context-Aware SQL Autocomplete (`Ctrl+Space`):** Resolves table aliases (`FROM employees e`), suggests table-specific columns (`e.first_name`), and auto-completes Foreign Key `JOIN ... ON` conditions.
@@ -112,11 +116,11 @@ This will generate a self-contained executable JAR in the `target/` directory.
 ### Ubuntu Desktop Linux (DEB Package)
 Install SchemaSync natively on Ubuntu Desktop (20.04, 22.04, 24.04 LTS+) with automatic Java dependency resolution:
 ```bash
-sudo apt install ./schemasync_1.7.3_all.deb
+sudo apt install ./schemasync_1.7.4_all.deb
 ```
 Or install using `dpkg`:
 ```bash
-sudo dpkg -i ./schemasync_1.7.3_all.deb
+sudo dpkg -i ./schemasync_1.7.4_all.deb
 sudo apt-get install -f  # resolves dependencies if needed
 ```
 Launch directly from the Ubuntu App Grid, dock, or terminal:
@@ -127,7 +131,7 @@ schemasync
 ### Fedora 44 Linux (RPM Package)
 Install SchemaSync natively on Fedora 44 with automatic Java dependency resolution:
 ```bash
-sudo dnf install ./schemasync-1.7.3-1.fc44.noarch.rpm
+sudo dnf install ./schemasync-1.7.4-1.fc44.noarch.rpm
 ```
 Launch directly from the GNOME/KDE App Menu or from terminal:
 ```bash

@@ -187,6 +187,7 @@ public class EntityCodeGeneratorDialog extends JDialog {
 
         codeArea.setText(generated);
         codeArea.setCaretPosition(0);
+        com.dbtool.util.AppUsageTracker.recordOrmModelGenerated();
     }
 
     private String toPascalCase(String s) {

@@ -505,6 +505,7 @@ public class DataMaskingDialog extends JDialog {
                 }
             }
         }
+        com.dbtool.util.AppUsageTracker.recordPiiRowsMasked(count);
         return count;
     }
 
@@ -550,6 +551,7 @@ public class DataMaskingDialog extends JDialog {
                 workbook.write(out);
             }
         }
+        com.dbtool.util.AppUsageTracker.recordPiiRowsMasked(count);
         return count;
     }
 
@@ -591,6 +593,7 @@ public class DataMaskingDialog extends JDialog {
             }
             writer.println("\nCOMMIT;");
         }
+        com.dbtool.util.AppUsageTracker.recordPiiRowsMasked(count);
         return count;
     }
 

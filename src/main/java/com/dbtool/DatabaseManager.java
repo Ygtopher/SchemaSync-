@@ -82,6 +82,30 @@ public class DatabaseManager {
         lastValidCheckMs = 0;
     }
 
+    public int getCachedTableCount() {
+        return tableCache != null ? tableCache.size() : columnCache.size();
+    }
+
+    public int getCachedColumnCount() {
+        int total = 0;
+        for (Map.Entry<String, List<String>> e : columnCache.entrySet()) {
+            if (e.getKey() != null && !e.getKey().contains(".") && e.getValue() != null) {
+                total += e.getValue().size();
+            }
+        }
+        return total;
+    }
+
+    public int getCachedFkCount() {
+        int total = 0;
+        for (Map.Entry<String, Map<String, String[]>> e : fkCache.entrySet()) {
+            if (e.getKey() != null && !e.getKey().contains(".") && e.getValue() != null) {
+                total += e.getValue().size();
+            }
+        }
+        return total;
+    }
+
     public void preloadAllColumns() {
         if (connection == null) return;
         try {
@@ -202,11 +226,13 @@ public class DatabaseManager {
                 connection.close();
             }
             connection = com.dbtool.core.connection.ConnectionUtil.getConnection(targetUrl, user, pass);
+            com.dbtool.util.AppUsageTracker.recordConnection("PostgreSQL");
             
         } else if (dbFilePath.toLowerCase().endsWith(".accdb") || dbFilePath.toLowerCase().endsWith(".mdb")) {
             System.out.println("Connecting to MS Access Database...");
             String url = "jdbc:ucanaccess://" + dbFilePath;
             connection = DriverManager.getConnection(url);
+            com.dbtool.util.AppUsageTracker.recordConnection("MS Access");
         } else if (dbFilePath.toLowerCase().endsWith(".sqlite") || dbFilePath.toLowerCase().endsWith(".db") || dbFilePath.toLowerCase().endsWith(".sqlite3")) {
             System.out.println("Connecting to SQLite Database...");
             connectSQLite(dbFilePath);
@@ -221,6 +247,7 @@ public class DatabaseManager {
         clearCache();
         String targetUrl = "jdbc:postgresql://" + host + ":" + port + "/" + dbName + "?tcpKeepAlive=true&gssEncMode=disable&connectTimeout=10&socketTimeout=30";
         connection = com.dbtool.core.connection.ConnectionUtil.getConnection(targetUrl, user, pass);
+        com.dbtool.util.AppUsageTracker.recordConnection("PostgreSQL");
     }
 
     public void connectMySQL(String host, String port, String dbName, String user, String pass) throws Exception {
@@ -229,6 +256,7 @@ public class DatabaseManager {
         clearCache();
         String targetUrl = "jdbc:mysql://" + host + ":" + port + "/" + dbName + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&connectTimeout=10000";
         connection = DriverManager.getConnection(targetUrl, user, pass);
+        com.dbtool.util.AppUsageTracker.recordConnection("MySQL / MariaDB");
     }
 
     public void connectSQLite(String dbFilePath) throws Exception {
@@ -237,6 +265,7 @@ public class DatabaseManager {
         clearCache();
         String targetUrl = "jdbc:sqlite:" + dbFilePath;
         connection = DriverManager.getConnection(targetUrl);
+        com.dbtool.util.AppUsageTracker.recordConnection("SQLite");
     }
 
     public boolean isPostgres() {
@@ -374,6 +403,7 @@ public class DatabaseManager {
         }
         String url = "jdbc:h2:mem:" + memDbName + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
         connection = DriverManager.getConnection(url, "sa", "");
+        com.dbtool.util.AppUsageTracker.recordConnection("H2 Sandbox");
         seedSampleSchema();
     }
 
@@ -1025,7 +1055,8 @@ public class DatabaseManager {
             for (int i = 0; i < params.size(); i++) {
                 pstmt.setObject(i + 1, params.get(i));
             }
-            pstmt.executeUpdate();
+            int count = pstmt.executeUpdate();
+            com.dbtool.util.AppUsageTracker.recordRowsMutated(Math.max(1, count));
             success = true;
             lastValidCheckMs = System.currentTimeMillis();
         } catch (java.sql.SQLException e) {
@@ -1037,7 +1068,8 @@ public class DatabaseManager {
                         for (int i = 0; i < params.size(); i++) {
                             pstmt2.setObject(i + 1, params.get(i));
                         }
-                        pstmt2.executeUpdate();
+                        int count = pstmt2.executeUpdate();
+                        com.dbtool.util.AppUsageTracker.recordRowsMutated(Math.max(1, count));
                         success = true;
                         lastValidCheckMs = System.currentTimeMillis();
                     }
@@ -1060,6 +1092,7 @@ public class DatabaseManager {
         boolean success = false;
         try (java.sql.Statement stmt = connection.createStatement()) {
             int count = stmt.executeUpdate(query);
+            com.dbtool.util.AppUsageTracker.recordRowsMutated(Math.max(0, count));
             success = true;
             lastValidCheckMs = System.currentTimeMillis();
             return count;
@@ -1070,6 +1103,7 @@ public class DatabaseManager {
                     autoReconnect();
                     try (java.sql.Statement stmt2 = connection.createStatement()) {
                         int count = stmt2.executeUpdate(query);
+                        com.dbtool.util.AppUsageTracker.recordRowsMutated(Math.max(0, count));
                         success = true;
                         lastValidCheckMs = System.currentTimeMillis();
                         return count;
@@ -1123,6 +1157,7 @@ public class DatabaseManager {
         try (java.sql.Statement stmt = connection.createStatement();
              java.sql.ResultSet rs = stmt.executeQuery(query)) {
             DefaultTableModel model = buildTableModel(rs);
+            com.dbtool.util.AppUsageTracker.recordRowsFetched(model.getRowCount());
             success = true;
             lastValidCheckMs = System.currentTimeMillis();
             return model;
@@ -1134,6 +1169,7 @@ public class DatabaseManager {
                     try (java.sql.Statement stmt2 = connection.createStatement();
                          java.sql.ResultSet rs2 = stmt2.executeQuery(query)) {
                         DefaultTableModel model = buildTableModel(rs2);
+                        com.dbtool.util.AppUsageTracker.recordRowsFetched(model.getRowCount());
                         success = true;
                         lastValidCheckMs = System.currentTimeMillis();
                         return model;
@@ -1175,6 +1211,7 @@ public class DatabaseManager {
             }
             try (ResultSet rs = pstmt.executeQuery()) {
                 DefaultTableModel model = buildTableModel(rs);
+                com.dbtool.util.AppUsageTracker.recordRowsFetched(model.getRowCount());
                 success = true;
                 return model;
             }
@@ -1190,6 +1227,7 @@ public class DatabaseManager {
                         }
                         try (ResultSet rs2 = pstmt2.executeQuery()) {
                             DefaultTableModel model = buildTableModel(rs2);
+                            com.dbtool.util.AppUsageTracker.recordRowsFetched(model.getRowCount());
                             success = true;
                             return model;
                         }

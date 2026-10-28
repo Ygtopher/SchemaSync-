@@ -453,6 +453,7 @@ public class DualDatabaseComparePanel extends JPanel {
         compareSchemasBtn.setEnabled(false);
         compareSchemasBtn.setText("Comparing...");
         schemaStatusLabel.setText("Inspecting schemas...");
+        com.dbtool.util.AppUsageTracker.recordDualDbComparison();
 
         new Thread(() -> {
             try {

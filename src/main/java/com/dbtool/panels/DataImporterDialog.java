@@ -482,6 +482,7 @@ public class DataImporterDialog extends JDialog {
                 try {
                     get();
                     long elapsed = System.currentTimeMillis() - startTime;
+                    com.dbtool.util.AppUsageTracker.recordRowsImported(imported);
                     JOptionPane.showMessageDialog(DataImporterDialog.this,
                             "Successfully imported " + imported + " row(s) into table '" + tbl + "' in " + elapsed + " ms!",
                             "Import Complete", JOptionPane.INFORMATION_MESSAGE);

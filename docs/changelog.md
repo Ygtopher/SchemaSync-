@@ -1,8 +1,29 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.7.3  
+**Current Version:** 1.7.4  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v1.7.4] - 2026-10-28
+### Added
+* **Executive Application Usage & Telemetry Statistics Suite (`DashboardPanel`, `AppUsageTracker`):**
+  * **12 Live Telemetry Cards (3×4 Grid):**
+    * **🚀 Sessions & Uptime:** Total sessions launched, active usage days, consecutive-day streak (`🔥 Xd`), live session timer, and cumulative usage duration.
+    * **📈 Queries Executed & Daily Volume:** All-time queries, current session count, and daily breakdown (`Today`, `Yesterday`, `Last 7 Days`).
+    * **✅ Query Success Rate:** Percentage of successful executions vs. errors.
+    * **⏱️ Latency & Percentiles:** Average, Median (`P50`), 95th-Percentile (`P95`), and Peak (`Max`) query execution latency (`ms`).
+    * **🐢 Slow Queries & Row Volume:** Slow query counters (`>= 500 ms` & `>= 1000 ms` with slowest SQL preview tooltip) plus cumulative **Rows Read (`SELECT`) vs. Rows Mutated (`INSERT`/`UPDATE`/`DELETE`)**.
+    * **📊 SQL Workload Mix:** Breakdown across `SELECT / DQL`, `DML`, `DDL`, and `EXPLAIN`.
+    * **🛡️ Safety & Linter Governance:** Unfiltered destructive `UPDATE`/`DELETE` queries intercepted/previewed, static SQL linter issues detected & auto-fixes applied, PII rows masked, and Schema Drift snapshots/migrations generated.
+    * **🔄 Data Movement & CodeGen:** DB connections opened, exports performed, CSV/Excel rows imported, synthetic mock rows generated, Dual-DB comparisons run, and ORM entity models generated.
+    * **🔥 Most Queried Table:** Automatic SQL table extraction (`FROM`, `JOIN`, `INTO`, `UPDATE`, `TABLE`) ranking top queried tables.
+    * **🏆 Most Used Tool & DB Engine:** Top workbench tool and top database engine (`PostgreSQL`, `MySQL`, `SQLite`, `MS Access`, `H2`).
+    * **🔖 Saved & Pinned Library:** Saved query count, history buffer count, and `⭐ Pinned` favorites.
+    * **🧠 JVM Memory & Cache Health:** Live JVM Heap RAM (`Used MB / Max MB (%)`) with 1-click **⚡ Optimize Memory (Run GC)** button.
+  * **📊 Comprehensive Usage & Telemetry Breakdown Table:** Interactive **Filter Category** dropdown (`All Categories`, `🛠️ Workbench Tools`, `🔥 Hot Queried Tables`, `⚡ SQL Workload`, `📅 Daily Activity (7d)`, `🛡️ Safety & Data Movement`, `🗄️ DB Engines & Column Types`) with percentage progress bars and 1-click **🧹 Reset Usage Stats**.
+  * **🗄️ Deep Schema Quality & Column Type Distribution:** Tracks Populated vs. Empty tables, Tables Missing Primary Keys, Orphan/Isolated tables (`0` incoming & outgoing FKs), In-Memory Metadata Cache counts (`Tables | Columns | FKs`), and Column Data-Type Distribution (`Text/VARCHAR`, `Numeric`, `Date/Time`, `Boolean`, `JSON/Binary/Other`).
 
 ---
 

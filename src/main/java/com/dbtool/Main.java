@@ -29,7 +29,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.7.3";
+    public static final String APP_VERSION = "1.7.4";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -3739,6 +3739,7 @@ public class Main extends JFrame {
                 JOptionPane.showMessageDialog(this, "Please connect to a database first to run health diagnostics.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
                 return;
             }
+            com.dbtool.util.AppUsageTracker.recordFeatureUse("🛡 Health Audit");
             new com.dbtool.panels.DatabaseAuditorDialog(this, dbManager).setVisible(true);
         });
         topPanel.add(auditDbBtn);
@@ -3750,6 +3751,7 @@ public class Main extends JFrame {
                 JOptionPane.showMessageDialog(this, "Please connect to a database first to analyze indexes.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
                 return;
             }
+            com.dbtool.util.AppUsageTracker.recordFeatureUse("⚡ Index Advisor");
             new com.dbtool.panels.IndexAdvisorDialog(this, dbManager).setVisible(true);
         });
         topPanel.add(indexAdvisorBtn);
@@ -3761,6 +3763,7 @@ public class Main extends JFrame {
                 JOptionPane.showMessageDialog(this, "Please connect to a database first to inspect schema drift.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
                 return;
             }
+            com.dbtool.util.AppUsageTracker.recordFeatureUse("📐 Schema Drift");
             new com.dbtool.panels.SchemaDriftDialog(this, dbManager).setVisible(true);
         });
         topPanel.add(schemaDriftBtn);
@@ -3855,6 +3858,7 @@ public class Main extends JFrame {
             int selectedIndex = tabbedPane.getSelectedIndex();
             if (selectedIndex != -1) {
                 String title = tabbedPane.getTitleAt(selectedIndex);
+                com.dbtool.util.AppUsageTracker.recordFeatureUse(title);
                 if ("ER Diagram".equals(title) && erDiagramPanel != null) {
                     erDiagramPanel.checkAndRefresh();
                 } else if ("🏠 Dashboard".equals(title) && dashboardPanel != null) {
@@ -4015,6 +4019,12 @@ public class Main extends JFrame {
             });
         }
 
+        // Record application launch and refresh dashboard usage stats
+        com.dbtool.util.AppUsageTracker.recordSessionStart();
+        if (dashboardPanel != null) {
+            dashboardPanel.refreshUsageStatistics();
+        }
+
         // Start background auto-save daemon and register shutdown hook
         com.dbtool.util.SessionRecoveryManager.startAutoSaveDaemon(this::captureCurrentSessionSnapshot, this::onAutoSaved, 15);
         com.dbtool.util.SessionRecoveryManager.registerShutdownHook(this::captureCurrentSessionSnapshot);
@@ -4022,6 +4032,7 @@ public class Main extends JFrame {
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent e) {
+                com.dbtool.util.AppUsageTracker.flushSessionUptime();
                 if (sqlEditorPanel != null) {
                     sqlEditorPanel.saveEditorDraft();
                 }
@@ -4051,6 +4062,7 @@ public class Main extends JFrame {
             JOptionPane.showMessageDialog(this, "Please connect to a database first to use OmniSearch.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        com.dbtool.util.AppUsageTracker.recordFeatureUse("🔍 OmniSearch");
         new com.dbtool.panels.OmniSearchDialog(this, dbManager, this::jumpToTableRow).setVisible(true);
     }
 
@@ -4096,6 +4108,7 @@ public class Main extends JFrame {
             JOptionPane.showMessageDialog(this, "Please connect to a database first to use Data Masking.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        com.dbtool.util.AppUsageTracker.recordFeatureUse("🔒 Data Masking");
         String tbl = getActiveBrowseTable();
         new com.dbtool.panels.DataMaskingDialog(this, dbManager, tbl).setVisible(true);
     }
@@ -4105,6 +4118,7 @@ public class Main extends JFrame {
             JOptionPane.showMessageDialog(this, "Please connect to a database first to analyze indexes.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        com.dbtool.util.AppUsageTracker.recordFeatureUse("⚡ Index Advisor");
         String tbl = getActiveBrowseTable();
         new com.dbtool.panels.IndexAdvisorDialog(this, dbManager, tbl).setVisible(true);
     }
@@ -4114,6 +4128,7 @@ public class Main extends JFrame {
             JOptionPane.showMessageDialog(this, "Please connect to a database first to generate mock data.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        com.dbtool.util.AppUsageTracker.recordFeatureUse("🧪 Mock Data Generator");
         String tbl = getActiveBrowseTable();
         new com.dbtool.panels.MockDataGeneratorDialog(this, dbManager, tbl, () -> {
             if (browseTabContainer != null && browseTabContainer.getActiveTab() != null) {
@@ -4127,6 +4142,7 @@ public class Main extends JFrame {
             JOptionPane.showMessageDialog(this, "Please connect to a database first to import data.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        com.dbtool.util.AppUsageTracker.recordFeatureUse("📥 Data Importer");
         String tbl = getActiveBrowseTable();
         new com.dbtool.panels.DataImporterDialog(this, dbManager, tbl, () -> {
             if (browseTabContainer != null && browseTabContainer.getActiveTab() != null) {
@@ -4136,10 +4152,12 @@ public class Main extends JFrame {
     }
 
     public void openVaultDialog() {
+        com.dbtool.util.AppUsageTracker.recordFeatureUse("🛡️ Credential Vault");
         new com.dbtool.panels.VaultDialog(this, dbManager, null).setVisible(true);
     }
 
     public void openQueryProfilerDialog() {
+        com.dbtool.util.AppUsageTracker.recordFeatureUse("⏱️ Query Profiler");
         new com.dbtool.panels.QueryProfilerDialog(this, dbManager, sql -> {
             tabbedPane.setSelectedComponent(sqlEditorPanel);
             sqlEditorPanel.setEditorText(sql);
@@ -4151,6 +4169,7 @@ public class Main extends JFrame {
             JOptionPane.showMessageDialog(this, "Please connect to a database first to inspect schema drift.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        com.dbtool.util.AppUsageTracker.recordFeatureUse("📐 Schema Drift");
         new com.dbtool.panels.SchemaDriftDialog(this, dbManager).setVisible(true);
     }
 

@@ -717,6 +717,7 @@ public class SqlEditorPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "✅ No anti-patterns or safety issues detected in the query!", "SQL Linter — Clean", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
+        com.dbtool.util.AppUsageTracker.recordLinterIssues(issues.size());
 
         JPanel panel = new JPanel(new BorderLayout(8, 8));
         DefaultListModel<String> listModel = new DefaultListModel<>();
@@ -743,6 +744,7 @@ public class SqlEditorPanel extends JPanel {
                     JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE, null, options, options[0]);
             if (choice == 0) {
                 editor.setText(fix);
+                com.dbtool.util.AppUsageTracker.recordLinterFixApplied();
                 statusLabel.setText("Applied suggested SQL optimization.");
             }
         } else {
@@ -753,6 +755,7 @@ public class SqlEditorPanel extends JPanel {
     public void runDryRunPreview() {
         String sql = getCurrentSql();
         if (sql == null || sql.trim().isEmpty()) return;
+        com.dbtool.util.AppUsageTracker.recordDestructiveQueryIntercepted();
         String previewSelect = SqlQueryAnalyzer.buildDryRunSelectSql(sql);
         statusLabel.setText("Running Dry-Run Preview: " + previewSelect);
         executeQueryInternal(previewSelect, false, true);
@@ -1138,6 +1141,7 @@ public class SqlEditorPanel extends JPanel {
 
         // 2. Destructive Unfiltered UPDATE / DELETE Guardrail
         if (!isExplain && !isDryRun && SqlQueryAnalyzer.isUnfilteredDestructiveDml(sql)) {
+            com.dbtool.util.AppUsageTracker.recordDestructiveQueryIntercepted();
             Object[] options = {"🔍 Preview Affected Rows (Dry-Run)", "⚠️ Execute Anyway", "Cancel"};
             int choice = JOptionPane.showOptionDialog(this,
                     "⚠️ SAFETY WARNING: Unfiltered UPDATE / DELETE Detected!\n\n" +
@@ -1253,6 +1257,7 @@ public class SqlEditorPanel extends JPanel {
                                 }
                                 com.dbtool.util.TypedTableModel model = new com.dbtool.util.TypedTableModel(data, columnNames, columnTypes);
                                 lastRowCount = model.getRowCount();
+                                com.dbtool.util.AppUsageTracker.recordRowsFetched(lastRowCount);
                                 String tabTitle = (statements.size() > 1 ? kind + " #" + stmtNum : kind) + " (" + model.getRowCount() + " rows)";
                                 final String finalTableQuery = queryToRun;
                                 SwingUtilities.invokeLater(() -> {
@@ -1263,6 +1268,9 @@ public class SqlEditorPanel extends JPanel {
                         } else {
                             int affected = stmt.getUpdateCount();
                             lastRowCount = affected;
+                            if (affected > 0) {
+                                com.dbtool.util.AppUsageTracker.recordRowsMutated(affected);
+                            }
                             String tabTitle = (statements.size() > 1 ? kind + " #" + stmtNum : kind + " Result");
                             String msg = ("DDL".equals(kind) || "DCL".equals(kind) || "TCL".equals(kind))
                                     ? kind + " statement executed successfully." + (affected > 0 ? " (" + affected + " rows)" : "") + " [" + stmtElapsed + "ms]"

@@ -271,6 +271,7 @@ public class SchemaDriftDialog extends JDialog {
                     target = new File(target.getParentFile(), target.getName() + ".schema.json");
                 }
                 mapper.writeValue(target, snapshot);
+                com.dbtool.util.AppUsageTracker.recordSchemaDriftAction();
                 JOptionPane.showMessageDialog(this, "Schema snapshot saved successfully to:\n" + target.getAbsolutePath(), "Snapshot Saved", JOptionPane.INFORMATION_MESSAGE);
                 statusLabel.setText("Snapshot saved: " + target.getName() + " (" + snapshot.tables.size() + " tables).");
             }
@@ -350,6 +351,7 @@ public class SchemaDriftDialog extends JDialog {
 
                     upArea.setText(upSql);
                     downArea.setText(downSql);
+                    com.dbtool.util.AppUsageTracker.recordSchemaDriftAction();
 
                     statusLabel.setText(String.format("Drift Analysis: 🟢 %d New Tables, 🔴 %d Missing Tables, 🟡 %d Modified Tables (%d total diffs)",
                         newCount, missingCount, modifiedCount, lastDiffResult.getTableDiffs().size()));

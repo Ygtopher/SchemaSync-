@@ -433,6 +433,7 @@ public class MockDataGeneratorDialog extends JDialog {
                 try {
                     get();
                     long elapsed = System.currentTimeMillis() - startTime;
+                    com.dbtool.util.AppUsageTracker.recordMockRowsGenerated(inserted);
                     JOptionPane.showMessageDialog(MockDataGeneratorDialog.this,
                             "Successfully generated and inserted " + inserted + " mock record(s) into table '" + tbl + "' in " + elapsed + " ms!",
                             "Mock Generation Complete", JOptionPane.INFORMATION_MESSAGE);

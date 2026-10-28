@@ -24,6 +24,9 @@ public class QueryLogger {
     public static synchronized void log(String query, long durationMs, boolean success) {
         String ts = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
         logs.add(new LogEntry(query, durationMs, success, ts));
+        try {
+            AppUsageTracker.recordQuery(query, durationMs, success);
+        } catch (Exception ignored) {}
         for (Runnable r : listeners) {
             r.run();
         }

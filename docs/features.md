@@ -1,13 +1,22 @@
 # SchemaSync Comprehensive Feature Guide
 
-**Version:** 1.7.3  
+**Version:** 1.7.4  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
 ---
 
-## 1. Executive Telemetry & Live Health Dashboard (`🏠 Dashboard`)
-The primary overview panel providing real-time infrastructure intelligence immediately upon connecting:
+## 1. Executive Telemetry, Live Health & Application Usage Dashboard (`🏠 Dashboard`)
+The primary overview panel providing real-time infrastructure intelligence and persistent application usage analytics across **12 Telemetry Cards** and a **Categorized Usage Breakdown Table** (available both offline and when connected to a database):
+* **Application Usage & Activity Statistics (`AppUsageTracker`):**
+  * **🚀 Sessions & Activity Streak:** Tracks total application launches, live current-session uptime, cumulative usage time, active usage days, and consecutive-day streak (`🔥 Xd`).
+  * **📈 Query Volume & Daily Trend:** Tracks all-time and session SQL queries, daily volume (`Today`, `Yesterday`, `Last 7 Days`), and query success vs. error rates (`%`).
+  * **⏱️ Latency Percentiles, Slow Queries & Row Volume:** Tracks average, median (`P50`), 95th-percentile (`P95`), and peak (`Max`) query latencies (`ms`), slow query counts (`> 500 ms` & `> 1s` with slowest query tooltip), and cumulative **Rows Read vs. Rows Mutated**.
+  * **📊 SQL Workload & Hot Tables:** Automatic statement classification (`SELECT / DQL`, `DML`, `DDL`, `EXPLAIN`) plus automatic SQL table extraction to rank the **🔥 Most Queried Tables**.
+  * **🛡️ Safety & Linter Governance:** Tracks unfiltered destructive `UPDATE`/`DELETE` queries intercepted or previewed via Dry-Run, static SQL linter issues detected & auto-fixes applied, PII rows masked in Data Masking Studio, and Schema Drift snapshots/migrations generated.
+  * **🔄 Data Movement & CodeGen:** Tracks DB connections opened, exports performed, CSV/Excel rows imported, synthetic mock rows generated, Dual DB comparisons run, and ORM entity models generated.
+  * **🗄️ Deep Schema Quality & Column Type Distribution:** Tracks Populated vs. Empty tables, Missing Primary Keys, Orphan/Isolated tables, In-Memory Metadata Cache counts (`Tables | Columns | FKs`), Live JVM Heap RAM (`Used / Max MB` with 1-click **⚡ Optimize Memory (GC)**), and Column Data-Type Distribution (`Text/VARCHAR`, `Numeric`, `Date/Time`, `Boolean`, `JSON/Binary`).
+  * **🔖 Workbench & Library Stats:** Live counts of Saved Queries, Query History entries (`⭐ Pinned`), Most Used Workbench Tool, Most Used DB Engine, an interactive **Category Filter** (`All Categories`, `🛠️ Workbench Tools`, `🔥 Hot Queried Tables`, `⚡ SQL Workload`, `📅 Daily Activity (7d)`, `🛡️ Safety & Data Movement`, `🗄️ DB Engines & Column Types`), and a 1-click **🧹 Reset Usage Stats** button.
 * **Engine & Connection Telemetry:** Displays connected RDBMS type, host, port, active database catalog, authenticated user, and real-time millisecond ping latency.
 * **Proportional Table Storage Meters:** Visual bars illustrating table sizes and disk allocation for the Top 10 largest tables.
 * **Catalog Inventory Metrics:** Total count of user tables, foreign keys, secondary indexes, and total rows across the entire database.

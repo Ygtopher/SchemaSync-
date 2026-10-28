@@ -1,6 +1,6 @@
 # SchemaSync Codebase, Module & Function Map
 
-**Version:** 1.7.3  
+**Version:** 1.7.4  
 **Creator & Lead Architect:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -111,9 +111,9 @@ The centralized JDBC facade managing connection state, driver instantiation, met
 ### Package `com.dbtool.panels` (UI Workbenches & Dialogs)
 
 #### [`DashboardPanel.java`](file:///d:/projects/DBTOOL/src/main/java/com/dbtool/panels/DashboardPanel.java)
-Executive telemetry and database health dashboard:
-* **`refresh()`**: Polls database connection metrics, calculates ping latency in milliseconds, and refreshes table count cards.
-* **`loadCatalogStats()`**: Queries the Top 10 largest tables by byte size or row count and renders proportional percentage progress bars.
+Executive telemetry, database health, and application usage statistics dashboard:
+* **`refresh()`**: Updates application usage statistics and polls database connection metrics, ping latency in milliseconds, catalog counts, and Top 10 largest tables.
+* **`refreshUsageStatistics()`**: Renders live and persistent application usage analytics (`🚀 App Sessions & Uptime`, `📈 Query Execution Telemetry`, `📊 SQL Workload Breakdown`, `🔖 Workbench & Library Stats`, and the interactive **Application Usage Breakdown Table** with usage share progress bars).
 
 #### [`IndexAdvisorDialog.java`](file:///d:/projects/DBTOOL/src/main/java/com/dbtool/panels/IndexAdvisorDialog.java)
 Database performance and index advisor:
@@ -240,6 +240,12 @@ Static SQL query linter, optimizer, parameter binder, autocomplete resolver, and
 * **`expandSelectStar(sql, dbManager)`**: Expands `SELECT * FROM <table>` into explicit column names from live catalog metadata.
 * **`extractNamedParameters(sql)` & `bindParameters(sql, values)`**: Parses and binds `:param` and `${param}` variables while preserving PostgreSQL `::type` casts and string literals.
 * **`suggestCompletions(fullText, caretPos, dbManager)`**: Context-aware alias, column, and Foreign Key `JOIN ... ON` completion engine.
+
+#### [`AppUsageTracker.java`](file:///d:/projects/DBTOOL/src/main/java/com/dbtool/util/AppUsageTracker.java)
+Persistent and live application usage telemetry tracker (`Documents/SchemaSyncSaves/app_usage_stats.json`):
+* **`recordSessionStart()` & `flushSessionUptime()`**: Tracks total application launches, active session duration, and cumulative usage time across sessions.
+* **`recordQuery(sql, durationMs, success)`**: Automatically categorizes executed SQL statements (`SELECT`, `DML`, `DDL`, `EXPLAIN`), tracks success vs. failure rates, and computes average query execution latency (`ms`).
+* **`recordConnection(engineName)` & `recordFeatureUse(featureName)` & `recordExport(format)`**: Tracks usage counts for database engines, workbench tabs/dialogs, and data exports.
 
 ---
 

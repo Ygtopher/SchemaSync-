@@ -1,6 +1,6 @@
 # Installation, Deployment & Packaging Guide
 
-**Version:** 1.7.3  
+**Version:** 1.7.4  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -15,8 +15,8 @@ release/
 ├── SchemaSync-Setup.exe               # Windows 10/11 Inno Setup Installer (~54.5 MB)
 ├── SchemaSync.exe                     # Standalone Windows Launcher Wrapper (~60 MB)
 ├── SchemaSync.jar                     # Cross-Platform Universal Fat JAR (~59.9 MB)
-├── schemasync_1.7.3_all.deb           # Debian / Ubuntu Desktop Package (~55.8 MB)
-└── schemasync-1.7.3-1.fc44.noarch.rpm # Fedora / RHEL Native RPM Package (~55.7 MB)
+├── schemasync_1.7.4_all.deb           # Debian / Ubuntu Desktop Package (~55.8 MB)
+└── schemasync-1.7.4-1.fc44.noarch.rpm # Fedora / RHEL Native RPM Package (~55.7 MB)
 ```
 
 ---
@@ -49,11 +49,11 @@ Compatible with **Ubuntu 20.04, 22.04, 24.04 LTS**, Linux Mint, Debian, and all 
 Open terminal in the folder containing the `.deb` file:
 ```bash
 sudo apt update
-sudo apt install ./schemasync_1.7.3_all.deb
+sudo apt install ./schemasync_1.7.4_all.deb
 ```
 Or via `dpkg`:
 ```bash
-sudo dpkg -i ./schemasync_1.7.3_all.deb
+sudo dpkg -i ./schemasync_1.7.4_all.deb
 sudo apt-get install -f   # Resolves dependencies if needed
 ```
 
@@ -75,7 +75,7 @@ Compatible with **Fedora 38, 39, 40, 41, 44**, Red Hat Enterprise Linux (RHEL), 
 ### Installation
 Open terminal in the folder containing the `.rpm` file:
 ```bash
-sudo dnf install ./schemasync-1.7.3-1.fc44.noarch.rpm
+sudo dnf install ./schemasync-1.7.4-1.fc44.noarch.rpm
 ```
 
 ### Wayland Dock Icon & Taskbar Binding

@@ -1,6 +1,6 @@
 # SchemaSync — Codebase, Feature & Technology Architecture Map
 
-**Version:** 1.7.3  
+**Version:** 1.7.4  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -146,6 +146,7 @@ D:\projects\DBTOOL\
     │           ├── VisualJoinProjectManager.java # Visual query join canvas serialization
     │           ├── SqlInsertGenerator.java   # Smart SQL INSERT/UPDATE, JSON, Markdown & live selection stats generator
     │           ├── SqlQueryAnalyzer.java     # Static SQL linter, SELECT * expander, parameter binder, and Dry-Run DML generator
+    │           ├── AppUsageTracker.java      # Persistent & live application usage statistics tracker (sessions, uptime, SQL workload, tools, engines)
     │           └── ExportUtil.java           # PDF, Excel, and CSV multi-grid export helpers
     └── test\                                 # 134 automated unit and integration tests (JUnit 5)
 ```
@@ -157,7 +158,7 @@ D:\projects\DBTOOL\
 | Feature | Primary Java File(s) | Key Methods & Classes | Location in Code |
 | :--- | :--- | :--- | :--- |
 | **⚡ 1-Click In-App Auto-Updater** | `UpdateChecker.java`<br>`UpdateCheckerTest.java` | `checkForUpdates()`, `showUpdateDialog()`, `isNewerVersion()` | `src/main/java/com/dbtool/util/UpdateChecker.java:30-360` |
-| **🏠 Database Overview & Health Dashboard** | `DashboardPanel.java`<br>`Main.java` | `DashboardPanel`, `refresh()`, `loadCatalogStats()` | `src/main/java/com/dbtool/panels/DashboardPanel.java:1-320`<br>`Main.java:3744-3756` (Tab 0) |
+| **🏠 Database Overview, Health & App Usage Dashboard** | `DashboardPanel.java`<br>`AppUsageTracker.java`<br>`Main.java` | `DashboardPanel`, `refresh()`, `refreshUsageStatistics()`, `AppUsageTracker.recordQuery()`, `recordFeatureUse()`, `recordConnection()` | `src/main/java/com/dbtool/panels/DashboardPanel.java:1-560`<br>`src/main/java/com/dbtool/util/AppUsageTracker.java:1-290` |
 | **🔒 Sensitive Data Masking Studio** | `DataMaskingDialog.java`<br>`DataMaskingTest.java` | `applyMask()`, `detectPiiCategory()`, `exportMaskedData()` | `src/main/java/com/dbtool/panels/DataMaskingDialog.java:1-420`<br>`Main.java:4016` |
 | **🛡️ AES-256-GCM Credential Vault** | `CryptoUtil.java`<br>`VaultDialog.java`<br>`CryptoUtilTest.java` | `encryptPassword()`, `decryptPassword()`, `exportVault()`, `importVault()` | `src/main/java/com/dbtool/util/CryptoUtil.java:1-180`<br>`src/main/java/com/dbtool/panels/VaultDialog.java:1-290` |
 | **⏱️ SQL Query Profiler & Bottleneck Analyzer** | `QueryProfilerDialog.java`<br>`QueryLogger.java` | `QueryProfilerDialog`, `runExplain()`, `QueryLogger.logQuery()` | `src/main/java/com/dbtool/panels/QueryProfilerDialog.java:1-260`<br>`src/main/java/com/dbtool/util/QueryLogger.java:1-75` |

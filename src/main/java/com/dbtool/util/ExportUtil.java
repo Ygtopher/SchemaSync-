@@ -34,6 +34,7 @@ public class ExportUtil {
                 }
                 pw.println();
             }
+            AppUsageTracker.recordExport("CSV");
             JOptionPane.showMessageDialog(parent, "Exported to " + fc.getSelectedFile().getName());
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(parent, "Export failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -70,6 +71,7 @@ public class ExportUtil {
             try (FileOutputStream fos = new FileOutputStream(fc.getSelectedFile())) {
                 wb.write(fos);
             }
+            AppUsageTracker.recordExport("Excel");
             JOptionPane.showMessageDialog(parent, "Exported to " + fc.getSelectedFile().getName());
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(parent, "Export failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -103,6 +105,7 @@ public class ExportUtil {
         }
         Toolkit.getDefaultToolkit().getSystemClipboard()
                 .setContents(new StringSelection(sb.toString()), null);
+        AppUsageTracker.recordExport("Clipboard");
         JOptionPane.showMessageDialog(null, "Copied to clipboard!");
     }
 
@@ -143,6 +146,7 @@ public class ExportUtil {
                 vals.append(")");
                 pw.println("INSERT INTO " + quotedTable.toString() + " " + cols + " VALUES " + vals + ";");
             }
+            AppUsageTracker.recordExport("SQL Inserts");
             JOptionPane.showMessageDialog(parent, "Exported INSERT statements to " + fc.getSelectedFile().getName());
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(parent, "Export failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -189,6 +193,7 @@ public class ExportUtil {
 
             document.add(pdfTable);
             document.close();
+            AppUsageTracker.recordExport("PDF");
             JOptionPane.showMessageDialog(parent, "Exported to " + fc.getSelectedFile().getName());
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(parent, "Export failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
