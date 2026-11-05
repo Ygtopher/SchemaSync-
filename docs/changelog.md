@@ -1,8 +1,21 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.7.5  
+**Current Version:** 1.7.6  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v1.7.6] - 2026-11-05
+### Added & Improved
+* **3-in-1 Instant Update Engine (`UpdateChecker`, `Main`):**
+  * **49× Smaller Delta Patch (`SchemaSync-patch.jar`, ~1.17 MB):** Publishes a lightweight classes-only delta JAR alongside the full installer, downloading in under 1 second and patching only `com/dbtool/` classes inside the existing `SchemaSync.jar` or `SchemaSync.exe` while preserving 55 MB of cached third-party libraries.
+  * **Silent Background Pre-Download & Staging (`✨ Update Ready — Restart`):** Automatically stages updates in `~/.schemasync/updates/staged/` in the background and illuminates a 1-click **✨ Update Ready (vX.Y.Z) — Restart** toolbar badge with zero download wait.
+  * **Direct Binary Swap (No Setup Wizard):** Applies staged updates directly in-place to `SchemaSync.jar` and Launch4j `SchemaSync.exe` (preserving the Windows PE executable header) and relaunches immediately.
+* **Live Search Bar in All Column Selector Dialogs (`Main.BrowseTab`, `Main.VisualJoinTab`, `DataCompareTabPanel`):**
+  * Added an instant **🔍 Search** filter bar with a `✕` Clear button and auto-focus to **Select Columns** (`Browse & Search`), **Select Join Columns** (`Visual Join Builder`), and **Select Columns to Compare** (`Dual DB Compare`).
+  * In `Select Join Columns`, filters across all joined table tabs simultaneously, shows live match count badges on each tab (`table_name (N)`), and auto-switches to the first matching tab.
+  * Made `Select All`, `Unselect All`, `Select All (Tab)`, and `Unselect All (Tab)` filter-aware (toggling only visible matching columns when a search filter is active) and added a live `Selected: X / Y` footer counter.
 
 ---
 

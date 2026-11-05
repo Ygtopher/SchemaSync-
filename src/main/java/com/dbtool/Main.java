@@ -29,7 +29,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.7.5";
+    public static final String APP_VERSION = "1.7.6";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -1015,10 +1015,12 @@ public class Main extends JFrame {
             List<String> allCols = new ArrayList<>(new LinkedHashSet<>(rawCols));
             if (allCols.isEmpty()) return;
     
-            JDialog dialog = new JDialog(Main.this, "Select Columns", true);
-            dialog.setLayout(new BorderLayout());
+            JDialog dialog = new JDialog(Main.this, "Select Columns — " + selectedTable, true);
+            dialog.setResizable(true);
+            dialog.setLayout(new BorderLayout(6, 6));
             JPanel cbPanel = new JPanel();
             cbPanel.setLayout(new BoxLayout(cbPanel, BoxLayout.Y_AXIS));
+            cbPanel.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
             
             Set<String> selectedSet = new LinkedHashSet<>(currentSelectedColumns);
             Set<String> addedCheckboxes = new HashSet<>();
@@ -1034,22 +1036,84 @@ public class Main extends JFrame {
             }
             
             JScrollPane scroll = new JScrollPane(cbPanel);
+            scroll.getVerticalScrollBar().setUnitIncrement(16);
             dialog.add(scroll, BorderLayout.CENTER);
             
-            JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+            // Search bar + Select All / Unselect All header
+            JPanel northContainer = new JPanel(new BorderLayout(4, 4));
+            northContainer.setBorder(BorderFactory.createEmptyBorder(8, 10, 2, 10));
+
+            JPanel searchRow = new JPanel(new BorderLayout(6, 0));
+            JLabel searchLbl = new JLabel("🔍 Search:");
+            JTextField searchField = new JTextField();
+            searchField.setToolTipText("Type to filter columns by name...");
+            JButton clearSearchBtn = new JButton("✕");
+            clearSearchBtn.setMargin(new Insets(2, 6, 2, 6));
+            clearSearchBtn.setToolTipText("Clear search filter");
+            clearSearchBtn.addActionListener(e -> searchField.setText(""));
+            searchRow.add(searchLbl, BorderLayout.WEST);
+            searchRow.add(searchField, BorderLayout.CENTER);
+            searchRow.add(clearSearchBtn, BorderLayout.EAST);
+
+            JLabel countLabel = new JLabel();
+            Runnable updateCountLabel = () -> {
+                int sel = 0;
+                for (JCheckBox cb : checkBoxes) if (cb.isSelected()) sel++;
+                countLabel.setText("Selected: " + sel + " / " + checkBoxes.size());
+            };
+            for (JCheckBox cb : checkBoxes) {
+                cb.addActionListener(e -> updateCountLabel.run());
+            }
+            updateCountLabel.run();
+
+            Runnable filterColumns = () -> {
+                String q = searchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
+                cbPanel.removeAll();
+                for (JCheckBox cb : checkBoxes) {
+                    if (q.isEmpty() || cb.getText().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                        cbPanel.add(cb);
+                    }
+                }
+                cbPanel.revalidate();
+                cbPanel.repaint();
+            };
+
+            searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+                @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { filterColumns.run(); }
+                @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { filterColumns.run(); }
+                @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { filterColumns.run(); }
+            });
+
+            JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 2));
             JButton selectAllBtn = new JButton("Select All");
             JButton unselectAllBtn = new JButton("Unselect All");
             selectAllBtn.addActionListener(e -> {
-                for (JCheckBox cb : checkBoxes) cb.setSelected(true);
+                String q = searchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
+                for (JCheckBox cb : checkBoxes) {
+                    if (q.isEmpty() || cb.getText().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                        cb.setSelected(true);
+                    }
+                }
+                updateCountLabel.run();
             });
             unselectAllBtn.addActionListener(e -> {
-                for (JCheckBox cb : checkBoxes) cb.setSelected(false);
+                String q = searchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
+                for (JCheckBox cb : checkBoxes) {
+                    if (q.isEmpty() || cb.getText().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                        cb.setSelected(false);
+                    }
+                }
+                updateCountLabel.run();
             });
             topPanel.add(selectAllBtn);
             topPanel.add(unselectAllBtn);
-            dialog.add(topPanel, BorderLayout.NORTH);
+
+            northContainer.add(searchRow, BorderLayout.NORTH);
+            northContainer.add(topPanel, BorderLayout.SOUTH);
+            dialog.add(northContainer, BorderLayout.NORTH);
             
             JButton okBtn = new JButton("OK");
+            okBtn.setFont(okBtn.getFont().deriveFont(Font.BOLD));
             okBtn.addActionListener(e -> {
                 currentSelectedColumns.clear();
                 Set<String> chosen = new LinkedHashSet<>();
@@ -1068,13 +1132,28 @@ public class Main extends JFrame {
                 dialog.dispose();
                 loadTableData();
             });
+            JButton cancelBtn = new JButton("Cancel");
+            cancelBtn.addActionListener(e -> dialog.dispose());
             
-            JPanel bottomPanel = new JPanel();
-            bottomPanel.add(okBtn);
+            JPanel bottomPanel = new JPanel(new BorderLayout(8, 0));
+            bottomPanel.setBorder(BorderFactory.createEmptyBorder(4, 12, 8, 12));
+            bottomPanel.add(countLabel, BorderLayout.WEST);
+            JPanel btnRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+            btnRight.add(okBtn);
+            btnRight.add(cancelBtn);
+            bottomPanel.add(btnRight, BorderLayout.EAST);
             dialog.add(bottomPanel, BorderLayout.SOUTH);
+
+            dialog.getRootPane().setDefaultButton(okBtn);
+            dialog.getRootPane().registerKeyboardAction(
+                    e -> dialog.dispose(),
+                    KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                    JComponent.WHEN_IN_FOCUSED_WINDOW
+            );
             
-            dialog.setSize(300, 400);
+            dialog.setSize(380, 480);
             dialog.setLocationRelativeTo(this);
+            SwingUtilities.invokeLater(searchField::requestFocusInWindow);
             dialog.setVisible(true);
     }
 
@@ -2021,44 +2100,147 @@ public class Main extends JFrame {
             if (totalCols == 0) return;
     
             JDialog dialog = new JDialog(Main.this, "Select Join Columns", true);
-            dialog.setLayout(new BorderLayout());
+            dialog.setResizable(true);
+            dialog.setLayout(new BorderLayout(6, 6));
     
             // One tab per table
             JTabbedPane tabs = new JTabbedPane();
+            Map<String, JPanel> tabPanelMap = new LinkedHashMap<>();
             for (String tbl : tableOrder) {
                 JPanel tabPanel = new JPanel();
                 tabPanel.setLayout(new BoxLayout(tabPanel, BoxLayout.Y_AXIS));
+                tabPanel.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
                 for (JCheckBox cb : tableCheckboxMap.get(tbl)) {
                     tabPanel.add(cb);
                 }
-                tabs.addTab(tbl, new JScrollPane(tabPanel));
+                tabPanelMap.put(tbl, tabPanel);
+                JScrollPane sp = new JScrollPane(tabPanel);
+                sp.getVerticalScrollBar().setUnitIncrement(16);
+                tabs.addTab(tbl, sp);
             }
             dialog.add(tabs, BorderLayout.CENTER);
     
-            // Top: Select All / Unselect All (affects active tab only)
-            JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+            // Top: Search bar + Select All / Unselect All
+            JPanel northContainer = new JPanel(new BorderLayout(4, 4));
+            northContainer.setBorder(BorderFactory.createEmptyBorder(8, 10, 2, 10));
+
+            JPanel searchRow = new JPanel(new BorderLayout(6, 0));
+            JLabel searchLbl = new JLabel("🔍 Search columns:");
+            JTextField searchField = new JTextField();
+            searchField.setToolTipText("Type to filter columns across all joined tables...");
+            JButton clearSearchBtn = new JButton("✕");
+            clearSearchBtn.setMargin(new Insets(2, 6, 2, 6));
+            clearSearchBtn.setToolTipText("Clear search filter");
+            clearSearchBtn.addActionListener(e -> searchField.setText(""));
+            searchRow.add(searchLbl, BorderLayout.WEST);
+            searchRow.add(searchField, BorderLayout.CENTER);
+            searchRow.add(clearSearchBtn, BorderLayout.EAST);
+
+            JLabel countLabel = new JLabel();
+            Runnable updateCountLabel = () -> {
+                int sel = 0;
+                for (JCheckBox cb : allCheckBoxes) if (cb.isSelected()) sel++;
+                countLabel.setText("Selected: " + sel + " / " + allCheckBoxes.size());
+            };
+            for (JCheckBox cb : allCheckBoxes) {
+                cb.addActionListener(e -> updateCountLabel.run());
+            }
+            updateCountLabel.run();
+
+            Runnable filterJoinColumns = () -> {
+                String q = searchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
+                int firstMatchingTab = -1;
+                int currentTabMatches = 0;
+                int activeIdx = tabs.getSelectedIndex();
+
+                for (int tIdx = 0; tIdx < tableOrder.size(); tIdx++) {
+                    String tbl = tableOrder.get(tIdx);
+                    JPanel tabPanel = tabPanelMap.get(tbl);
+                    tabPanel.removeAll();
+                    int matchCount = 0;
+                    for (JCheckBox cb : tableCheckboxMap.get(tbl)) {
+                        if (q.isEmpty() || cb.getText().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                            tabPanel.add(cb);
+                            matchCount++;
+                        }
+                    }
+                    tabs.setTitleAt(tIdx, q.isEmpty() ? tbl : (tbl + " (" + matchCount + ")"));
+                    if (matchCount > 0 && firstMatchingTab < 0) {
+                        firstMatchingTab = tIdx;
+                    }
+                    if (tIdx == activeIdx) {
+                        currentTabMatches = matchCount;
+                    }
+                    tabPanel.revalidate();
+                    tabPanel.repaint();
+                }
+
+                if (!q.isEmpty() && currentTabMatches == 0 && firstMatchingTab >= 0) {
+                    tabs.setSelectedIndex(firstMatchingTab);
+                }
+            };
+
+            searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+                @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { filterJoinColumns.run(); }
+                @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { filterJoinColumns.run(); }
+                @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { filterJoinColumns.run(); }
+            });
+
+            JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 2));
             JButton selectAllBtn = new JButton("Select All (Tab)");
             JButton unselectAllBtn = new JButton("Unselect All (Tab)");
             JButton selectGlobalBtn = new JButton("Select All");
             JButton unselectGlobalBtn = new JButton("Unselect All");
             selectAllBtn.addActionListener(e -> {
+                String q = searchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
                 String tbl = tableOrder.get(tabs.getSelectedIndex());
-                for (JCheckBox cb : tableCheckboxMap.get(tbl)) cb.setSelected(true);
+                for (JCheckBox cb : tableCheckboxMap.get(tbl)) {
+                    if (q.isEmpty() || cb.getText().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                        cb.setSelected(true);
+                    }
+                }
+                updateCountLabel.run();
             });
             unselectAllBtn.addActionListener(e -> {
+                String q = searchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
                 String tbl = tableOrder.get(tabs.getSelectedIndex());
-                for (JCheckBox cb : tableCheckboxMap.get(tbl)) cb.setSelected(false);
+                for (JCheckBox cb : tableCheckboxMap.get(tbl)) {
+                    if (q.isEmpty() || cb.getText().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                        cb.setSelected(false);
+                    }
+                }
+                updateCountLabel.run();
             });
-            selectGlobalBtn.addActionListener(e -> { for (JCheckBox cb : allCheckBoxes) cb.setSelected(true); });
-            unselectGlobalBtn.addActionListener(e -> { for (JCheckBox cb : allCheckBoxes) cb.setSelected(false); });
+            selectGlobalBtn.addActionListener(e -> {
+                String q = searchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
+                for (JCheckBox cb : allCheckBoxes) {
+                    if (q.isEmpty() || cb.getText().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                        cb.setSelected(true);
+                    }
+                }
+                updateCountLabel.run();
+            });
+            unselectGlobalBtn.addActionListener(e -> {
+                String q = searchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
+                for (JCheckBox cb : allCheckBoxes) {
+                    if (q.isEmpty() || cb.getText().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                        cb.setSelected(false);
+                    }
+                }
+                updateCountLabel.run();
+            });
             topPanel.add(selectGlobalBtn);
             topPanel.add(unselectGlobalBtn);
             topPanel.add(selectAllBtn);
             topPanel.add(unselectAllBtn);
-            dialog.add(topPanel, BorderLayout.NORTH);
+
+            northContainer.add(searchRow, BorderLayout.NORTH);
+            northContainer.add(topPanel, BorderLayout.SOUTH);
+            dialog.add(northContainer, BorderLayout.NORTH);
     
             final int finalTotalCols = totalCols;
             JButton okBtn = new JButton("OK");
+            okBtn.setFont(okBtn.getFont().deriveFont(Font.BOLD));
             okBtn.addActionListener(e -> {
                 joinSelectedColumns.clear();
                 Set<String> chosen = new LinkedHashSet<>();
@@ -2076,13 +2258,28 @@ public class Main extends JFrame {
                 }
                 dialog.dispose();
             });
+            JButton cancelBtn = new JButton("Cancel");
+            cancelBtn.addActionListener(e -> dialog.dispose());
     
-            JPanel bottomPanel = new JPanel();
-            bottomPanel.add(okBtn);
+            JPanel bottomPanel = new JPanel(new BorderLayout(8, 0));
+            bottomPanel.setBorder(BorderFactory.createEmptyBorder(4, 12, 8, 12));
+            bottomPanel.add(countLabel, BorderLayout.WEST);
+            JPanel btnRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+            btnRight.add(okBtn);
+            btnRight.add(cancelBtn);
+            bottomPanel.add(btnRight, BorderLayout.EAST);
             dialog.add(bottomPanel, BorderLayout.SOUTH);
+
+            dialog.getRootPane().setDefaultButton(okBtn);
+            dialog.getRootPane().registerKeyboardAction(
+                    e -> dialog.dispose(),
+                    KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                    JComponent.WHEN_IN_FOCUSED_WINDOW
+            );
     
-            dialog.setSize(500, 550);
+            dialog.setSize(520, 560);
             dialog.setLocationRelativeTo(this);
+            SwingUtilities.invokeLater(searchField::requestFocusInWindow);
             dialog.setVisible(true);
         }
 

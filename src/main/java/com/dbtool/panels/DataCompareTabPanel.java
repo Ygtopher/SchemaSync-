@@ -1658,17 +1658,60 @@ public class DataCompareTabPanel extends JPanel {
         }
 
         JScrollPane scroll = new JScrollPane(checkListPanel);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
         dlg.add(scroll, BorderLayout.CENTER);
+
+        JPanel northContainer = new JPanel(new BorderLayout(4, 4));
+        northContainer.setBorder(BorderFactory.createEmptyBorder(8, 10, 2, 10));
+
+        JPanel searchRow = new JPanel(new BorderLayout(6, 0));
+        JLabel searchLbl = new JLabel("🔍 Search:");
+        JTextField searchField = new JTextField();
+        searchField.setToolTipText("Type to filter columns by name...");
+        JButton clearSearchBtn = new JButton("✕");
+        clearSearchBtn.setMargin(new Insets(2, 6, 2, 6));
+        clearSearchBtn.addActionListener(e -> searchField.setText(""));
+        searchRow.add(searchLbl, BorderLayout.WEST);
+        searchRow.add(searchField, BorderLayout.CENTER);
+        searchRow.add(clearSearchBtn, BorderLayout.EAST);
+
+        Runnable filterCols = () -> {
+            String q = searchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
+            checkListPanel.removeAll();
+            for (JCheckBox cb : checkMap.values()) {
+                if (q.isEmpty() || cb.getText().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                    checkListPanel.add(cb);
+                }
+            }
+            checkListPanel.revalidate();
+            checkListPanel.repaint();
+        };
+        searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { filterCols.run(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { filterCols.run(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { filterCols.run(); }
+        });
 
         JPanel topQuickBtns = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 4));
         JButton selAllBtn = new JButton("Select All");
         selAllBtn.addActionListener(e -> {
-            for (JCheckBox cb : checkMap.values()) cb.setSelected(true);
+            String q = searchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
+            for (JCheckBox cb : checkMap.values()) {
+                if (q.isEmpty() || cb.getText().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                    cb.setSelected(true);
+                }
+            }
         });
         JButton deselAllBtn = new JButton("Deselect All");
         deselAllBtn.addActionListener(e -> {
+            String q = searchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
             for (Map.Entry<String, JCheckBox> entry : checkMap.entrySet()) {
-                if (!entry.getKey().equalsIgnoreCase(currentKey)) entry.getValue().setSelected(false);
+                if (!entry.getKey().equalsIgnoreCase(currentKey)) {
+                    JCheckBox cb = entry.getValue();
+                    if (q.isEmpty() || cb.getText().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                        cb.setSelected(false);
+                    }
+                }
             }
         });
         JButton excludeTimestampsBtn = new JButton("Exclude Timestamps");
@@ -1683,7 +1726,9 @@ public class DataCompareTabPanel extends JPanel {
         topQuickBtns.add(selAllBtn);
         topQuickBtns.add(deselAllBtn);
         topQuickBtns.add(excludeTimestampsBtn);
-        dlg.add(topQuickBtns, BorderLayout.NORTH);
+        northContainer.add(searchRow, BorderLayout.NORTH);
+        northContainer.add(topQuickBtns, BorderLayout.SOUTH);
+        dlg.add(northContainer, BorderLayout.NORTH);
 
         JPanel bottomP = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 4));
         JButton applyBtn = new JButton("Apply");

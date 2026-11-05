@@ -1,6 +1,6 @@
 # SchemaSync Comprehensive Feature Guide
 
-**Version:** 1.7.5  
+**Version:** 1.7.6  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
