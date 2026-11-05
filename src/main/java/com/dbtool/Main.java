@@ -4225,23 +4225,63 @@ public class Main extends JFrame {
         omniSearchBtn.addActionListener(e -> openOmniSearchDialog());
         topPanel.add(omniSearchBtn);
 
-        JButton dataMaskingBtn = new JButton("🔒 Data Masking");
-        dataMaskingBtn.setToolTipText("Sensitive Data Masking & Anonymization Studio (GDPR/PII)");
-        dataMaskingBtn.addActionListener(e -> openDataMaskingDialog());
-        topPanel.add(dataMaskingBtn);
+        JButton commandPaletteBtn = new JButton("⚡ Quick Jump / Commands (Ctrl+K)");
+        commandPaletteBtn.setFont(commandPaletteBtn.getFont().deriveFont(Font.BOLD));
+        commandPaletteBtn.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
+        commandPaletteBtn.setToolTipText("Open Command Palette to jump to any table, tab, studio tool, or theme (Ctrl+K / Ctrl+P)");
+        commandPaletteBtn.addActionListener(e -> openCommandPaletteDialog());
+        topPanel.add(commandPaletteBtn);
 
-        JButton vaultBtn = new JButton("🛡️ Vault");
-        vaultBtn.setToolTipText("AES-256 Encrypted Credential Vault & Master Password Manager");
-        vaultBtn.addActionListener(e -> openVaultDialog());
-        topPanel.add(vaultBtn);
+        JMenuItem maskMenuItem = new JMenuItem("🔒 Sensitive Data Masking Studio (GDPR/PII)");
+        maskMenuItem.addActionListener(e -> openDataMaskingDialog());
 
-        JButton profilerBtn = new JButton("⏱️ Profiler");
-        profilerBtn.setToolTipText("SQL Query Profiler & Latency Bottleneck Analyzer");
-        profilerBtn.addActionListener(e -> openQueryProfilerDialog());
-        topPanel.add(profilerBtn);
+        JMenuItem vaultMenuItem = new JMenuItem("🛡️ AES-256 Credential Vault");
+        vaultMenuItem.addActionListener(e -> openVaultDialog());
 
-        JButton themeBtn = new JButton("🌙 Dark Mode");
-        themeBtn.addActionListener(e -> com.dbtool.util.ThemeManager.toggleTheme(themeBtn));
+        JMenuItem profilerMenuItem = new JMenuItem("⏱️ SQL Query Profiler & Bottleneck Analyzer");
+        profilerMenuItem.addActionListener(e -> openQueryProfilerDialog());
+
+        JButton studiosMenuBtn = new JButton("🧰 Studios & Tools ▾");
+        studiosMenuBtn.setToolTipText("Access Database Studios: Health Audit, Index Advisor, Schema Drift, Data Masking, Vault & Profiler");
+        studiosMenuBtn.addActionListener(e -> {
+            JPopupMenu studiosMenu = new JPopupMenu();
+            JMenuItem mAudit = new JMenuItem("🛡 Database Health & Performance Audit");
+            mAudit.addActionListener(ev -> auditDbBtn.doClick());
+            studiosMenu.add(mAudit);
+
+            JMenuItem mIdx = new JMenuItem("⚡ Index & Query Performance Advisor");
+            mIdx.addActionListener(ev -> indexAdvisorBtn.doClick());
+            studiosMenu.add(mIdx);
+
+            JMenuItem mDrift = new JMenuItem("📐 Schema Snapshot & Drift Migration Studio");
+            mDrift.addActionListener(ev -> schemaDriftBtn.doClick());
+            studiosMenu.add(mDrift);
+
+            studiosMenu.addSeparator();
+            studiosMenu.add(maskMenuItem);
+            studiosMenu.add(vaultMenuItem);
+            studiosMenu.add(profilerMenuItem);
+
+            studiosMenu.addSeparator();
+            JMenuItem mImport = new JMenuItem("📥 Smart CSV / Excel Data Importer");
+            mImport.addActionListener(ev -> openDataImportDialog());
+            studiosMenu.add(mImport);
+
+            JMenuItem mMock = new JMenuItem("🧪 Synthetic Mock Data Generator");
+            mMock.addActionListener(ev -> openMockDataDialog());
+            studiosMenu.add(mMock);
+
+            studiosMenu.show(studiosMenuBtn, 0, studiosMenuBtn.getHeight());
+        });
+        // Keep quick-access studio menu compact instead of 6 separate top-bar buttons
+        auditDbBtn.setVisible(false);
+        indexAdvisorBtn.setVisible(false);
+        schemaDriftBtn.setVisible(false);
+        topPanel.add(studiosMenuBtn);
+
+        JButton themeBtn = new JButton("🎨 Theme ▾");
+        themeBtn.setToolTipText("Switch Accent Theme Preset (Midnight Blue, Emerald, Obsidian, Cyber Purple, Solar Light) & UI Zoom");
+        themeBtn.addActionListener(e -> com.dbtool.util.ThemeManager.showThemePopupMenu(themeBtn, themeBtn));
         topPanel.add(themeBtn);
 
         JButton aboutBtn = new JButton("ℹ About");
@@ -4508,6 +4548,96 @@ public class Main extends JFrame {
                 openOmniSearchDialog();
             }
         });
+
+        // Global Shortcuts: Ctrl+K and Ctrl+P for Command Palette & Quick Table Switcher
+        KeyStroke ctrlK = KeyStroke.getKeyStroke(KeyEvent.VK_K, InputEvent.CTRL_DOWN_MASK);
+        KeyStroke ctrlP = KeyStroke.getKeyStroke(KeyEvent.VK_P, InputEvent.CTRL_DOWN_MASK);
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(ctrlK, "commandPaletteGlobal");
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(ctrlP, "commandPaletteGlobal");
+        getRootPane().getActionMap().put("commandPaletteGlobal", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) {
+                openCommandPaletteDialog();
+            }
+        });
+    }
+
+    public void openCommandPaletteDialog() {
+        List<com.dbtool.panels.CommandPaletteDialog.PaletteItem> items = new ArrayList<>();
+
+        // 1. All loaded database tables
+        if (loadedTables != null) {
+            for (String tbl : loadedTables) {
+                items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                        "TABLE",
+                        "🗄️ " + tbl,
+                        "Open table '" + tbl + "' in Browse & Search",
+                        "Enter",
+                        () -> openTableInBrowse(tbl)
+                ));
+            }
+        }
+
+        // 2. All Workbench Tabs
+        if (tabbedPane != null) {
+            for (int i = 0; i < tabbedPane.getTabCount(); i++) {
+                final int tabIdx = i;
+                String title = tabbedPane.getTitleAt(i);
+                items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                        "TAB",
+                        "🧭 Switch to " + title,
+                        "Activate the '" + title + "' workbench tab",
+                        "",
+                        () -> tabbedPane.setSelectedIndex(tabIdx)
+                ));
+            }
+        }
+
+        // 3. Studio Tools & Actions
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "STUDIO", "🔍 Global Database OmniSearch", "Search across all tables and columns", "Ctrl+Shift+F", this::openOmniSearchDialog));
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "STUDIO", "⚡ Index & Performance Advisor", "Detect unindexed FKs, redundant indexes, and table bloat", "", this::openIndexAdvisorDialog));
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "STUDIO", "📐 Schema Snapshot & Drift Studio", "Capture schema snapshots and generate UP/DOWN migrations", "", this::openSchemaDriftDialog));
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "STUDIO", "🔒 Sensitive Data Masking Studio", "Anonymize PII columns for GDPR/HIPAA compliance", "", this::openDataMaskingDialog));
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "STUDIO", "🛡️ AES-256 Credential Vault", "Manage encrypted database connection profiles", "", this::openVaultDialog));
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "STUDIO", "⏱️ SQL Query Profiler", "Analyze query execution latency and EXPLAIN plans", "", this::openQueryProfilerDialog));
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "STUDIO", "📥 Import CSV / Excel Data", "Import spreadsheets into the current table", "", this::openDataImportDialog));
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "STUDIO", "🧪 Generate Synthetic Mock Data", "Populate realistic FK-safe test records", "", this::openMockDataDialog));
+
+        // 4. Theme Presets & UI Zoom
+        for (com.dbtool.util.ThemeManager.ThemePreset preset : com.dbtool.util.ThemeManager.ThemePreset.values()) {
+            items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                    "THEME",
+                    "🎨 Theme: " + preset.getDisplayName(),
+                    "Switch application color palette and accent theme",
+                    "",
+                    () -> com.dbtool.util.ThemeManager.setPreset(preset, null)
+            ));
+        }
+
+        float[] scales = {0.9f, 1.0f, 1.1f, 1.25f};
+        for (float sc : scales) {
+            int pct = Math.round(sc * 100);
+            items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                    "ZOOM",
+                    "🔍 Interface Zoom: " + pct + "%",
+                    "Scale global fonts and table row heights to " + pct + "%",
+                    "",
+                    () -> com.dbtool.util.ThemeManager.setUiScaleFactor(sc, null)
+            ));
+        }
+
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "SYSTEM", "🔄 Check for Updates", "Check GitHub Releases for instant 1.2 MB delta patch", "",
+                () -> com.dbtool.util.UpdateChecker.checkForUpdates(this, false)));
+
+        new com.dbtool.panels.CommandPaletteDialog(this, items).setVisible(true);
     }
 
     public void openOmniSearchDialog() {
