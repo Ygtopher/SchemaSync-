@@ -5,25 +5,41 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.swing.*;
 import java.awt.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.zip.CRC32;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 /**
- * Enterprise In-App Auto-Updater & Update Studio.
+ * Enterprise In-App Auto-Updater & Instant Delta Update Studio.
  * Supports:
- * - Non-blocking background update checks on launch or demand
- * - Interactive release changelog viewer
- * - 1-Click In-App automated download & silent restart
- * - Manual browser download of Windows installers & GitHub release browsing
+ * - ⚡ Lightweight Delta Patch Updates (SchemaSync-patch.jar ~1.2 MB vs 57 MB full package)
+ * - 🔕 Silent Background Pre-Download & Staging with "✨ Update Ready — Restart" toolbar pill
+ * - 🛠️ Direct In-Place Binary Swap for both SchemaSync.jar and Launch4j SchemaSync.exe (no setup wizard)
+ * - Manual browser download of Windows/Linux installers & GitHub release browsing
  *
  * Created & Developed by: NSENGIYUMVA Christophe
  * Copyright (C) 2026 NSENGIYUMVA Christophe. All rights reserved.
@@ -33,6 +49,18 @@ public class UpdateChecker {
     public static final String CURRENT_VERSION = com.dbtool.Main.APP_VERSION;
     public static final String GITHUB_REPO = "Ygtopher/SchemaSync-";
     public static final String API_URL = "https://api.github.com/repos/" + GITHUB_REPO + "/releases/latest";
+
+    private static volatile JButton toolbarUpdateButton = null;
+    private static volatile String stagedVersionTag = null;
+    private static volatile Map<File, File> preStagedReplacements = null;
+
+    /**
+     * Registers the main window's toolbar Update button so background update staging
+     * can turn it into an interactive "✨ Update Ready (vX.Y.Z) — Restart" pill.
+     */
+    public static void registerToolbarButton(JButton button) {
+        toolbarUpdateButton = button;
+    }
 
     public static void checkForUpdates(Component parent, boolean silentIfUpToDate) {
         new Thread(() -> {
@@ -70,7 +98,7 @@ public class UpdateChecker {
                 }
 
                 StringBuilder sb = new StringBuilder();
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
                     String line;
                     while ((line = reader.readLine()) != null) sb.append(line);
                 }
@@ -83,9 +111,14 @@ public class UpdateChecker {
                 String body = release.path("body").asText("No release notes provided.");
                 String htmlUrl = release.path("html_url").asText("https://github.com/" + GITHUB_REPO + "/releases");
 
-                // Discover assets across platforms (Windows .exe, Ubuntu .deb, Fedora .rpm, Universal .jar)
+                // Discover assets across platforms (Delta patch .jar, Windows .exe, Ubuntu .deb, Fedora .rpm, Universal .jar)
+                String patchUrl = null;
+                String patchName = null;
+                long patchSize = 0;
                 String setupUrl = null;
+                long setupSize = 0;
                 String exeUrl = null;
+                long exeSize = 0;
                 String debUrl = null;
                 String debName = null;
                 long debSize = 0;
@@ -95,7 +128,6 @@ public class UpdateChecker {
                 String jarUrl = null;
                 String jarName = null;
                 long jarSize = 0;
-                long setupSize = 0;
 
                 JsonNode assets = release.path("assets");
                 if (assets.isArray()) {
@@ -103,21 +135,27 @@ public class UpdateChecker {
                         String aName = asset.path("name").asText("");
                         String aUrl = asset.path("browser_download_url").asText(null);
                         long aSize = asset.path("size").asLong(0);
-                        if (aName.equalsIgnoreCase("SchemaSync-Setup.exe")) {
+                        String lower = aName.toLowerCase();
+                        if (lower.contains("patch") && lower.endsWith(".jar")) {
+                            patchUrl = aUrl;
+                            patchName = aName;
+                            patchSize = aSize;
+                        } else if (aName.equalsIgnoreCase("SchemaSync-Setup.exe")) {
                             setupUrl = aUrl;
                             setupSize = aSize;
                         } else if (aName.equalsIgnoreCase("SchemaSync.exe")) {
                             exeUrl = aUrl;
+                            exeSize = aSize;
                             if (setupSize == 0) setupSize = aSize;
-                        } else if (aName.toLowerCase().endsWith(".deb")) {
+                        } else if (lower.endsWith(".deb")) {
                             debUrl = aUrl;
                             debName = aName;
                             debSize = aSize;
-                        } else if (aName.toLowerCase().endsWith(".rpm")) {
+                        } else if (lower.endsWith(".rpm")) {
                             rpmUrl = aUrl;
                             rpmName = aName;
                             rpmSize = aSize;
-                        } else if (aName.toLowerCase().endsWith(".jar")) {
+                        } else if (lower.endsWith(".jar")) {
                             jarUrl = aUrl;
                             jarName = aName;
                             jarSize = aSize;
@@ -129,10 +167,7 @@ public class UpdateChecker {
                 boolean hasDpkg = !isWindows && new File("/usr/bin/dpkg").exists();
                 boolean hasRpm = !isWindows && !hasDpkg && new File("/usr/bin/rpm").exists();
 
-                File runningJar = getRunningJarFile();
-                boolean isRunningExe = isRunningFromExe();
-
-                // 1. Manual browser download package ("📥 Download Package")
+                // 1. Manual browser download package ("📥 Download Full Installer")
                 String manualDownloadUrl;
                 String manualDownloadFileName;
                 long manualDownloadSize;
@@ -145,7 +180,7 @@ public class UpdateChecker {
                     } else if (exeUrl != null) {
                         manualDownloadUrl = exeUrl;
                         manualDownloadFileName = "SchemaSync-" + tagName + ".exe";
-                        manualDownloadSize = setupSize;
+                        manualDownloadSize = exeSize;
                     } else if (jarUrl != null) {
                         manualDownloadUrl = jarUrl;
                         manualDownloadFileName = jarName != null ? jarName : "SchemaSync.jar";
@@ -167,54 +202,69 @@ public class UpdateChecker {
                     manualDownloadUrl = jarUrl;
                     manualDownloadFileName = jarName != null ? jarName : "SchemaSync.jar";
                     manualDownloadSize = jarSize;
-                } else if (debUrl != null) {
-                    manualDownloadUrl = debUrl;
-                    manualDownloadFileName = debName != null ? debName : "schemasync_update.deb";
-                    manualDownloadSize = debSize;
                 } else {
                     manualDownloadUrl = setupUrl != null ? setupUrl : (exeUrl != null ? exeUrl : htmlUrl);
                     manualDownloadFileName = "SchemaSync-Update";
                     manualDownloadSize = setupSize;
                 }
 
-                // 2. Automated 1-Click Update & Restart package ("⚡ 1-Click Update & Restart")
+                // 2. Automated Instant In-Place Update package:
+                // Prefer lightweight SchemaSync-patch.jar (~1.2 MB) whenever local patchable binaries exist!
+                List<File> localBinaries = resolveLocalPatchableBinaries();
+                boolean canUseDeltaPatch = patchUrl != null && !localBinaries.isEmpty();
+
                 String autoUpdateUrl;
                 String autoUpdateFileName;
+                long autoUpdateSize;
+                String fallbackFullUrl = jarUrl != null ? jarUrl : (isWindows && exeUrl != null ? exeUrl : manualDownloadUrl);
+                String fallbackFullFileName = jarUrl != null ? "SchemaSync.jar" : (isWindows && exeUrl != null ? "SchemaSync.exe" : manualDownloadFileName);
 
-                if (isWindows) {
-                    if (runningJar != null && !isRunningExe && jarUrl != null) {
-                        // Running via java -jar SchemaSync.jar: update running JAR directly
+                if (canUseDeltaPatch) {
+                    autoUpdateUrl = patchUrl;
+                    autoUpdateFileName = patchName != null ? patchName : "SchemaSync-patch.jar";
+                    autoUpdateSize = patchSize;
+                } else if (isWindows) {
+                    // Direct in-place swap without running Setup wizard if local JAR or EXE exists
+                    File runningJar = getRunningJarFile();
+                    File runningExe = getRunningExeFile();
+                    if (runningJar != null && jarUrl != null) {
                         autoUpdateUrl = jarUrl;
                         autoUpdateFileName = "SchemaSync.jar";
+                        autoUpdateSize = jarSize;
+                    } else if (runningExe != null && exeUrl != null) {
+                        autoUpdateUrl = exeUrl;
+                        autoUpdateFileName = "SchemaSync.exe";
+                        autoUpdateSize = exeSize;
+                    } else if (jarUrl != null && !localBinaries.isEmpty()) {
+                        autoUpdateUrl = jarUrl;
+                        autoUpdateFileName = "SchemaSync.jar";
+                        autoUpdateSize = jarSize;
                     } else if (setupUrl != null) {
-                        // Running installed or native executable: use Inno Setup installer
                         autoUpdateUrl = setupUrl;
                         autoUpdateFileName = "SchemaSync-Setup-" + tagName + ".exe";
-                    } else if (exeUrl != null) {
-                        // Standalone portable SchemaSync.exe
-                        autoUpdateUrl = exeUrl;
-                        autoUpdateFileName = "SchemaSync-" + tagName + ".exe";
-                    } else if (jarUrl != null) {
-                        autoUpdateUrl = jarUrl;
-                        autoUpdateFileName = "SchemaSync.jar";
+                        autoUpdateSize = setupSize;
                     } else {
                         autoUpdateUrl = manualDownloadUrl;
                         autoUpdateFileName = manualDownloadFileName;
+                        autoUpdateSize = manualDownloadSize;
                     }
                 } else {
-                    // Linux: prefer universal JAR for password-free user-level update
                     if (jarUrl != null) {
                         autoUpdateUrl = jarUrl;
                         autoUpdateFileName = "SchemaSync.jar";
+                        autoUpdateSize = jarSize;
                     } else if (hasDpkg && debUrl != null) {
                         autoUpdateUrl = debUrl;
                         autoUpdateFileName = debName != null ? debName : "schemasync_update.deb";
+                        autoUpdateSize = debSize;
                     } else if (hasRpm && rpmUrl != null) {
                         autoUpdateUrl = rpmUrl;
                         autoUpdateFileName = rpmName != null ? rpmName : "schemasync_update.rpm";
+                        autoUpdateSize = rpmSize;
                     } else {
                         autoUpdateUrl = manualDownloadUrl;
                         autoUpdateFileName = manualDownloadFileName;
+                        autoUpdateSize = manualDownloadSize;
                     }
                 }
 
@@ -223,13 +273,25 @@ public class UpdateChecker {
                 final long finalManualSize = manualDownloadSize;
                 final String finalAutoUrl = autoUpdateUrl;
                 final String finalAutoName = autoUpdateFileName;
+                final long finalAutoSize = autoUpdateSize;
+                final String finalFallbackUrl = fallbackFullUrl;
+                final String finalFallbackName = fallbackFullFileName;
 
                 if (isNewerVersion(tagName, CURRENT_VERSION)) {
-                    SwingUtilities.invokeLater(() -> {
-                        showUpdateDialog(parent, tagName, releaseName, body, htmlUrl,
+                    if (silentIfUpToDate && !localBinaries.isEmpty()) {
+                        // Silent background pre-download & staging (VS Code / Chrome style)
+                        stageUpdateInBackground(parent, tagName, releaseName, body, htmlUrl,
                                 finalManualUrl, finalManualName, finalManualSize,
-                                finalAutoUrl, finalAutoName);
-                    });
+                                finalAutoUrl, finalAutoName, finalAutoSize,
+                                finalFallbackUrl, finalFallbackName);
+                    } else {
+                        SwingUtilities.invokeLater(() -> {
+                            showUpdateDialog(parent, tagName, releaseName, body, htmlUrl,
+                                    finalManualUrl, finalManualName, finalManualSize,
+                                    finalAutoUrl, finalAutoName, finalAutoSize,
+                                    finalFallbackUrl, finalFallbackName);
+                        });
+                    }
                 } else {
                     if (!silentIfUpToDate) {
                         SwingUtilities.invokeLater(() -> {
@@ -267,7 +329,62 @@ public class UpdateChecker {
                     });
                 }
             }
-        }).start();
+        }, "SchemaSync-UpdateChecker").start();
+    }
+
+    /**
+     * Silently downloads the update (~1.2 MB delta patch or JAR) in the background,
+     * pre-stages the patched binary on disk, and lights up the toolbar pill button
+     * ("✨ Update Ready (vX.Y.Z) — Restart") so the user can update in 1 second with zero wait.
+     */
+    private static void stageUpdateInBackground(Component parent, String tagName, String releaseName,
+                                                String body, String htmlUrl,
+                                                String manualUrl, String manualName, long manualSize,
+                                                String autoUrl, String autoName, long autoSize,
+                                                String fallbackUrl, String fallbackName) {
+        JButton btn = toolbarUpdateButton;
+        if (btn != null) {
+            SwingUtilities.invokeLater(() -> {
+                btn.setText("⏳ Downloading " + tagName + "...");
+                btn.setToolTipText("Silently downloading SchemaSync " + tagName + " update in the background...");
+            });
+        }
+
+        try {
+            File tempDir = new File(System.getProperty("java.io.tmpdir"), "SchemaSyncUpdate");
+            if (!tempDir.exists()) tempDir.mkdirs();
+            File downloaded = new File(tempDir, autoName);
+
+            downloadFileWithRedirects(autoUrl, downloaded, null, null);
+            Map<File, File> stagedMap = prepareStagedBinaries(downloaded, fallbackUrl, fallbackName, tempDir);
+
+            if (!stagedMap.isEmpty()) {
+                stagedVersionTag = tagName;
+                preStagedReplacements = stagedMap;
+
+                SwingUtilities.invokeLater(() -> {
+                    if (toolbarUpdateButton != null) {
+                        toolbarUpdateButton.setText("✨ Update Ready (" + tagName + ") — Restart");
+                        toolbarUpdateButton.setBackground(new Color(16, 185, 129));
+                        toolbarUpdateButton.setForeground(Color.WHITE);
+                        toolbarUpdateButton.setFont(toolbarUpdateButton.getFont().deriveFont(Font.BOLD));
+                        toolbarUpdateButton.setToolTipText("SchemaSync " + tagName + " is already downloaded and patched! Click to restart in 1 second.");
+                    }
+                });
+                return;
+            }
+        } catch (Exception ignored) {
+            // Fall back to showing normal update button state if silent pre-staging fails
+        }
+
+        SwingUtilities.invokeLater(() -> {
+            if (toolbarUpdateButton != null) {
+                toolbarUpdateButton.setText("🚀 Update " + tagName);
+                toolbarUpdateButton.setBackground(new Color(16, 185, 129));
+                toolbarUpdateButton.setForeground(Color.WHITE);
+                toolbarUpdateButton.setToolTipText("New SchemaSync update " + tagName + " available! Click to update.");
+            }
+        });
     }
 
     public static boolean isNewerVersion(String remote, String current) {
@@ -299,25 +416,42 @@ public class UpdateChecker {
     private static void showUpdateDialog(Component parent, String tagName, String releaseName,
                                          String body, String htmlUrl, String downloadUrl,
                                          String downloadFileName, long packageSize,
-                                         String autoUpdateUrl, String autoUpdateFileName) {
+                                         String autoUpdateUrl, String autoUpdateFileName, long autoUpdateSize,
+                                         String fallbackFullUrl, String fallbackFullName) {
         Frame owner = parent instanceof Frame ? (Frame) parent : (Frame) SwingUtilities.getWindowAncestor(parent);
-        JDialog dlg = new JDialog(owner, "🚀 SchemaSync Update Available: " + tagName, true);
-        dlg.setSize(640, 500);
+        JDialog dlg = new JDialog(owner, "🚀 SchemaSync Instant Update: " + tagName, true);
+        dlg.setSize(660, 520);
         dlg.setLocationRelativeTo(parent);
         dlg.setLayout(new BorderLayout(10, 10));
+
+        boolean isAlreadyStaged = tagName.equals(stagedVersionTag)
+                && preStagedReplacements != null
+                && !preStagedReplacements.isEmpty();
+        boolean isDeltaPatch = autoUpdateFileName != null && autoUpdateFileName.toLowerCase().contains("patch");
 
         // Header
         JPanel header = new JPanel(new GridLayout(3, 1, 2, 2));
         header.setBorder(BorderFactory.createEmptyBorder(14, 18, 6, 18));
-        JLabel title = new JLabel("A new version of SchemaSync is available!");
+        JLabel title = new JLabel(isAlreadyStaged
+                ? "✨ SchemaSync " + tagName + " is downloaded and ready to apply!"
+                : "A new version of SchemaSync is available!");
         title.setFont(title.getFont().deriveFont(Font.BOLD, 15f));
         title.setForeground(new Color(16, 185, 129));
 
         JLabel sub = new JLabel("Installed: v" + CURRENT_VERSION + "  ➔  Available: " + tagName + " (" + releaseName + ")");
         sub.setFont(sub.getFont().deriveFont(Font.PLAIN, 13f));
 
-        String sizeStr = packageSize > 0 ? " • Package: " + downloadFileName + " (" + formatFileSize(packageSize) + ")" : "";
-        JLabel sizeLbl = new JLabel("Published on GitHub" + sizeStr);
+        String modeDesc;
+        if (isAlreadyStaged) {
+            modeDesc = "⚡ Instant Hot-Swap Ready (0 MB download • 1-second restart)";
+        } else if (isDeltaPatch) {
+            String patchSz = autoUpdateSize > 0 ? formatFileSize(autoUpdateSize) : "~1.2 MB";
+            modeDesc = "⚡ Fast Delta Patch (" + patchSz + " in-place code update — no full reinstall needed)";
+        } else {
+            String pkgSz = autoUpdateSize > 0 ? formatFileSize(autoUpdateSize) : (packageSize > 0 ? formatFileSize(packageSize) : "");
+            modeDesc = "In-Place Package Update" + (!pkgSz.isEmpty() ? " (" + pkgSz + ")" : "");
+        }
+        JLabel sizeLbl = new JLabel(modeDesc);
         sizeLbl.setForeground(Color.GRAY);
         sizeLbl.setFont(sizeLbl.getFont().deriveFont(Font.ITALIC, 11f));
 
@@ -341,17 +475,18 @@ public class UpdateChecker {
         southPanel.setLayout(new BoxLayout(southPanel, BoxLayout.Y_AXIS));
         southPanel.setBorder(BorderFactory.createEmptyBorder(6, 16, 12, 16));
 
-        // Progress section
         JPanel progressSection = new JPanel(new BorderLayout(6, 6));
         progressSection.setBorder(BorderFactory.createEmptyBorder(4, 0, 8, 0));
-        JLabel statusLabel = new JLabel("Select an option below to update.");
+        JLabel statusLabel = new JLabel(isAlreadyStaged
+                ? "✅ Update is already staged on disk — click the green button below for a 1-second restart."
+                : "Click the green button below for an in-place update without reinstalling from scratch.");
         statusLabel.setFont(statusLabel.getFont().deriveFont(Font.PLAIN, 12f));
 
         JProgressBar progressBar = new JProgressBar(0, 100);
         progressBar.setStringPainted(true);
         progressBar.setVisible(false);
 
-        JCheckBox silentRestartBox = new JCheckBox("Automatically close & restart SchemaSync after installation", true);
+        JCheckBox silentRestartBox = new JCheckBox("Automatically close & restart SchemaSync after applying update", true);
         silentRestartBox.setFont(silentRestartBox.getFont().deriveFont(Font.PLAIN, 11f));
 
         JPanel progSub = new JPanel(new BorderLayout(4, 4));
@@ -365,14 +500,18 @@ public class UpdateChecker {
         // Buttons
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
 
-        JButton updateNowBtn = new JButton("⚡ 1-Click Update & Restart");
+        String primaryBtnText = isAlreadyStaged
+                ? "⚡ Apply Ready Update & Restart (1s)"
+                : (isDeltaPatch ? "⚡ Instant Patch & Restart (" + (autoUpdateSize > 0 ? formatFileSize(autoUpdateSize) : "~1.2 MB") + ")"
+                                : "⚡ 1-Click Update & Restart");
+        JButton updateNowBtn = new JButton(primaryBtnText);
         updateNowBtn.setFont(updateNowBtn.getFont().deriveFont(Font.BOLD, 12f));
-        updateNowBtn.setToolTipText("Downloads the verified package in background, installs update, and restarts SchemaSync");
+        updateNowBtn.setToolTipText("Updates SchemaSync in-place without running the installer wizard and restarts immediately");
         updateNowBtn.setBackground(new Color(16, 185, 129));
         updateNowBtn.setForeground(Color.WHITE);
 
-        JButton downloadInstallerBtn = new JButton("📥 Download Package");
-        downloadInstallerBtn.setToolTipText("Open direct download link in browser to save the package manually");
+        JButton downloadInstallerBtn = new JButton("📥 Full Installer");
+        downloadInstallerBtn.setToolTipText("Open direct download link in browser if you prefer the full standalone installer");
         downloadInstallerBtn.addActionListener(e -> {
             try {
                 Desktop.getDesktop().browse(new URI(downloadUrl));
@@ -392,15 +531,11 @@ public class UpdateChecker {
         });
 
         JButton laterBtn = new JButton("Later");
-        laterBtn.addActionListener(e -> dlg.dispose());
-
         AtomicBoolean isDownloading = new AtomicBoolean(false);
         AtomicBoolean cancelRequested = new AtomicBoolean(false);
 
         updateNowBtn.addActionListener(e -> {
             if (isDownloading.get()) return;
-
-            // Start in-app download
             isDownloading.set(true);
             cancelRequested.set(false);
 
@@ -411,115 +546,75 @@ public class UpdateChecker {
 
             progressBar.setValue(0);
             progressBar.setVisible(true);
-            statusLabel.setText("Connecting to download server...");
 
             new Thread(() -> {
                 File tempInstaller = null;
                 try {
+                    boolean isWin = System.getProperty("os.name", "").toLowerCase().contains("win");
+
+                    // Fast path: if background thread already staged the patched binaries, swap & restart immediately!
+                    if (tagName.equals(stagedVersionTag) && preStagedReplacements != null && !preStagedReplacements.isEmpty()) {
+                        SwingUtilities.invokeLater(() -> {
+                            progressBar.setIndeterminate(true);
+                            statusLabel.setText("⚡ Applying pre-staged update and restarting SchemaSync...");
+                        });
+                        applyStagedMapAndRestart(preStagedReplacements, tagName, silentRestartBox.isSelected(), dlg);
+                        return;
+                    }
+
                     File tempDir = new File(System.getProperty("java.io.tmpdir"), "SchemaSyncUpdate");
                     if (!tempDir.exists()) tempDir.mkdirs();
                     tempInstaller = new File(tempDir, autoUpdateFileName);
 
-                    // Handle redirects (GitHub release asset downloads redirect to AWS S3)
-                    URL curUrl = new URI(autoUpdateUrl).toURL();
-                    HttpURLConnection conn = null;
-                    int redirectCount = 0;
-                    while (redirectCount < 8) {
-                        conn = (HttpURLConnection) curUrl.openConnection();
-                        conn.setRequestProperty("User-Agent", "SchemaSync/" + CURRENT_VERSION);
-                        conn.setConnectTimeout(10000);
-                        conn.setReadTimeout(30000);
-                        conn.setInstanceFollowRedirects(true);
-                        int status = conn.getResponseCode();
-                        if (status == HttpURLConnection.HTTP_MOVED_PERM ||
-                            status == HttpURLConnection.HTTP_MOVED_TEMP ||
-                            status == HttpURLConnection.HTTP_SEE_OTHER ||
-                            status == 307 || status == 308) {
-                            String newLoc = conn.getHeaderField("Location");
-                            conn.disconnect();
-                            if (newLoc == null || newLoc.isEmpty()) break;
-                            curUrl = new URI(newLoc).toURL();
-                            redirectCount++;
-                        } else {
-                            break;
-                        }
-                    }
-
-                    if (conn == null || conn.getResponseCode() != 200) {
-                        int code = conn != null ? conn.getResponseCode() : -1;
-                        throw new Exception("HTTP server returned error code " + code);
-                    }
-
-                    long totalLength = conn.getContentLengthLong();
-                    try (InputStream in = conn.getInputStream();
-                         FileOutputStream out = new FileOutputStream(tempInstaller)) {
-
-                        byte[] buffer = new byte[32768];
-                        long downloaded = 0;
-                        int read;
-                        long startTime = System.currentTimeMillis();
-                        long lastUiUpdate = startTime;
-
-                        while ((read = in.read(buffer)) != -1) {
-                            if (cancelRequested.get()) {
-                                in.close();
-                                out.close();
-                                if (tempInstaller.exists()) tempInstaller.delete();
-                                SwingUtilities.invokeLater(() -> {
-                                    statusLabel.setText("Update cancelled.");
-                                    progressBar.setVisible(false);
-                                    updateNowBtn.setEnabled(true);
-                                    downloadInstallerBtn.setEnabled(true);
-                                    viewGithubBtn.setEnabled(true);
-                                    laterBtn.setText("Later");
-                                    isDownloading.set(false);
-                                });
-                                return;
-                            }
-
-                            out.write(buffer, 0, read);
-                            downloaded += read;
-                            long now = System.currentTimeMillis();
-
-                            if (now - lastUiUpdate > 120) {
-                                final long curDown = downloaded;
-                                double elapsed = (now - startTime) / 1000.0;
-                                double mbps = elapsed > 0 ? (curDown / (1024.0 * 1024.0)) / elapsed : 0;
-                                int percent = totalLength > 0 ? (int) ((curDown * 100) / totalLength) : -1;
-
-                                SwingUtilities.invokeLater(() -> {
-                                    if (percent >= 0) {
-                                        progressBar.setIndeterminate(false);
-                                        progressBar.setValue(percent);
-                                        statusLabel.setText(String.format("Downloading: %s / %s (%d%%) • %.1f MB/s",
-                                            formatFileSize(curDown), formatFileSize(totalLength), percent, mbps));
-                                    } else {
-                                        progressBar.setIndeterminate(true);
-                                        statusLabel.setText(String.format("Downloading: %s • %.1f MB/s",
-                                            formatFileSize(curDown), mbps));
-                                    }
-                                });
-                                lastUiUpdate = now;
-                            }
-                        }
-                    }
-
-                    final File finalInstaller = tempInstaller;
-                    boolean isWindows = System.getProperty("os.name", "").toLowerCase().contains("win");
-
-                    if (isWindows) {
+                    statusLabel.setText("Connecting to GitHub release server...");
+                    downloadFileWithRedirects(autoUpdateUrl, tempInstaller, cancelRequested, (curDown, totalLen, mbps) -> {
+                        int percent = totalLen > 0 ? (int) ((curDown * 100) / totalLen) : -1;
                         SwingUtilities.invokeLater(() -> {
-                            progressBar.setIndeterminate(true);
-                            statusLabel.setText("📦 Applying update and restarting SchemaSync...");
+                            if (percent >= 0) {
+                                progressBar.setIndeterminate(false);
+                                progressBar.setValue(percent);
+                                statusLabel.setText(String.format("Downloading %s: %s / %s (%d%%) • %.1f MB/s",
+                                        isDeltaPatch ? "delta patch" : "update",
+                                        formatFileSize(curDown), formatFileSize(totalLen), percent, mbps));
+                            } else {
+                                progressBar.setIndeterminate(true);
+                                statusLabel.setText(String.format("Downloading: %s • %.1f MB/s",
+                                        formatFileSize(curDown), mbps));
+                            }
                         });
-                        installAndRestartOnWindows(finalInstaller, tagName, silentRestartBox.isSelected(), dlg);
+                    });
+
+                    if (cancelRequested.get()) {
+                        if (tempInstaller.exists()) tempInstaller.delete();
+                        SwingUtilities.invokeLater(() -> {
+                            statusLabel.setText("Update cancelled.");
+                            progressBar.setVisible(false);
+                            updateNowBtn.setEnabled(true);
+                            downloadInstallerBtn.setEnabled(true);
+                            viewGithubBtn.setEnabled(true);
+                            laterBtn.setText("Later");
+                            isDownloading.set(false);
+                        });
+                        return;
+                    }
+
+                    SwingUtilities.invokeLater(() -> {
+                        progressBar.setIndeterminate(true);
+                        statusLabel.setText("⚡ Patching local installation in-place and restarting...");
+                    });
+
+                    // Try in-place delta patch / staged swap first
+                    Map<File, File> stagedMap = prepareStagedBinaries(tempInstaller, fallbackFullUrl, fallbackFullName, tempDir);
+                    if (!stagedMap.isEmpty()) {
+                        applyStagedMapAndRestart(stagedMap, tagName, silentRestartBox.isSelected(), dlg);
+                        return;
+                    }
+
+                    // Legacy fallback if no local writable binaries were matched
+                    if (isWin) {
+                        installAndRestartOnWindows(tempInstaller, tagName, silentRestartBox.isSelected(), dlg);
                     } else {
-                        // Ubuntu / Linux 1-Click Update & Restart
-                        SwingUtilities.invokeLater(() -> {
-                            progressBar.setIndeterminate(true);
-                            statusLabel.setText("📦 Applying update and restarting SchemaSync...");
-                        });
-                        installAndRestartOnLinux(finalInstaller, tagName, silentRestartBox.isSelected(), dlg);
+                        installAndRestartOnLinux(tempInstaller, tagName, silentRestartBox.isSelected(), dlg);
                     }
 
                 } catch (Exception ex) {
@@ -538,11 +633,11 @@ public class UpdateChecker {
 
                         JOptionPane.showMessageDialog(dlg,
                             "Unable to complete 1-Click Update:\n" + ex.getMessage() +
-                            "\n\nYou can still download the package manually using the 'Download Package' button.",
+                            "\n\nYou can still download the package manually using 'Full Installer'.",
                             "Update Error", JOptionPane.WARNING_MESSAGE);
                     });
                 }
-            }).start();
+            }, "SchemaSync-InstantUpdater").start();
         });
 
         laterBtn.addActionListener(e -> {
@@ -562,6 +657,515 @@ public class UpdateChecker {
         dlg.add(southPanel, BorderLayout.SOUTH);
 
         dlg.setVisible(true);
+    }
+
+    private interface DownloadProgressCallback {
+        void onProgress(long downloadedBytes, long totalBytes, double mbPerSec);
+    }
+
+    private static void downloadFileWithRedirects(String urlStr, File destFile,
+                                                  AtomicBoolean cancelRequested,
+                                                  DownloadProgressCallback progressCallback) throws Exception {
+        URL curUrl = new URI(urlStr).toURL();
+        HttpURLConnection conn = null;
+        int redirectCount = 0;
+        while (redirectCount < 8) {
+            conn = (HttpURLConnection) curUrl.openConnection();
+            conn.setRequestProperty("User-Agent", "SchemaSync/" + CURRENT_VERSION);
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(30000);
+            conn.setInstanceFollowRedirects(true);
+            int status = conn.getResponseCode();
+            if (status == HttpURLConnection.HTTP_MOVED_PERM ||
+                status == HttpURLConnection.HTTP_MOVED_TEMP ||
+                status == HttpURLConnection.HTTP_SEE_OTHER ||
+                status == 307 || status == 308) {
+                String newLoc = conn.getHeaderField("Location");
+                conn.disconnect();
+                if (newLoc == null || newLoc.isEmpty()) break;
+                curUrl = new URI(newLoc).toURL();
+                redirectCount++;
+            } else {
+                break;
+            }
+        }
+
+        if (conn == null || conn.getResponseCode() != 200) {
+            int code = conn != null ? conn.getResponseCode() : -1;
+            throw new Exception("HTTP server returned error code " + code);
+        }
+
+        long totalLength = conn.getContentLengthLong();
+        try (InputStream in = new BufferedInputStream(conn.getInputStream(), 65536);
+             FileOutputStream out = new FileOutputStream(destFile)) {
+
+            byte[] buffer = new byte[32768];
+            long downloaded = 0;
+            int read;
+            long startTime = System.currentTimeMillis();
+            long lastUiUpdate = startTime;
+
+            while ((read = in.read(buffer)) != -1) {
+                if (cancelRequested != null && cancelRequested.get()) {
+                    return;
+                }
+                out.write(buffer, 0, read);
+                downloaded += read;
+
+                if (progressCallback != null) {
+                    long now = System.currentTimeMillis();
+                    if (now - lastUiUpdate > 100) {
+                        double elapsed = (now - startTime) / 1000.0;
+                        double mbps = elapsed > 0 ? (downloaded / (1024.0 * 1024.0)) / elapsed : 0;
+                        progressCallback.onProgress(downloaded, totalLength, mbps);
+                        lastUiUpdate = now;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Finds all local SchemaSync binaries (SchemaSync.jar and/or SchemaSync.exe) that belong to
+     * the currently running installation so they can be patched in-place without running an installer.
+     */
+    public static List<File> resolveLocalPatchableBinaries() {
+        Set<File> targets = new LinkedHashSet<>();
+
+        File runningJar = getRunningJarFile();
+        if (runningJar != null && runningJar.exists()) {
+            targets.add(runningJar);
+            File parent = runningJar.getParentFile();
+            if (parent != null) {
+                File siblingExe = new File(parent, "SchemaSync.exe");
+                if (siblingExe.exists() && siblingExe.canWrite()) {
+                    targets.add(siblingExe);
+                }
+            }
+        }
+
+        File runningExe = getRunningExeFile();
+        if (runningExe != null && runningExe.exists()) {
+            targets.add(runningExe);
+            File parent = runningExe.getParentFile();
+            if (parent != null) {
+                File siblingJar = new File(parent, "SchemaSync.jar");
+                if (siblingJar.exists() && siblingJar.canWrite()) {
+                    targets.add(siblingJar);
+                }
+            }
+        }
+
+        boolean isWin = System.getProperty("os.name", "").toLowerCase().contains("win");
+        if (isWin && targets.isEmpty()) {
+            String localAppData = System.getenv("LOCALAPPDATA");
+            if (localAppData != null) {
+                File appDir = new File(localAppData, "Programs\\SchemaSync");
+                File installedJar = new File(appDir, "SchemaSync.jar");
+                File installedExe = new File(appDir, "SchemaSync.exe");
+                if (installedJar.exists() && installedJar.canWrite()) targets.add(installedJar);
+                if (installedExe.exists() && installedExe.canWrite()) targets.add(installedExe);
+            }
+        } else if (!isWin && targets.isEmpty()) {
+            File userHome = new File(System.getProperty("user.home", "."));
+            File userJar = new File(userHome, ".local/share/schemasync/SchemaSync.jar");
+            if (userJar.exists() && userJar.canWrite()) {
+                targets.add(userJar);
+            } else {
+                File sysJar = new File("/usr/share/schemasync/SchemaSync.jar");
+                if (sysJar.exists()) targets.add(sysJar);
+            }
+        }
+
+        return new ArrayList<>(targets);
+    }
+
+    /**
+     * Builds staged replacement binaries in tempDir from either a lightweight delta patch JAR
+     * (`SchemaSync-patch.jar`) or a full JAR/EXE.
+     */
+    private static Map<File, File> prepareStagedBinaries(File downloadedFile, String fallbackFullUrl,
+                                                         String fallbackFullName, File tempDir) throws Exception {
+        Map<File, File> stagedMap = new LinkedHashMap<>();
+        List<File> targets = resolveLocalPatchableBinaries();
+        if (targets.isEmpty()) return stagedMap;
+
+        String lowerName = downloadedFile.getName().toLowerCase();
+        boolean isPatch = lowerName.contains("patch") && lowerName.endsWith(".jar");
+
+        if (isPatch) {
+            for (File target : targets) {
+                File staged = new File(tempDir, "staged_" + System.nanoTime() + "_" + target.getName());
+                if (applyDeltaPatch(target, downloadedFile, staged)) {
+                    stagedMap.put(target, staged);
+                }
+            }
+            // If delta patching failed for any reason and we have a fallback full URL, download the full binary
+            if (stagedMap.isEmpty() && fallbackFullUrl != null && !fallbackFullUrl.isEmpty()) {
+                File fallbackFile = new File(tempDir, fallbackFullName != null ? fallbackFullName : "SchemaSync.jar");
+                downloadFileWithRedirects(fallbackFullUrl, fallbackFile, null, null);
+                downloadedFile = fallbackFile;
+                lowerName = downloadedFile.getName().toLowerCase();
+            } else {
+                return stagedMap;
+            }
+        }
+
+        // Full JAR or EXE replacement (still in-place without Setup wizard!)
+        if (lowerName.endsWith(".jar") && !lowerName.contains("patch")) {
+            for (File target : targets) {
+                if (target.getName().toLowerCase().endsWith(".jar")) {
+                    stagedMap.put(target, downloadedFile);
+                } else if (target.getName().toLowerCase().endsWith(".exe")) {
+                    // Preserve Launch4j .exe stub and replace its embedded JAR payload!
+                    File stagedExe = new File(tempDir, "staged_" + System.nanoTime() + "_" + target.getName());
+                    if (replaceExePayloadWithJar(target, downloadedFile, stagedExe)) {
+                        stagedMap.put(target, stagedExe);
+                    }
+                }
+            }
+        } else if (lowerName.endsWith(".exe") && !lowerName.contains("setup")) {
+            for (File target : targets) {
+                if (target.getName().toLowerCase().endsWith(".exe")) {
+                    stagedMap.put(target, downloadedFile);
+                }
+            }
+        }
+
+        return stagedMap;
+    }
+
+    /**
+     * Locates the byte offset where the embedded ZIP/JAR archive begins inside a file.
+     * Returns 0 for standard .jar files, or the Launch4j PE header length (e.g. 115,712) for .exe wrappers.
+     */
+    public static long findEmbeddedZipOffset(File binaryFile) throws Exception {
+        if (binaryFile == null || !binaryFile.exists() || binaryFile.length() < 32) {
+            return -1L;
+        }
+        try (RandomAccessFile raf = new RandomAccessFile(binaryFile, "r")) {
+            byte[] head = new byte[4];
+            raf.readFully(head);
+            // Standard ZIP/JAR starts immediately with PK\x03\x04
+            if (head[0] == 0x50 && head[1] == 0x4B && head[2] == 0x03 && head[3] == 0x04) {
+                return 0L;
+            }
+
+            // Scan first 2 MB for Launch4j embedded JAR start: PK\x03\x04 where entry name starts with META-INF/ or com/
+            long maxScan = Math.min(binaryFile.length() - 40, 2L * 1024L * 1024L);
+            raf.seek(0);
+            byte[] buf = new byte[(int) maxScan + 40];
+            int n = raf.read(buf);
+            for (int i = 0; i < n - 38; i++) {
+                if (buf[i] == 0x50 && buf[i + 1] == 0x4B && buf[i + 2] == 0x03 && buf[i + 3] == 0x04) {
+                    int nameLen = (buf[i + 26] & 0xFF) | ((buf[i + 27] & 0xFF) << 8);
+                    if (nameLen >= 4 && nameLen < 200 && i + 30 + nameLen <= n) {
+                        String entryName = new String(buf, i + 30, nameLen, StandardCharsets.UTF_8);
+                        if (entryName.startsWith("META-INF/") || entryName.startsWith("com/") || entryName.startsWith("icons/")) {
+                            return i;
+                        }
+                    }
+                }
+            }
+        }
+        return -1L;
+    }
+
+    /**
+     * Applies a lightweight delta patch JAR (`SchemaSync-patch.jar`, ~1.2 MB) to a local
+     * `SchemaSync.jar` or `SchemaSync.exe` (Launch4j wrapper), writing the updated binary to `stagedOutput`.
+     *
+     * Preserves:
+     * - Any native Launch4j .exe PE prefix header (bytes 0 .. zipOffset)
+     * - The shaded META-INF/MANIFEST.MF (Main-Class: com.dbtool.Main)
+     * - All 56 MB of third-party dependency libraries in the base binary
+     * Replaces:
+     * - All `com/dbtool/**` classes and application resources with the new versions from `patchJar`.
+     */
+    public static boolean applyDeltaPatch(File baseBinary, File patchJar, File stagedOutput) {
+        if (baseBinary == null || !baseBinary.exists() || patchJar == null || !patchJar.exists()) {
+            return false;
+        }
+        File tempOut = new File(stagedOutput.getParentFile(), stagedOutput.getName() + ".tmp");
+        try {
+            long zipOffset = findEmbeddedZipOffset(baseBinary);
+            if (zipOffset < 0) return false;
+
+            // 1. Read all entries from the lightweight patchJar (~1.2 MB) into memory
+            Map<String, byte[]> patchEntries = new LinkedHashMap<>();
+            byte[] patchManifest = null;
+            try (ZipInputStream patchZis = new ZipInputStream(new BufferedInputStream(new FileInputStream(patchJar)))) {
+                ZipEntry pe;
+                byte[] buf = new byte[16384];
+                while ((pe = patchZis.getNextEntry()) != null) {
+                    if (pe.isDirectory()) continue;
+                    String name = pe.getName();
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    int r;
+                    while ((r = patchZis.read(buf)) != -1) {
+                        baos.write(buf, 0, r);
+                    }
+                    if ("META-INF/MANIFEST.MF".equalsIgnoreCase(name)) {
+                        patchManifest = baos.toByteArray();
+                    } else if (!name.startsWith("META-INF/maven/")) {
+                        patchEntries.put(name, baos.toByteArray());
+                    }
+                }
+            }
+
+            if (!patchEntries.containsKey("com/dbtool/Main.class")) {
+                return false;
+            }
+
+            // 2. Write optional PE stub prefix (for SchemaSync.exe) + merged ZIP stream
+            try (FileOutputStream fos = new FileOutputStream(tempOut);
+                 BufferedOutputStream bos = new BufferedOutputStream(fos, 65536)) {
+
+                if (zipOffset > 0) {
+                    try (FileInputStream baseFis = new FileInputStream(baseBinary)) {
+                        byte[] prefixBuf = new byte[32768];
+                        long remaining = zipOffset;
+                        while (remaining > 0) {
+                            int toRead = (int) Math.min(prefixBuf.length, remaining);
+                            int r = baseFis.read(prefixBuf, 0, toRead);
+                            if (r <= 0) break;
+                            bos.write(prefixBuf, 0, r);
+                            remaining -= r;
+                        }
+                    }
+                }
+
+                ZipOutputStream zos = new ZipOutputStream(bos);
+                Set<String> writtenNames = new LinkedHashSet<>();
+
+                // Stream baseBinary entries from zipOffset
+                try (FileInputStream baseFis = new FileInputStream(baseBinary)) {
+                    long skipped = 0;
+                    while (skipped < zipOffset) {
+                        long s = baseFis.skip(zipOffset - skipped);
+                        if (s <= 0) break;
+                        skipped += s;
+                    }
+
+                    try (ZipInputStream baseZis = new ZipInputStream(new BufferedInputStream(baseFis, 65536))) {
+                        ZipEntry be;
+                        byte[] buf = new byte[32768];
+                        while ((be = baseZis.getNextEntry()) != null) {
+                            if (be.isDirectory()) continue;
+                            String name = be.getName();
+                            if (writtenNames.contains(name)) continue;
+
+                            // Preserve shaded MANIFEST.MF from baseBinary first
+                            if ("META-INF/MANIFEST.MF".equalsIgnoreCase(name)) {
+                                ZipEntry outEntry = new ZipEntry(name);
+                                zos.putNextEntry(outEntry);
+                                int r;
+                                while ((r = baseZis.read(buf)) != -1) {
+                                    zos.write(buf, 0, r);
+                                }
+                                zos.closeEntry();
+                                writtenNames.add(name);
+                                continue;
+                            }
+
+                            // Skip old com/dbtool/** classes or resources that are replaced by patchEntries
+                            if (name.startsWith("com/dbtool/") || patchEntries.containsKey(name)) {
+                                continue;
+                            }
+
+                            // Copy all 3rd-party dependency entries straight through
+                            ZipEntry outEntry = new ZipEntry(name);
+                            zos.putNextEntry(outEntry);
+                            int r;
+                            while ((r = baseZis.read(buf)) != -1) {
+                                zos.write(buf, 0, r);
+                            }
+                            zos.closeEntry();
+                            writtenNames.add(name);
+                        }
+                    }
+                }
+
+                // If baseBinary had no MANIFEST.MF, write one with Main-Class: com.dbtool.Main
+                if (!writtenNames.contains("META-INF/MANIFEST.MF")) {
+                    byte[] mfBytes = (patchManifest != null && new String(patchManifest, StandardCharsets.UTF_8).contains("Main-Class"))
+                            ? patchManifest
+                            : "Manifest-Version: 1.0\r\nMain-Class: com.dbtool.Main\r\n\r\n".getBytes(StandardCharsets.UTF_8);
+                    zos.putNextEntry(new ZipEntry("META-INF/MANIFEST.MF"));
+                    zos.write(mfBytes);
+                    zos.closeEntry();
+                    writtenNames.add("META-INF/MANIFEST.MF");
+                }
+
+                // Write all updated SchemaSync classes & resources from patchEntries
+                for (Map.Entry<String, byte[]> entry : patchEntries.entrySet()) {
+                    String name = entry.getKey();
+                    if (writtenNames.contains(name)) continue;
+                    zos.putNextEntry(new ZipEntry(name));
+                    zos.write(entry.getValue());
+                    zos.closeEntry();
+                    writtenNames.add(name);
+                }
+
+                zos.finish();
+                zos.flush();
+            }
+
+            if (!tempOut.exists() || tempOut.length() <= patchJar.length()) {
+                tempOut.delete();
+                return false;
+            }
+
+            Files.move(tempOut.toPath(), stagedOutput.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            return true;
+        } catch (Exception e) {
+            if (tempOut.exists()) tempOut.delete();
+            return false;
+        }
+    }
+
+    /**
+     * Replaces the embedded JAR payload of a Launch4j .exe wrapper with a new full JAR.
+     */
+    private static boolean replaceExePayloadWithJar(File baseExe, File newJar, File stagedExe) {
+        try {
+            long zipOffset = findEmbeddedZipOffset(baseExe);
+            if (zipOffset <= 0) return false;
+            try (FileOutputStream fos = new FileOutputStream(stagedExe);
+                 BufferedOutputStream bos = new BufferedOutputStream(fos, 65536);
+                 FileInputStream exeFis = new FileInputStream(baseExe);
+                 FileInputStream jarFis = new FileInputStream(newJar)) {
+
+                byte[] buf = new byte[32768];
+                long remaining = zipOffset;
+                while (remaining > 0) {
+                    int r = exeFis.read(buf, 0, (int) Math.min(buf.length, remaining));
+                    if (r <= 0) break;
+                    bos.write(buf, 0, r);
+                    remaining -= r;
+                }
+                int r;
+                while ((r = jarFis.read(buf)) != -1) {
+                    bos.write(buf, 0, r);
+                }
+            }
+            return stagedExe.exists() && stagedExe.length() > newJar.length();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Swaps the pre-staged updated binary(s) into place and restarts SchemaSync in ~1 second
+     * without launching any installer wizard.
+     */
+    private static void applyStagedMapAndRestart(Map<File, File> stagedMap, String tagName,
+                                                 boolean autoRestart, JDialog dlg) throws Exception {
+        boolean isWin = System.getProperty("os.name", "").toLowerCase().contains("win");
+        File tempDir = new File(System.getProperty("java.io.tmpdir"), "SchemaSyncUpdate");
+        if (!tempDir.exists()) tempDir.mkdirs();
+
+        if (isWin) {
+            File updateBatch = new File(tempDir, "instant_update_restart.bat");
+            StringBuilder batch = new StringBuilder();
+            batch.append("@echo off\r\n");
+            batch.append("setlocal enabledelayedexpansion\r\n");
+            batch.append("timeout /t 1 /nobreak >nul\r\n");
+
+            File primaryLaunchTarget = null;
+            for (Map.Entry<File, File> entry : stagedMap.entrySet()) {
+                File target = entry.getKey();
+                File staged = entry.getValue();
+                if (primaryLaunchTarget == null || target.getName().toLowerCase().endsWith(".jar")) {
+                    primaryLaunchTarget = target;
+                }
+                batch.append("set RETRIES=0\r\n");
+                batch.append(":retry_").append(Math.abs(target.hashCode())).append("\r\n");
+                batch.append("copy /y \"").append(staged.getAbsolutePath()).append("\" \"").append(target.getAbsolutePath()).append("\" >nul 2>&1\r\n");
+                batch.append("if errorlevel 1 (\r\n");
+                batch.append("    timeout /t 1 /nobreak >nul\r\n");
+                batch.append("    set /a RETRIES+=1\r\n");
+                batch.append("    if !RETRIES! lss 15 goto retry_").append(Math.abs(target.hashCode())).append("\r\n");
+                batch.append(")\r\n");
+            }
+
+            if (autoRestart && primaryLaunchTarget != null) {
+                if (primaryLaunchTarget.getName().toLowerCase().endsWith(".jar")) {
+                    String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "javaw.exe";
+                    if (!new File(javaBin).exists()) {
+                        javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java.exe";
+                    }
+                    if (!new File(javaBin).exists()) javaBin = "javaw";
+                    batch.append("start \"\" \"").append(javaBin).append("\" -Duser.timezone=UTC -jar \"")
+                         .append(primaryLaunchTarget.getAbsolutePath()).append("\"\r\n");
+                } else {
+                    batch.append("start \"\" \"").append(primaryLaunchTarget.getAbsolutePath()).append("\"\r\n");
+                }
+            }
+            batch.append("del \"%~f0\" >nul 2>&1\r\n");
+
+            Files.write(updateBatch.toPath(), batch.toString().getBytes(StandardCharsets.UTF_8));
+            new ProcessBuilder("cmd.exe", "/c", "start", "\"\"", "/min", updateBatch.getAbsolutePath()).start();
+            Thread.sleep(300);
+            System.exit(0);
+        } else {
+            // Linux / macOS in-place swap
+            File userHome = new File(System.getProperty("user.home", "."));
+            File userAppDir = new File(userHome, ".local/share/schemasync");
+            if (!userAppDir.exists()) userAppDir.mkdirs();
+            File userJar = new File(userAppDir, "SchemaSync.jar");
+            File userBinDir = new File(userHome, ".local/bin");
+            if (!userBinDir.exists()) userBinDir.mkdirs();
+            File userLauncher = new File(userBinDir, "schemasync");
+
+            File launchJar = null;
+            for (Map.Entry<File, File> entry : stagedMap.entrySet()) {
+                File target = entry.getKey();
+                File staged = entry.getValue();
+                if (target.canWrite() || (target.getParentFile() != null && target.getParentFile().canWrite())) {
+                    Files.copy(staged.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    launchJar = target;
+                } else {
+                    Files.copy(staged.toPath(), userJar.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    installUserLauncherAndDesktopEntry(userHome, userLauncher, userJar);
+                    launchJar = userJar;
+                }
+            }
+
+            if (!autoRestart) {
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(dlg,
+                        "✅ SchemaSync has been updated to " + tagName + "!\nRestart the application to use the new version.",
+                        "Update Complete", JOptionPane.INFORMATION_MESSAGE);
+                    dlg.dispose();
+                });
+                return;
+            }
+
+            String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
+            if (!new File(javaBin).exists()) javaBin = "java";
+            File targetJar = launchJar != null ? launchJar : userJar;
+
+            List<String> restartCmd = new ArrayList<>();
+            restartCmd.add(javaBin);
+            restartCmd.add("--add-opens");
+            restartCmd.add("java.desktop/sun.awt.X11=ALL-UNNAMED");
+            restartCmd.add("-Duser.timezone=UTC");
+            restartCmd.add("-Dsun.java2d.pmoffscreen=false");
+            restartCmd.add("-Dawt.useSystemAAFontSettings=on");
+            restartCmd.add("-Dswing.aatext=true");
+            restartCmd.add("-Dsun.java2d.uiScale.enabled=true");
+            restartCmd.add("-Djdk.gtk.version=3");
+            restartCmd.add("-jar");
+            restartCmd.add(targetJar.getAbsolutePath());
+
+            ProcessBuilder pb = new ProcessBuilder(restartCmd);
+            pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+            pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+            pb.start();
+            Thread.sleep(300);
+            System.exit(0);
+        }
     }
 
     private static void installAndRestartOnWindows(File downloadedFile, String tagName, boolean autoRestart, JDialog dlg) throws Exception {
@@ -603,8 +1207,8 @@ public class UpdateChecker {
                     + "start \"\" \"" + javaBin + "\" -Duser.timezone=UTC -jar \"" + targetJar.getAbsolutePath() + "\"\r\n"
                     + "del \"%~f0\" >nul 2>&1\r\n";
 
-            java.nio.file.Files.write(updateBatch.toPath(), batchContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            new ProcessBuilder("cmd.exe", "/c", "start", "\"\"", updateBatch.getAbsolutePath()).start();
+            Files.write(updateBatch.toPath(), batchContent.getBytes(StandardCharsets.UTF_8));
+            new ProcessBuilder("cmd.exe", "/c", "start", "\"\"", "/min", updateBatch.getAbsolutePath()).start();
             Thread.sleep(400);
             System.exit(0);
 
@@ -648,8 +1252,8 @@ public class UpdateChecker {
                     + ")\r\n"
                     + "del \"%~f0\" >nul 2>&1\r\n";
 
-            java.nio.file.Files.write(updateBatch.toPath(), batchContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            new ProcessBuilder("cmd.exe", "/c", "start", "\"\"", updateBatch.getAbsolutePath()).start();
+            Files.write(updateBatch.toPath(), batchContent.getBytes(StandardCharsets.UTF_8));
+            new ProcessBuilder("cmd.exe", "/c", "start", "\"\"", "/min", updateBatch.getAbsolutePath()).start();
             Thread.sleep(400);
             System.exit(0);
 
@@ -675,8 +1279,8 @@ public class UpdateChecker {
                     + "start \"\" \"" + targetExe.getAbsolutePath() + "\"\r\n"
                     + "del \"%~f0\" >nul 2>&1\r\n";
 
-            java.nio.file.Files.write(updateBatch.toPath(), batchContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            new ProcessBuilder("cmd.exe", "/c", "start", "\"\"", updateBatch.getAbsolutePath()).start();
+            Files.write(updateBatch.toPath(), batchContent.getBytes(StandardCharsets.UTF_8));
+            new ProcessBuilder("cmd.exe", "/c", "start", "\"\"", "/min", updateBatch.getAbsolutePath()).start();
             Thread.sleep(400);
             System.exit(0);
         } else {
@@ -701,18 +1305,13 @@ public class UpdateChecker {
         boolean updatedSystemPkg = false;
 
         if (fileName.endsWith(".deb")) {
-            // 1. Always extract into ~/.local/share/schemasync/SchemaSync.jar (password-free user-level install)
             updatedUserJar = extractJarFromDeb(downloadedFile, userJar);
             if (updatedUserJar) {
                 installUserLauncherAndDesktopEntry(userHome, userLauncher, userJar);
             }
-
-            // 2. If running from another user-writable local JAR (e.g. project release/SchemaSync.jar), update it too
             if (runningJar != null && !runningJar.equals(systemJar) && !runningJar.equals(userJar) && runningJar.canWrite()) {
                 updatedLocalJar = extractJarFromDeb(downloadedFile, runningJar);
             }
-
-            // 3. Optionally update system package if /usr/share/schemasync exists and pkexec is available (non-fatal)
             if (systemJar.exists() && new File("/usr/bin/pkexec").exists() && new File("/usr/bin/dpkg").exists()) {
                 try {
                     Process proc = new ProcessBuilder("pkexec", "dpkg", "-i", downloadedFile.getAbsolutePath())
@@ -723,15 +1322,14 @@ public class UpdateChecker {
                 } catch (Exception ignored) {}
             }
         } else if (fileName.endsWith(".jar")) {
-            java.nio.file.Files.copy(downloadedFile.toPath(), userJar.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(downloadedFile.toPath(), userJar.toPath(), StandardCopyOption.REPLACE_EXISTING);
             updatedUserJar = true;
             installUserLauncherAndDesktopEntry(userHome, userLauncher, userJar);
             if (runningJar != null && !runningJar.equals(userJar) && runningJar.canWrite()) {
-                java.nio.file.Files.copy(downloadedFile.toPath(), runningJar.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(downloadedFile.toPath(), runningJar.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 updatedLocalJar = true;
             }
         } else if (fileName.endsWith(".rpm")) {
-            // If pkexec is available, optionally install RPM
             if (new File("/usr/bin/pkexec").exists() && new File("/usr/bin/rpm").exists()) {
                 try {
                     Process proc = new ProcessBuilder("pkexec", "rpm", "-Uvh", "--force", downloadedFile.getAbsolutePath())
@@ -758,7 +1356,6 @@ public class UpdateChecker {
             return;
         }
 
-        // Restart SchemaSync detached
         String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
         if (!new File(javaBin).exists()) javaBin = "java";
 
@@ -830,7 +1427,7 @@ public class UpdateChecker {
                     + "    JAR_PATH=\"$SYS_JAR\"\n"
                     + "fi\n"
                     + "exec java $JAVA_OPTS -jar \"$JAR_PATH\" \"$@\"\n";
-            java.nio.file.Files.write(userLauncher.toPath(), script.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            Files.write(userLauncher.toPath(), script.getBytes(StandardCharsets.UTF_8));
             userLauncher.setExecutable(true, false);
 
             File appsDir = new File(userHome, ".local/share/applications");
@@ -850,9 +1447,8 @@ public class UpdateChecker {
                     + "Categories=Development;Database;IDE;\n"
                     + "MimeType=application/sql;application/x-sqlite3;\n"
                     + "Keywords=database;sql;postgres;mysql;sqlite;schema;diff;sync;\n";
-            java.nio.file.Files.write(desktopFile.toPath(), desktop.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            Files.write(desktopFile.toPath(), desktop.getBytes(StandardCharsets.UTF_8));
 
-            // Extract high-DPI and standard icons for desktop/dock
             extractLinuxIcons(userHome);
 
             try { new ProcessBuilder("update-desktop-database", appsDir.getAbsolutePath()).start(); } catch (Exception ignored) {}
@@ -884,7 +1480,7 @@ public class UpdateChecker {
     private static void extractResourceToFile(String resourcePath, File target) {
         try (InputStream in = UpdateChecker.class.getResourceAsStream(resourcePath)) {
             if (in != null) {
-                java.nio.file.Files.copy(in, target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(in, target.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (Exception ignored) {}
     }
@@ -934,7 +1530,7 @@ public class UpdateChecker {
     }
 
     private static boolean extractJarFromDeb(File debFile, File targetJar) {
-        try (java.io.FileInputStream fis = new java.io.FileInputStream(debFile);
+        try (FileInputStream fis = new FileInputStream(debFile);
              org.apache.commons.compress.archivers.ar.ArArchiveInputStream arIn =
                      new org.apache.commons.compress.archivers.ar.ArArchiveInputStream(fis)) {
             org.apache.commons.compress.archivers.ar.ArArchiveEntry arEntry;
@@ -955,10 +1551,10 @@ public class UpdateChecker {
                                         fos.write(buf, 0, n);
                                     }
                                 }
-                                java.nio.file.Files.move(
+                                Files.move(
                                         tempOut.toPath(),
                                         targetJar.toPath(),
-                                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                                        StandardCopyOption.REPLACE_EXISTING);
                                 return true;
                             }
                         }

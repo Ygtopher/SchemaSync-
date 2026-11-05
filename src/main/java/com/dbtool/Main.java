@@ -3907,7 +3907,8 @@ public class Main extends JFrame {
         topPanel.add(aboutBtn);
 
         JButton updateBtn = new JButton("🔄 Updates");
-        updateBtn.setToolTipText("Check GitHub for SchemaSync updates & new installers");
+        updateBtn.setToolTipText("Check GitHub for SchemaSync updates & instant delta patches");
+        com.dbtool.util.UpdateChecker.registerToolbarButton(updateBtn);
         updateBtn.addActionListener(e -> com.dbtool.util.UpdateChecker.checkForUpdates(this, false));
         topPanel.add(updateBtn);
 

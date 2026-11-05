@@ -235,6 +235,10 @@
                                 <copy file="${project.build.directory}/${project.build.finalName}.jar"
                                       tofile="${project.basedir}/release/${project.build.finalName}.jar"
                                       overwrite="true"/>
+                                <copy file="${project.build.directory}/original-${project.build.finalName}.jar"
+                                      tofile="${project.basedir}/release/SchemaSync-patch.jar"
+                                      overwrite="true"
+                                      failonerror="false"/>
                             </target>
                         </configuration>
                     </execution>
