@@ -27,6 +27,11 @@ Explore the comprehensive documentation suite located in the [`docs/`](docs/READ
 
 ## Key Features
 
+* **🎨 Modern IDE Experience & Smart Data Grids (`CommandPaletteDialog`, `SmartTableCellRenderer`, `RowInspectorDrawer`, `ThemeManager`):**
+  * **⚡ `Ctrl+K` Command Palette & Quick Table Switcher:** Press `Ctrl+K` (or `Ctrl+P`) from anywhere to fuzzy-search and jump to any database table, workbench tab, studio tool, accent theme, or UI zoom level.
+  * **📊 TablePlus-Style Semantic Data Grids:** Renders `NULL` pill badges, colored `● true` / `○ false` boolean indicators, right-aligned monospace numbers, `🔑 PK` / `🔗 FK` column header badges, zebra striping, and live row hover highlighting.
+  * **📐 Side-by-Side Row Inspector Drawer:** Click any row in `Browse & Search` to inspect and edit all columns in a searchable right-hand sidebar with `NULL` toggles and `Ctrl+S` parameterized saving.
+  * **🎛️ `▲ Compact Grid` Toggle & 5 Accent Theme Presets:** Collapse query builder rows into a single compact header bar with live clause badges (`WHERE (2) | ORDER (1)`), and switch between **Midnight Blue**, **Emerald Studio**, **Obsidian Slate**, **Cyber Amethyst**, and **Solar Daylight** with **90%–125% UI Zoom**.
 * **🏠 Executive Telemetry, Live Health & Application Usage Dashboard (`DashboardPanel`, `AppUsageTracker`):**
   * **12 Live Telemetry Cards (3×4 Grid):** Tracks **Sessions & Activity Streak** (`🔥 Xd`), **Queries Executed & Daily Volume** (`Today | 7d`), **Query Success Rate**, **Latency Percentiles** (`Avg`, `P50`, `P95`, `Max ms`), **Slow Queries (`> 500 ms` / `> 1s`)**, **Rows Read vs. Mutated**, **Safety & Linter Governance** (Dry-Run previews, auto-fixes, PII rows masked), **Data Movement & CodeGen** (Connections, Exports, Imports, Mock Rows, Dual-DB Compares, ORM Models), **Most Queried Table (`🔥`)**, **Most Used Tool & DB Engine**, **Saved Queries & Pinned History**, and **JVM Heap RAM (`Used / Max MB`)** with 1-click **⚡ Optimize Memory (GC)**.
   * **Comprehensive Usage & Telemetry Breakdown Table:** Interactive category filter (`All Categories`, `🛠️ Workbench Tools`, `🔥 Hot Queried Tables`, `⚡ SQL Workload`, `📅 Daily Activity (7d)`, `🛡️ Safety & Data Movement`, `🗄️ DB Engines & Column Types`) with percentage bars and 1-click **🧹 Reset Usage Stats**.

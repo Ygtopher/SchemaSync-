@@ -16,6 +16,11 @@
   * Added an instant **🔍 Search** filter bar with a `✕` Clear button and auto-focus to **Select Columns** (`Browse & Search`), **Select Join Columns** (`Visual Join Builder`), and **Select Columns to Compare** (`Dual DB Compare`).
   * In `Select Join Columns`, filters across all joined table tabs simultaneously, shows live match count badges on each tab (`table_name (N)`), and auto-switches to the first matching tab.
   * Made `Select All`, `Unselect All`, `Select All (Tab)`, and `Unselect All (Tab)` filter-aware (toggling only visible matching columns when a search filter is active) and added a live `Selected: X / Y` footer counter.
+* **TablePlus / DataGrip-Style Modern IDE UI Suite (`ThemeManager`, `SmartTableCellRenderer`, `CommandPaletteDialog`, `RowInspectorDrawer`, `Main`):**
+  * **⚡ Command Palette & Quick Table Switcher (`Ctrl+K` / `Ctrl+P`):** Instant multi-token Spotlight search across all database tables, workbench tabs, studio dialogs, theme presets, and interface zoom levels.
+  * **📊 Smart Semantic Data Grid Rendering (`SmartTableCellRenderer`):** Renders `NULL` values as rounded italic pill badges, booleans (`true`/`false`) as colored status pills, numbers right-aligned in monospace font, `🔑 PK` / `🔗 FK` icons in column headers, `26px` comfortable row height, zebra row striping, and smooth mouse-hover row highlighting.
+  * **📐 Side-by-Side Row Inspector & Quick Editor Drawer (`RowInspectorDrawer`):** Toggleable right-hand sidebar in `Browse & Search` that inspects any clicked row with live column filtering, `NULL` toggles, 1-click field copy, and parameterized `Ctrl+S` in-place saving.
+  * **🎛️ Compact Grid Mode & Streamlined Top Header:** Added a 1-click **`▲ Compact Grid`** toggle with live active clause badges (`WHERE (N) | ORDER (N) | JOIN (N)`) in `Browse & Search` and `Visual Join Builder`, plus a grouped **`🧰 Studios & Tools ▾`** menu and **`🎨 Theme ▾`** selector (**Midnight Blue**, **Emerald Studio**, **Obsidian Slate**, **Cyber Amethyst**, **Solar Daylight**, and **90%–125% UI Zoom**).
 
 ---
 
