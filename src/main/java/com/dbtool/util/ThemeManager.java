@@ -1,20 +1,75 @@
 package com.dbtool.util;
 
+import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.themes.FlatMacDarkLaf;
 import com.formdev.flatlaf.themes.FlatMacLightLaf;
-import javax.swing.*;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Window;
 
+import javax.swing.*;
+import javax.swing.plaf.FontUIResource;
+import java.awt.*;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+/**
+ * Manages global Look-and-Feel themes, accent presets, sleek scrollbar/splitter styling,
+ * and dynamic UI font scaling across SchemaSync.
+ */
 public class ThemeManager {
+
+    public enum ThemePreset {
+        MIDNIGHT_BLUE("🌌 Midnight Blue (Dark)", true, new Color(56, 189, 248), new Color(18, 22, 31), new Color(24, 30, 42)),
+        EMERALD_DARK("🌲 Emerald Studio (Dark)", true, new Color(52, 211, 153), new Color(17, 24, 21), new Color(23, 33, 29)),
+        OBSIDIAN_SLATE("🌑 Obsidian Slate (Dark)", true, new Color(129, 140, 248), new Color(20, 20, 24), new Color(28, 28, 34)),
+        CYBER_PURPLE("🔮 Cyber Amethyst (Dark)", true, new Color(192, 132, 252), new Color(22, 18, 30), new Color(30, 25, 42)),
+        SOLAR_LIGHT("☀️ Solar Daylight (Light)", false, new Color(2, 132, 199), new Color(255, 255, 255), new Color(246, 248, 252));
+
+        private final String displayName;
+        private final boolean dark;
+        private final Color accentColor;
+        private final Color tableBg;
+        private final Color tableAltRowBg;
+
+        ThemePreset(String displayName, boolean dark, Color accentColor, Color tableBg, Color tableAltRowBg) {
+            this.displayName = displayName;
+            this.dark = dark;
+            this.accentColor = accentColor;
+            this.tableBg = tableBg;
+            this.tableAltRowBg = tableAltRowBg;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public boolean isDark() {
+            return dark;
+        }
+
+        public Color getAccentColor() {
+            return accentColor;
+        }
+
+        public Color getTableBg() {
+            return tableBg;
+        }
+
+        public Color getTableAltRowBg() {
+            return tableAltRowBg;
+        }
+    }
+
     private static boolean isDarkMode = true;
+    private static ThemePreset currentPreset = ThemePreset.MIDNIGHT_BLUE;
+    private static float uiScaleFactor = 1.0f;
+    private static int baseFontSize = 13;
 
     public interface ThemeChangeListener {
         void onThemeChanged(boolean isDark);
     }
 
-    private static final java.util.List<ThemeChangeListener> listeners = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private static final List<ThemeChangeListener> listeners = new CopyOnWriteArrayList<>();
 
     public static void addThemeChangeListener(ThemeChangeListener listener) {
         if (listener != null && !listeners.contains(listener)) {
@@ -30,6 +85,14 @@ public class ThemeManager {
         return isDarkMode;
     }
 
+    public static ThemePreset getCurrentPreset() {
+        return currentPreset;
+    }
+
+    public static float getUiScaleFactor() {
+        return uiScaleFactor;
+    }
+
     public static boolean isDarkTheme(Component c) {
         if (c != null && c.getBackground() != null) {
             Color bg = c.getBackground();
@@ -40,26 +103,84 @@ public class ThemeManager {
     }
 
     public static Color getPrimaryActionColor() {
-        return isDarkMode ? new Color(100, 181, 246) : new Color(0, 102, 180);
+        return currentPreset != null ? currentPreset.getAccentColor()
+                : (isDarkMode ? new Color(100, 181, 246) : new Color(0, 102, 180));
     }
 
     public static Color getSuccessColor() {
-        return isDarkMode ? new Color(129, 199, 132) : new Color(0, 128, 55);
+        return isDarkMode ? new Color(74, 222, 128) : new Color(22, 163, 74);
     }
 
     public static Color getDangerColor() {
-        return isDarkMode ? new Color(248, 110, 110) : new Color(180, 0, 0);
+        return isDarkMode ? new Color(248, 113, 113) : new Color(220, 38, 38);
     }
 
     public static Color getMutedTextColor() {
-        return isDarkMode ? new Color(175, 175, 175) : Color.GRAY;
+        return isDarkMode ? new Color(156, 163, 175) : new Color(107, 114, 128);
+    }
+
+    public static Color getZebraAlternateColor() {
+        return currentPreset != null ? currentPreset.getTableAltRowBg()
+                : (isDarkMode ? new Color(28, 32, 42) : new Color(246, 248, 252));
+    }
+
+    public static Color getRowHoverColor() {
+        return isDarkMode ? new Color(45, 58, 78) : new Color(226, 238, 255);
     }
 
     public static void toggleTheme(JButton toggleButton) {
-        isDarkMode = !isDarkMode;
+        if (isDarkMode) {
+            setPreset(ThemePreset.SOLAR_LIGHT, toggleButton);
+        } else {
+            setPreset(ThemePreset.MIDNIGHT_BLUE, toggleButton);
+        }
+    }
+
+    public static void setPreset(ThemePreset preset, JButton toggleButton) {
+        if (preset == null) return;
+        currentPreset = preset;
+        isDarkMode = preset.isDark();
         applyTheme(toggleButton);
     }
-    
+
+    public static void setUiScaleFactor(float scaleFactor, JButton toggleButton) {
+        uiScaleFactor = Math.max(0.85f, Math.min(1.35f, scaleFactor));
+        applyTheme(toggleButton);
+    }
+
+    public static void showThemePopupMenu(Component invoker, JButton toggleButton) {
+        JPopupMenu menu = new JPopupMenu();
+        JMenuItem header = new JMenuItem("🎨 Appearance & Accent Theme");
+        header.setEnabled(false);
+        header.setFont(header.getFont().deriveFont(Font.BOLD));
+        menu.add(header);
+        menu.addSeparator();
+
+        for (ThemePreset preset : ThemePreset.values()) {
+            JCheckBoxMenuItem item = new JCheckBoxMenuItem(preset.getDisplayName(), preset == currentPreset);
+            item.addActionListener(e -> setPreset(preset, toggleButton));
+            menu.add(item);
+        }
+
+        menu.addSeparator();
+        JMenuItem scaleHeader = new JMenuItem("🔍 Interface Zoom / Font Scale");
+        scaleHeader.setEnabled(false);
+        scaleHeader.setFont(scaleHeader.getFont().deriveFont(Font.BOLD));
+        menu.add(scaleHeader);
+
+        float[] scales = {0.9f, 1.0f, 1.1f, 1.25f};
+        String[] labels = {"90% (Compact)", "100% (Default)", "110% (Comfortable)", "125% (Large HD)"};
+        for (int i = 0; i < scales.length; i++) {
+            final float sc = scales[i];
+            boolean active = Math.abs(uiScaleFactor - sc) < 0.03f;
+            JCheckBoxMenuItem scaleItem = new JCheckBoxMenuItem(labels[i], active);
+            scaleItem.addActionListener(e -> setUiScaleFactor(sc, toggleButton));
+            menu.add(scaleItem);
+        }
+
+        menu.show(invoker, 0, invoker.getHeight());
+    }
+
     public static void init(JButton toggleButton) {
         applyTheme(toggleButton);
     }
@@ -68,40 +189,69 @@ public class ThemeManager {
         try {
             if (isDarkMode) {
                 UIManager.setLookAndFeel(new FlatMacDarkLaf());
-                UIManager.put("ScrollBar.thumb", new Color(180, 180, 180)); // Soft white/light gray
-                UIManager.put("ScrollBar.hoverThumb", new Color(220, 220, 220));
-                UIManager.put("ScrollBar.pressedThumb", new Color(255, 255, 255));
-                if (toggleButton != null) toggleButton.setText("\u2600\uFE0F Light Mode"); // Sun emoji
+                UIManager.put("ScrollBar.thumb", new Color(95, 105, 125, 180));
+                UIManager.put("ScrollBar.hoverThumb", new Color(140, 155, 180, 230));
+                UIManager.put("ScrollBar.pressedThumb", currentPreset.getAccentColor());
+                UIManager.put("ScrollBar.track", new Color(22, 25, 32));
+                if (toggleButton != null) toggleButton.setText("🎨 Theme ▾");
             } else {
                 UIManager.setLookAndFeel(new FlatMacLightLaf());
-                UIManager.put("ScrollBar.thumb", new Color(100, 100, 100)); // Soft dark gray instead of pure black
-                UIManager.put("ScrollBar.hoverThumb", new Color(60, 60, 60));
-                UIManager.put("ScrollBar.pressedThumb", new Color(20, 20, 20));
-                if (toggleButton != null) toggleButton.setText("\uD83C\uDF19 Dark Mode"); // Crescent moon emoji
+                UIManager.put("ScrollBar.thumb", new Color(165, 175, 190, 190));
+                UIManager.put("ScrollBar.hoverThumb", new Color(115, 125, 145, 230));
+                UIManager.put("ScrollBar.pressedThumb", currentPreset.getAccentColor());
+                UIManager.put("ScrollBar.track", new Color(245, 247, 250));
+                if (toggleButton != null) toggleButton.setText("🎨 Theme ▾");
             }
-            
-            // Make Scrollbars more visible
-            UIManager.put("ScrollBar.width", 18);
-            UIManager.put("ScrollBar.showButtons", true);
-            UIManager.put("ScrollBar.thumbArc", 4);
-            UIManager.put("ScrollBar.thumbInsets", new java.awt.Insets(2, 2, 2, 2));
-            
-            UIManager.put("SplitPane.dividerSize", 18);
+
+            // Sleek modern borderless pill scrollbars (8px, no clunky arrow buttons)
+            UIManager.put("ScrollBar.width", 9);
+            UIManager.put("ScrollBar.showButtons", false);
+            UIManager.put("ScrollBar.thumbArc", 999);
+            UIManager.put("ScrollBar.trackArc", 999);
+            UIManager.put("ScrollBar.thumbInsets", new Insets(2, 2, 2, 2));
+
+            // Sleek thin split-pane dividers (6px with subtle grip)
+            UIManager.put("SplitPane.dividerSize", 6);
             UIManager.put("SplitPane.centerOneTouchButtons", true);
-            UIManager.put("SplitPane.oneTouchButtonSize", 20);
-            UIManager.put("SplitPane.oneTouchButtonOffset", 5);
-            
-            // Enhance table grid visibility on Mac themes
+            UIManager.put("SplitPane.oneTouchButtonSize", 14);
+            UIManager.put("SplitPane.oneTouchButtonOffset", 4);
+            UIManager.put("SplitPaneDivider.style", "grip");
+
+            // Modern rounded corners for buttons, inputs, and tabs
+            UIManager.put("Button.arc", 8);
+            UIManager.put("Component.arc", 8);
+            UIManager.put("TextComponent.arc", 8);
+            UIManager.put("CheckBox.arc", 5);
+            UIManager.put("TabbedPane.tabArc", 8);
+            UIManager.put("TabbedPane.cardTabArc", 8);
+            UIManager.put("TabbedPane.selectedBackground", isDarkMode ? new Color(36, 44, 62) : new Color(232, 242, 255));
+            UIManager.put("Component.focusColor", currentPreset.getAccentColor());
+
+            // TablePlus-style table polish
             UIManager.put("Table.showHorizontalLines", true);
             UIManager.put("Table.showVerticalLines", true);
-            UIManager.put("Table.gridColor", isDarkMode ? new Color(55, 55, 55) : java.awt.Color.LIGHT_GRAY);
+            UIManager.put("Table.rowHeight", Math.round(26 * uiScaleFactor));
+            UIManager.put("Table.cellMargins", new Insets(3, 8, 3, 8));
+            UIManager.put("Table.gridColor", isDarkMode ? new Color(42, 48, 60) : new Color(226, 232, 240));
+            UIManager.put("Table.background", currentPreset.getTableBg());
+            UIManager.put("Table.alternateRowColor", currentPreset.getTableAltRowBg());
+            UIManager.put("Table.selectionBackground", isDarkMode ? new Color(30, 74, 130) : new Color(191, 219, 254));
+            UIManager.put("Table.selectionForeground", isDarkMode ? Color.WHITE : new Color(15, 23, 42));
+            UIManager.put("TableHeader.height", Math.round(30 * uiScaleFactor));
+            UIManager.put("TableHeader.background", isDarkMode ? new Color(26, 32, 44) : new Color(241, 245, 249));
+            UIManager.put("TableHeader.bottomSeparatorColor", currentPreset.getAccentColor());
+
+            // Apply UI Font Scale if needed
+            applyFontScaling();
 
             // Ensure smooth dropdown & popup behavior on Ubuntu/Linux (X11/Wayland)
             JPopupMenu.setDefaultLightWeightPopupEnabled(true);
-            UIManager.put("ComboBox.maximumRowCount", 12);
+            UIManager.put("ComboBox.maximumRowCount", 14);
             UIManager.put("PopupMenu.consumeEventOnClose", false);
             UIManager.put("ComboBox.showPopupOnNavigation", false);
-            
+
+            FlatLaf.updateUI();
+
             for (ThemeChangeListener l : listeners) {
                 try {
                     l.onThemeChanged(isDarkMode);
@@ -109,12 +259,28 @@ public class ThemeManager {
                     ex.printStackTrace();
                 }
             }
-            
+
             for (Window window : Window.getWindows()) {
                 SwingUtilities.updateComponentTreeUI(window);
             }
         } catch (Exception ex) {
             ex.printStackTrace();
+        }
+    }
+
+    private static void applyFontScaling() {
+        int scaledSize = Math.max(11, Math.round(baseFontSize * uiScaleFactor));
+        Font defaultFont = UIManager.getFont("defaultFont");
+        if (defaultFont != null) {
+            UIManager.put("defaultFont", new FontUIResource(defaultFont.getName(), defaultFont.getStyle(), scaledSize));
+        }
+        Enumeration<Object> keys = UIManager.getDefaults().keys();
+        for (Object key : Collections.list(keys)) {
+            Object value = UIManager.get(key);
+            if (value instanceof FontUIResource) {
+                FontUIResource orig = (FontUIResource) value;
+                UIManager.put(key, new FontUIResource(orig.getName(), orig.getStyle(), scaledSize));
+            }
         }
     }
 }
