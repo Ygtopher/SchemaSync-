@@ -1924,6 +1924,16 @@ public class Main extends JFrame {
             JButton addWhereBtn = new JButton("+ Add Where");
             addWhereBtn.addActionListener(e -> addWhereRow());
             tbBase.add(addWhereBtn);
+
+            tbBase.add(new JLabel(" | "));
+            JToggleButton compactJoinBuilderBtn = new JToggleButton("▲ Compact Grid");
+            compactJoinBuilderBtn.setToolTipText("Collapse join builder clauses and toolbars to maximize result table space");
+            tbBase.add(compactJoinBuilderBtn);
+
+            JLabel joinClauseBadge = new JLabel("");
+            joinClauseBadge.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
+            joinClauseBadge.setFont(joinClauseBadge.getFont().deriveFont(Font.BOLD, 11.5f));
+            tbBase.add(joinClauseBadge);
             configPanel.add(tbBase, BorderLayout.NORTH);
             
             // Dynamic Joins and Where List
@@ -1945,7 +1955,8 @@ public class Main extends JFrame {
             listsPanel.add(joinHavingContainer);
             listsPanel.add(joinWindowFuncContainer);
             
-            configPanel.add(new JScrollPane(listsPanel), BorderLayout.CENTER);
+            JScrollPane listsScroll = new JScrollPane(listsPanel);
+            configPanel.add(listsScroll, BorderLayout.CENTER);
             
             // Bottom Options
             JPanel bottomOptionsPanel = new JPanel();
@@ -2135,10 +2146,30 @@ public class Main extends JFrame {
             configScroll.getVerticalScrollBar().setUnitIncrement(16);
 
             JSplitPane joinSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, configScroll, new JScrollPane(joinResultTable));
-            joinSplit.setResizeWeight(0.38);
-            joinSplit.setDividerSize(5);
+            joinSplit.setResizeWeight(0.32);
+            joinSplit.setDividerSize(6);
             joinSplit.setBorder(BorderFactory.createEmptyBorder());
             panel.add(joinSplit, BorderLayout.CENTER);
+
+            compactJoinBuilderBtn.addActionListener(e -> {
+                boolean compact = compactJoinBuilderBtn.isSelected();
+                listsScroll.setVisible(!compact);
+                bottomOptionsPanel.setVisible(!compact);
+                compactJoinBuilderBtn.setText(compact ? "▼ Expand Join Builder" : "▲ Compact Grid");
+                int jCount = joinPanels.size() + implicitTablePanels.size();
+                int wCount = wherePanels.size();
+                int oCount = joinOrderByPanels.size();
+                if (compact && (jCount + wCount + oCount > 0)) {
+                    joinClauseBadge.setText(String.format("  •  JOIN (%d) | WHERE (%d) | ORDER (%d)", jCount, wCount, oCount));
+                } else {
+                    joinClauseBadge.setText("");
+                }
+                configPanel.revalidate();
+                configPanel.repaint();
+                SwingUtilities.invokeLater(() -> {
+                    joinSplit.setDividerLocation(compact ? 42 : 240);
+                });
+            });
 
             // Shortcuts (Ctrl+Enter / F5)
             KeyStroke ctrlEnter = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK);
