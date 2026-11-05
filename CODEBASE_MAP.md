@@ -1,6 +1,6 @@
 # SchemaSync — Codebase, Feature & Technology Architecture Map
 
-**Version:** 1.7.4  
+**Version:** 1.7.5  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 

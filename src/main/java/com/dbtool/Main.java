@@ -29,7 +29,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.7.4";
+    public static final String APP_VERSION = "1.7.5";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -499,22 +499,133 @@ public class Main extends JFrame {
                 for (OrderByPanel op : browseOrderByPanels) op.updateColumns(cols);
             }
         }
+    private boolean showResizableRowFormDialog(String title, List<JLabel> labels, List<JTextField> fields, String okButtonText) {
+        JDialog dialog = new JDialog(Main.this, title, true);
+        dialog.setResizable(true);
+        dialog.setLayout(new BorderLayout(8, 8));
+
+        // Top search / filter bar for tables with many columns
+        JPanel topBar = new JPanel(new BorderLayout(6, 0));
+        topBar.setBorder(BorderFactory.createEmptyBorder(8, 12, 4, 12));
+        JLabel filterLbl = new JLabel("🔍 Filter columns (" + fields.size() + "): ");
+        JTextField filterField = new JTextField();
+        filterField.setToolTipText("Type to filter columns by name...");
+        topBar.add(filterLbl, BorderLayout.WEST);
+        topBar.add(filterField, BorderLayout.CENTER);
+        dialog.add(topBar, BorderLayout.NORTH);
+
+        // Form built with GridBagLayout anchored at NORTH so rows stay compact and stretch horizontally on resize
+        JPanel form = new JPanel(new GridBagLayout());
+        form.setBorder(BorderFactory.createEmptyBorder(6, 12, 10, 12));
+
+        Runnable rebuildFormRows = () -> {
+            form.removeAll();
+            String query = filterField.getText().trim().toLowerCase(java.util.Locale.ROOT);
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.insets = new Insets(4, 4, 4, 4);
+            gbc.anchor = GridBagConstraints.WEST;
+            int rowIdx = 0;
+            for (int i = 0; i < labels.size(); i++) {
+                JLabel lbl = labels.get(i);
+                JTextField tf = fields.get(i);
+                if (!query.isEmpty() && !lbl.getText().toLowerCase(java.util.Locale.ROOT).contains(query)) {
+                    continue;
+                }
+                gbc.gridx = 0;
+                gbc.gridy = rowIdx;
+                gbc.weightx = 0.0;
+                gbc.fill = GridBagConstraints.NONE;
+                form.add(lbl, gbc);
+
+                gbc.gridx = 1;
+                gbc.weightx = 1.0;
+                gbc.fill = GridBagConstraints.HORIZONTAL;
+                form.add(tf, gbc);
+                rowIdx++;
+            }
+            form.revalidate();
+            form.repaint();
+        };
+        rebuildFormRows.run();
+
+        filterField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { rebuildFormRows.run(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { rebuildFormRows.run(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { rebuildFormRows.run(); }
+        });
+
+        JPanel formNorthWrapper = new JPanel(new BorderLayout());
+        formNorthWrapper.add(form, BorderLayout.NORTH);
+
+        JScrollPane scrollPane = new JScrollPane(
+                formNorthWrapper,
+                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
+        );
+        scrollPane.getVerticalScrollBar().setUnitIncrement(18);
+        scrollPane.getHorizontalScrollBar().setUnitIncrement(18);
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(0, 12, 0, 12),
+                scrollPane.getBorder()
+        ));
+        dialog.add(scrollPane, BorderLayout.CENTER);
+
+        final boolean[] confirmed = {false};
+        JPanel bottomBar = new JPanel(new BorderLayout(8, 0));
+        bottomBar.setBorder(BorderFactory.createEmptyBorder(6, 12, 10, 12));
+        JLabel tipLabel = new JLabel("💡 Drag edges to resize • Scroll with mouse wheel");
+        tipLabel.setFont(tipLabel.getFont().deriveFont(Font.ITALIC, 11f));
+        bottomBar.add(tipLabel, BorderLayout.WEST);
+
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        JButton okBtn = new JButton(okButtonText);
+        okBtn.setFont(okBtn.getFont().deriveFont(Font.BOLD));
+        JButton cancelBtn = new JButton("Cancel");
+
+        okBtn.addActionListener(e -> {
+            confirmed[0] = true;
+            dialog.dispose();
+        });
+        cancelBtn.addActionListener(e -> dialog.dispose());
+
+        btnPanel.add(okBtn);
+        btnPanel.add(cancelBtn);
+        bottomBar.add(btnPanel, BorderLayout.EAST);
+        dialog.add(bottomBar, BorderLayout.SOUTH);
+
+        dialog.getRootPane().setDefaultButton(okBtn);
+        dialog.getRootPane().registerKeyboardAction(
+                e -> dialog.dispose(),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                JComponent.WHEN_IN_FOCUSED_WINDOW
+        );
+
+        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+        int maxH = Math.min(640, (int) (screen.height * 0.78));
+        int desiredH = Math.min(maxH, Math.max(280, fields.size() * 36 + 150));
+        dialog.setMinimumSize(new Dimension(420, 260));
+        dialog.setSize(580, desiredH);
+        dialog.setLocationRelativeTo(Main.this);
+        SwingUtilities.invokeLater(() -> scrollPane.getVerticalScrollBar().setValue(0));
+        dialog.setVisible(true);
+
+        return confirmed[0];
+    }
+
     private void openInsertRowDialog() {
         String tbl = (String) browseTableDropdown.getSelectedItem();
         if (tbl == null || tbl.trim().isEmpty()) return;
         List<String> cols = dbManager.getColumnNames(tbl);
         if (cols.isEmpty()) return;
 
-        JPanel form = new JPanel(new GridLayout(cols.size(), 2, 5, 5));
+        List<JLabel> labels = new ArrayList<>();
         List<JTextField> fields = new ArrayList<>();
         for (String col : cols) {
-            form.add(new JLabel(col + ":"));
-            JTextField tf = new JTextField(20);
+            labels.add(new JLabel(col + ":"));
+            JTextField tf = new JTextField(22);
             fields.add(tf);
-            form.add(tf);
         }
-        int res = JOptionPane.showConfirmDialog(this, new JScrollPane(form), "Insert Row into " + tbl, JOptionPane.OK_CANCEL_OPTION);
-        if (res != JOptionPane.OK_OPTION) return;
+        if (!showResizableRowFormDialog("➕ Insert Row into " + tbl, labels, fields, "Insert Row")) return;
 
         StringBuilder sql = new StringBuilder("INSERT INTO " + dbManager.quoteTableName(tbl) + " (");
         StringBuilder vals = new StringBuilder(") VALUES (");
@@ -570,7 +681,7 @@ public class Main extends JFrame {
 
         List<String> pks = dbManager.getPrimaryKeys(tbl);
 
-        JPanel form = new JPanel(new GridLayout(totalCols, 2, 6, 6));
+        List<JLabel> labels = new ArrayList<>();
         List<JTextField> fields = new ArrayList<>();
         List<Object> oldValues = new ArrayList<>();
         List<String> colNames = new ArrayList<>();
@@ -590,18 +701,16 @@ public class Main extends JFrame {
                 lbl.setFont(lbl.getFont().deriveFont(Font.BOLD));
                 lbl.setForeground(new Color(16, 185, 129));
             }
-            form.add(lbl);
+            labels.add(lbl);
 
             Object currentVal = model.getValueAt(modelRow, c);
             oldValues.add(currentVal);
 
             JTextField tf = new JTextField(currentVal != null ? currentVal.toString() : "", 22);
             fields.add(tf);
-            form.add(tf);
         }
 
-        int res = JOptionPane.showConfirmDialog(this, new JScrollPane(form), "✏️ Update Row in " + tbl, JOptionPane.OK_CANCEL_OPTION);
-        if (res != JOptionPane.OK_OPTION) return;
+        if (!showResizableRowFormDialog("✏️ Update Row in " + tbl, labels, fields, "Update Row")) return;
 
         // Collect changed fields
         List<String> changedCols = new ArrayList<>();

@@ -1,8 +1,18 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.7.4  
+**Current Version:** 1.7.5  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v1.7.5] - 2026-11-05
+### Fixed & Improved
+* **Resizable & Scrollable Update Row / Insert Row Dialogs (`Main.BrowseTab`):**
+  * Replaced the non-resizable `JOptionPane.showConfirmDialog` with a fully resizable modal `JDialog` (`showResizableRowFormDialog`) so wide tables (30+ columns) never overflow off the bottom of the screen behind the taskbar.
+  * Added smooth vertical and horizontal scrolling (`JScrollPane` with 18px mouse-wheel unit increments) and horizontally stretching `GridBagLayout` fields when resizing the dialog.
+  * Added an instant **🔍 Filter columns** search bar at the top of the dialog to filter form fields by column name on the fly.
+  * Pinned the **Update Row / Insert Row** (`Enter`) and **Cancel** (`Esc`) action buttons in the bottom bar so they remain permanently visible without scrolling.
 
 ---
 
