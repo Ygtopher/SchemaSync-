@@ -119,6 +119,20 @@ public class Main extends JFrame {
             tbSelect.add(new JLabel(" |  Limit: "));
             limitField.setPreferredSize(new Dimension(60, 26));
             tbSelect.add(limitField);
+
+            tbSelect.add(new JLabel(" | "));
+            JToggleButton compactBuilderBtn = new JToggleButton("▲ Compact Grid");
+            compactBuilderBtn.setToolTipText("Collapse secondary query builder toolbars to maximize data grid space");
+            tbSelect.add(compactBuilderBtn);
+
+            JToggleButton inspectorToggleBtn = new JToggleButton("📐 Row Inspector");
+            inspectorToggleBtn.setToolTipText("Toggle side-by-side TablePlus-style Row Inspector & Quick Editor drawer");
+            tbSelect.add(inspectorToggleBtn);
+
+            JLabel activeClausesBadge = new JLabel("");
+            activeClausesBadge.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
+            activeClausesBadge.setFont(activeClausesBadge.getFont().deriveFont(Font.BOLD, 11.5f));
+            tbSelect.add(activeClausesBadge);
             
             JPanel tbQuery = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
@@ -421,10 +435,89 @@ public class Main extends JFrame {
                 }
             });
 
-            JSplitPane browseSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, northScroll, browseScroll);
-            browseSplit.setResizeWeight(0.25);
-            browseSplit.setDividerSize(5);
+            JSplitPane browseSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, northScroll, null);
+            browseSplit.setResizeWeight(0.20);
+            browseSplit.setDividerSize(6);
             browseSplit.setBorder(BorderFactory.createEmptyBorder());
+
+            final com.dbtool.panels.RowInspectorDrawer[] drawerHolder = new com.dbtool.panels.RowInspectorDrawer[1];
+            JSplitPane tableAndInspectorSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, browseScroll, null);
+            tableAndInspectorSplit.setResizeWeight(1.0);
+            tableAndInspectorSplit.setDividerSize(0);
+            tableAndInspectorSplit.setBorder(BorderFactory.createEmptyBorder());
+
+            drawerHolder[0] = new com.dbtool.panels.RowInspectorDrawer(
+                dbManager,
+                () -> {
+                    inspectorToggleBtn.setSelected(false);
+                    tableAndInspectorSplit.setRightComponent(null);
+                    tableAndInspectorSplit.setDividerSize(0);
+                    tableAndInspectorSplit.revalidate();
+                    tableAndInspectorSplit.repaint();
+                },
+                this::loadTableData
+            );
+
+            Runnable syncInspectorSelection = () -> {
+                if (!inspectorToggleBtn.isSelected()) return;
+                int selRow = browseTable.getSelectedRow();
+                String tbl = (String) browseTableDropdown.getSelectedItem();
+                if (selRow >= 0 && selRow < browseTable.getRowCount()) {
+                    drawerHolder[0].inspectRow(tbl, browseTable, selRow);
+                } else {
+                    drawerHolder[0].showEmptyState();
+                }
+            };
+
+            inspectorToggleBtn.addActionListener(e -> {
+                if (inspectorToggleBtn.isSelected()) {
+                    tableAndInspectorSplit.setRightComponent(drawerHolder[0]);
+                    tableAndInspectorSplit.setDividerSize(6);
+                    int w = tableAndInspectorSplit.getWidth();
+                    tableAndInspectorSplit.setDividerLocation(w > 450 ? w - 350 : 650);
+                    syncInspectorSelection.run();
+                } else {
+                    tableAndInspectorSplit.setRightComponent(null);
+                    tableAndInspectorSplit.setDividerSize(0);
+                }
+                tableAndInspectorSplit.revalidate();
+                tableAndInspectorSplit.repaint();
+            });
+
+            browseTable.getSelectionModel().addListSelectionListener(e -> {
+                if (!e.getValueIsAdjusting()) {
+                    syncInspectorSelection.run();
+                }
+            });
+
+            Runnable updateClauseBadges = () -> {
+                int wCount = browseWherePanels.size();
+                int oCount = browseOrderByPanels.size();
+                int aCount = browseAggregatePanels.size() + browseGroupByPanels.size() + browseHavingPanels.size() + browseWindowFuncPanels.size();
+                if (wCount + oCount + aCount > 0) {
+                    activeClausesBadge.setText(String.format("  •  Active Clauses: WHERE (%d) | ORDER (%d) | AGG/GROUP (%d)", wCount, oCount, aCount));
+                } else {
+                    activeClausesBadge.setText("");
+                }
+            };
+
+            compactBuilderBtn.addActionListener(e -> {
+                boolean compact = compactBuilderBtn.isSelected();
+                tbQuery.setVisible(!compact);
+                tbAdvanced.setVisible(!compact);
+                tbRecordActions.setVisible(!compact);
+                tbDataTools.setVisible(!compact);
+                filtersPanel.setVisible(!compact);
+                compactBuilderBtn.setText(compact ? "▼ Expand Builder" : "▲ Compact Grid");
+                updateClauseBadges.run();
+                northPanel.revalidate();
+                northPanel.repaint();
+                SwingUtilities.invokeLater(() -> {
+                    browseSplit.setDividerLocation(compact ? 42 : Math.min(240, northPanel.getPreferredSize().height + 12));
+                });
+            });
+
+            browseSplit.setBottomComponent(tableAndInspectorSplit);
             panel.add(browseSplit, BorderLayout.CENTER);
 
             // Shortcuts (Ctrl+Enter / F5 / Delete)
@@ -446,7 +539,18 @@ public class Main extends JFrame {
             JPopupMenu tableMenu = browseTable.getComponentPopupMenu();
             if (tableMenu != null) {
                 tableMenu.addSeparator();
-                JMenuItem editMenuItem = new JMenuItem("✏️ Update Selected Row...");
+                JMenuItem inspectDrawerItem = new JMenuItem("📐 Inspect Row in Side Drawer");
+                inspectDrawerItem.setFont(inspectDrawerItem.getFont().deriveFont(Font.BOLD));
+                inspectDrawerItem.addActionListener(e -> {
+                    if (!inspectorToggleBtn.isSelected()) {
+                        inspectorToggleBtn.doClick();
+                    } else {
+                        syncInspectorSelection.run();
+                    }
+                });
+                tableMenu.add(inspectDrawerItem);
+
+                JMenuItem editMenuItem = new JMenuItem("✏️ Update Selected Row (Modal Dialog)...");
                 editMenuItem.setFont(editMenuItem.getFont().deriveFont(Font.BOLD));
                 editMenuItem.addActionListener(e -> openUpdateRowDialog());
                 tableMenu.add(editMenuItem);
