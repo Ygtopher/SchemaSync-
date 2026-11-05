@@ -38,6 +38,7 @@ public class DatabaseManager {
     private java.util.Map<String, java.util.List<String>> columnCache = new java.util.concurrent.ConcurrentHashMap<>();
     void columnCachePutTest(String table, java.util.List<String> cols) { columnCache.put(table, cols); }
     private java.util.Map<String, java.util.Map<String, String[]>> fkCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private java.util.Map<String, java.util.List<String>> pkCache = new java.util.concurrent.ConcurrentHashMap<>();
     private java.util.List<String> tableCache = null;
 
     private File getSaveFile(String filename) {
@@ -78,6 +79,7 @@ public class DatabaseManager {
     public void clearCache() {
         columnCache.clear();
         fkCache.clear();
+        pkCache.clear();
         tableCache = null;
         lastValidCheckMs = 0;
     }
@@ -331,6 +333,8 @@ public class DatabaseManager {
     public List<String> getPrimaryKeys(String tableName) {
         List<String> pks = new ArrayList<>();
         if (connection == null || tableName == null) return pks;
+        List<String> cached = pkCache.get(tableName);
+        if (cached != null) return new ArrayList<>(cached);
         try {
             DatabaseMetaData meta = connection.getMetaData();
             String rawTable = tableName;
@@ -386,6 +390,7 @@ public class DatabaseManager {
                     }
                 }
             }
+            pkCache.put(tableName, new ArrayList<>(pks));
         } catch (Exception ignored) {}
         return pks;
     }

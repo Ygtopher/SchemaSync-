@@ -1322,6 +1322,7 @@ public class SqlEditorPanel extends JPanel {
         JTable table = new JTable(model);
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setCellSelectionEnabled(true);
+        com.dbtool.ui.components.SmartTableCellRenderer.install(table, null, null);
         TableRowSorter<TableModel> sorter = new TableRowSorter<>(model);
         table.setRowSorter(sorter);
 

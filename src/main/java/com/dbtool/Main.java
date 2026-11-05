@@ -3386,6 +3386,17 @@ public class Main extends JFrame {
             super();
             this.tableNameSupplier = tableNameSupplier;
             this.setShowGrid(true);
+            com.dbtool.ui.components.SmartTableCellRenderer.install(
+                this,
+                col -> {
+                    String t = this.tableNameSupplier != null ? this.tableNameSupplier.get() : null;
+                    return t != null && dbManager != null && dbManager.getPrimaryKeys(t).contains(col);
+                },
+                col -> {
+                    String t = this.tableNameSupplier != null ? this.tableNameSupplier.get() : null;
+                    return t != null && dbManager != null && dbManager.getCachedForeignKeys(t).containsKey(col);
+                }
+            );
             
             JPopupMenu popupMenu = new JPopupMenu();
             JMenuItem editItem = new JMenuItem("Edit Cell");
