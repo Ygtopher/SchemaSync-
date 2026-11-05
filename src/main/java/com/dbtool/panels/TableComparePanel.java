@@ -93,6 +93,9 @@ public class TableComparePanel extends JPanel {
         JSplitPane splitResults = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scrollA, scrollB);
         splitResults.setResizeWeight(0.5);
         
+        com.dbtool.ui.components.SmartTableCellRenderer.install(dataTableA, null, null);
+        com.dbtool.ui.components.SmartTableCellRenderer.install(dataTableB, null, null);
+        com.dbtool.ui.components.SmartTableCellRenderer.install(diffTable, null, null);
         com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(dataTableA);
         com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(dataTableB);
         resultTabs.addTab("Side-by-Side Results", splitResults);
