@@ -5306,15 +5306,20 @@ public class Main extends JFrame {
         SearchableComboBox colDropdown = new SearchableComboBox();
         JTextField aliasField = new JTextField(10);
         JTextField filterField = new JTextField(12);
-        JButton removeBtn = new JButton("✕");
+        JButton removeBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove aggregate row");
 
         public AggregateRowPanel(boolean showTable, List<AggregateRowPanel> ownerList, JPanel container) {
-            setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
-            add(new JLabel("∑"));
+            com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+            add(com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+                com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.AGGREGATE
+            ));
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(funcDropdown, 128);
             add(funcDropdown);
             if (showTable) {
                 tableDropdown = new SearchableComboBox();
-                tableDropdown.setPreferredSize(new Dimension(130, 26));
+                com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                    tableDropdown, com.dbtool.ui.components.ClauseBadgeFactory.TABLE_WIDTH
+                );
                 tableDropdown.addActionListener(e -> {
                     String tbl = (String) tableDropdown.getSelectedItem();
                     if (tbl != null) {
@@ -5325,23 +5330,24 @@ public class Main extends JFrame {
                     }
                 });
                 add(tableDropdown);
+                add(com.dbtool.ui.components.ClauseBadgeFactory.createDotSeparator());
             }
-            colDropdown.setPreferredSize(new Dimension(130, 26));
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                colDropdown, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+            );
             add(colDropdown);
 
             add(new JLabel("AS"));
             aliasField.setToolTipText("Column alias name");
-            aliasField.setPreferredSize(new Dimension(85, 26));
+            aliasField.setPreferredSize(new Dimension(95, com.dbtool.ui.components.ClauseBadgeFactory.ROW_HEIGHT));
             add(aliasField);
 
             add(new JLabel("FILTER (WHERE:"));
             filterField.setToolTipText("Optional SQL FILTER predicate, e.g. salary > 100000 or status = 'open'");
-            filterField.setPreferredSize(new Dimension(110, 26));
+            filterField.setPreferredSize(new Dimension(115, com.dbtool.ui.components.ClauseBadgeFactory.ROW_HEIGHT));
             add(filterField);
             add(new JLabel(")"));
 
-            removeBtn.setMargin(new Insets(1, 4, 1, 4));
-            removeBtn.setForeground(Color.RED);
             removeBtn.addActionListener(e -> {
                 ownerList.remove(this);
                 container.remove(this);
@@ -5479,19 +5485,39 @@ public class Main extends JFrame {
             ">", "<", ">=", "<=", "=", "!=", "BETWEEN"
         });
         JTextField valueField = new JTextField(10);
-        JButton removeBtn = new JButton("✕");
+        JButton removeBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove HAVING condition");
+        private final JComponent havingBadge = com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+            com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.HAVING
+        );
+        private final JPanel prefixSlot = new JPanel(new BorderLayout());
+
+        public void setFirst(boolean isFirst) {
+            prefixSlot.removeAll();
+            if (isFirst) {
+                prefixSlot.add(havingBadge, BorderLayout.CENTER);
+            } else {
+                prefixSlot.add(logicDropdown, BorderLayout.CENTER);
+            }
+            prefixSlot.revalidate();
+            prefixSlot.repaint();
+        }
 
         public HavingRowPanel(boolean isFirst, boolean showTable, List<HavingRowPanel> ownerList, JPanel container) {
-            setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
-            if (!isFirst) {
-                add(logicDropdown);
-            } else {
-                add(new JLabel("HAVING:"));
-            }
+            com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+            com.dbtool.ui.components.ClauseBadgeFactory.styleLogicDropdown(logicDropdown);
+            prefixSlot.setOpaque(false);
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                prefixSlot, com.dbtool.ui.components.ClauseBadgeFactory.PREFIX_WIDTH
+            );
+            setFirst(isFirst);
+            add(prefixSlot);
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(funcDropdown, 105);
             add(funcDropdown);
             if (showTable) {
                 tableDropdown = new SearchableComboBox();
-                tableDropdown.setPreferredSize(new Dimension(130, 26));
+                com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                    tableDropdown, com.dbtool.ui.components.ClauseBadgeFactory.TABLE_WIDTH
+                );
                 tableDropdown.addActionListener(e -> {
                     String tbl = (String) tableDropdown.getSelectedItem();
                     if (tbl != null) {
@@ -5502,18 +5528,28 @@ public class Main extends JFrame {
                     }
                 });
                 add(tableDropdown);
+                add(com.dbtool.ui.components.ClauseBadgeFactory.createDotSeparator());
             }
-            colDropdown.setPreferredSize(new Dimension(130, 26));
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                colDropdown, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+            );
             add(colDropdown);
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                operatorDropdown, com.dbtool.ui.components.ClauseBadgeFactory.OPERATOR_WIDTH
+            );
             add(operatorDropdown);
-            valueField.setPreferredSize(new Dimension(90, 26));
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                valueField, com.dbtool.ui.components.ClauseBadgeFactory.VALUE_WIDTH
+            );
+            valueField.putClientProperty("JTextField.placeholderText", "Enter value...");
             add(valueField);
 
-            removeBtn.setMargin(new Insets(1, 4, 1, 4));
-            removeBtn.setForeground(Color.RED);
             removeBtn.addActionListener(e -> {
                 ownerList.remove(this);
                 container.remove(this);
+                for (int i = 0; i < ownerList.size(); i++) {
+                    ownerList.get(i).setFirst(i == 0);
+                }
                 container.revalidate();
                 container.repaint();
             });
@@ -5577,22 +5613,24 @@ public class Main extends JFrame {
             "ROWS 2 PRECEDING AND 2 FOLLOWING EXCLUDE CURRENT ROW"
         });
         JTextField aliasField = new JTextField(10);
-        JButton removeBtn = new JButton("✕");
+        JButton removeBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove WINDOW function row");
 
         public WindowFuncRowPanel(List<WindowFuncRowPanel> ownerList, JPanel container) {
-            setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
-            add(new JLabel("🪟 OVER:"));
+            com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+            add(com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+                com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.WINDOW
+            ));
             add(funcDropdown);
 
-            valColDropdown.setPreferredSize(new Dimension(100, 26));
+            valColDropdown.setPreferredSize(new Dimension(110, 26));
             add(new JLabel("Col:"));
             add(valColDropdown);
 
-            partitionColDropdown.setPreferredSize(new Dimension(110, 26));
+            partitionColDropdown.setPreferredSize(new Dimension(120, 26));
             add(new JLabel("PARTITION BY:"));
             add(partitionColDropdown);
 
-            orderColDropdown.setPreferredSize(new Dimension(110, 26));
+            orderColDropdown.setPreferredSize(new Dimension(120, 26));
             add(new JLabel("ORDER BY:"));
             add(orderColDropdown);
             add(orderDirDropdown);
@@ -5601,11 +5639,9 @@ public class Main extends JFrame {
             add(frameDropdown);
 
             add(new JLabel("AS:"));
-            aliasField.setPreferredSize(new Dimension(85, 26));
+            aliasField.setPreferredSize(new Dimension(90, 26));
             add(aliasField);
 
-            removeBtn.setMargin(new Insets(1, 4, 1, 4));
-            removeBtn.setForeground(Color.RED);
             removeBtn.addActionListener(e -> {
                 ownerList.remove(this);
                 container.remove(this);
@@ -6198,27 +6234,34 @@ public class Main extends JFrame {
             SearchableComboBox colCombo = new SearchableComboBox();
             JComboBox<String> opCombo = new JComboBox<>(new String[]{"=", "!=", ">", "<", ">=", "<=", "LIKE", "ILIKE", "IN", "NOT IN", "BETWEEN", "IS NULL", "IS NOT NULL"});
             JTextField valField = new JTextField(12);
-            JButton delBtn = new JButton("X");
+            JButton delBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove subquery condition");
+            private final JComponent whereBadge = com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+                com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.WHERE
+            );
+            private final JPanel prefixSlot = new JPanel(new BorderLayout());
 
             public SubqueryConditionRow(boolean isFirst, List<String> cols, SubqueryWhereCondition initData, Runnable onUpdate, Runnable onRemove) {
-                setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
-                logicCombo.setPreferredSize(new Dimension(65, 26));
-                colCombo.setPreferredSize(new Dimension(140, 26));
-                opCombo.setPreferredSize(new Dimension(95, 26));
-                valField.setPreferredSize(new Dimension(140, 26));
-                delBtn.setPreferredSize(new Dimension(38, 24));
-                delBtn.setMargin(new Insets(1, 4, 1, 4));
+                com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+                com.dbtool.ui.components.ClauseBadgeFactory.styleLogicDropdown(logicCombo);
+                prefixSlot.setOpaque(false);
+                com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                    prefixSlot, com.dbtool.ui.components.ClauseBadgeFactory.PREFIX_WIDTH
+                );
+                com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                    colCombo, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+                );
+                com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                    opCombo, com.dbtool.ui.components.ClauseBadgeFactory.OPERATOR_WIDTH
+                );
+                com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                    valField, com.dbtool.ui.components.ClauseBadgeFactory.VALUE_WIDTH
+                );
+                valField.putClientProperty("JTextField.placeholderText", "Enter value...");
 
                 colCombo.setAllItems(cols);
 
-                if (!isFirst) {
-                    add(logicCombo);
-                } else {
-                    JPanel spacer = new JPanel();
-                    spacer.setPreferredSize(new Dimension(65, 26));
-                    spacer.setOpaque(false);
-                    add(spacer);
-                }
+                setFirst(isFirst);
+                add(prefixSlot);
                 add(colCombo);
                 add(opCombo);
                 add(valField);
@@ -6264,21 +6307,14 @@ public class Main extends JFrame {
             }
 
             public void setFirst(boolean isFirst) {
-                removeAll();
-                if (!isFirst) {
-                    add(logicCombo);
+                prefixSlot.removeAll();
+                if (isFirst) {
+                    prefixSlot.add(whereBadge, BorderLayout.CENTER);
                 } else {
-                    JPanel spacer = new JPanel();
-                    spacer.setPreferredSize(new Dimension(65, 26));
-                    spacer.setOpaque(false);
-                    add(spacer);
+                    prefixSlot.add(logicCombo, BorderLayout.CENTER);
                 }
-                add(colCombo);
-                add(opCombo);
-                add(valField);
-                add(delBtn);
-                revalidate();
-                repaint();
+                prefixSlot.revalidate();
+                prefixSlot.repaint();
             }
         }
 
