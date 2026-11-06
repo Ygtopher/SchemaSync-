@@ -183,4 +183,42 @@ public class SessionRecoveryTest {
         assertTrue(archivedFiles.length > 0, "Archived discarded session file should exist");
         assertTrue(archivedFiles[0].getName().startsWith("discarded_"));
     }
+
+    @Test
+    public void testSaveAndLoadSnapshotFromFile() {
+        File customFile = new File(tempRecoveryDir.toFile(), "my_custom_session.json");
+
+        SessionSnapshot snapshot = new SessionSnapshot();
+        snapshot.timestamp = System.currentTimeMillis();
+        snapshot.activeTabTitle = "SQL Editor";
+        snapshot.sqlEditor.queryText = "SELECT COUNT(*) FROM users WHERE active = true;";
+        snapshot.connection.type = "SQLITE";
+        snapshot.connection.filePath = "C:/data/test.sqlite";
+
+        boolean saved = SessionRecoveryManager.saveSnapshotToFile(customFile, snapshot);
+        assertTrue(saved, "Should save snapshot to custom file");
+        assertTrue(customFile.exists());
+
+        SessionSnapshot loaded = SessionRecoveryManager.loadSnapshotFromFile(customFile);
+        assertNotNull(loaded, "Should load snapshot from custom file");
+        assertEquals("SQL Editor", loaded.activeTabTitle);
+        assertEquals("SELECT COUNT(*) FROM users WHERE active = true;", loaded.sqlEditor.queryText);
+        assertEquals("SQLITE", loaded.connection.type);
+        assertEquals("C:/data/test.sqlite", loaded.connection.filePath);
+    }
+
+    @Test
+    public void testArchiveCurrentSnapshotAndListArchives() {
+        SessionSnapshot snap1 = new SessionSnapshot();
+        snap1.sqlEditor.queryText = "-- Snapshot 1";
+        SessionRecoveryManager.archiveCurrentSnapshot(snap1);
+
+        List<File> archives = SessionRecoveryManager.listArchivedSnapshots();
+        assertFalse(archives.isEmpty(), "Archives should not be empty after archiving snapshot");
+        assertTrue(archives.get(0).getName().startsWith("snapshot_"));
+
+        SessionSnapshot loaded = SessionRecoveryManager.loadSnapshotFromFile(archives.get(0));
+        assertNotNull(loaded);
+        assertEquals("-- Snapshot 1", loaded.sqlEditor.queryText);
+    }
 }

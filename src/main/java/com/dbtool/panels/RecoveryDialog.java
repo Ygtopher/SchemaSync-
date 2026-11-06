@@ -22,9 +22,13 @@ public class RecoveryDialog extends JDialog {
     private RecoveryChoice choice = RecoveryChoice.CANCEL;
 
     public RecoveryDialog(Frame parent, SessionSnapshot snapshot) {
-        super(parent, "Crash Recovery - Unsaved Session Detected", true);
+        this(parent, snapshot, false);
+    }
+
+    public RecoveryDialog(Frame parent, SessionSnapshot snapshot, boolean isManualRestore) {
+        super(parent, isManualRestore ? "💾 Workspace Snapshot Viewer & Restore" : "Crash Recovery - Unsaved Session Detected", true);
         setLayout(new BorderLayout(12, 12));
-        setSize(560, 480);
+        setSize(580, 500);
         setLocationRelativeTo(parent);
 
         JPanel mainPanel = new JPanel();
@@ -33,16 +37,19 @@ public class RecoveryDialog extends JDialog {
 
         // Header
         JPanel headerPanel = new JPanel(new BorderLayout(10, 5));
-        JLabel iconLabel = new JLabel("⚠️");
+        JLabel iconLabel = new JLabel(isManualRestore ? "💾" : "⚠️");
         iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 36));
         headerPanel.add(iconLabel, BorderLayout.WEST);
 
         JPanel headerTextP = new JPanel(new GridLayout(2, 1, 2, 2));
-        JLabel titleLabel = new JLabel("Unsaved Session Detected");
+        JLabel titleLabel = new JLabel(isManualRestore ? "Saved Workspace Snapshot" : "Unsaved Session Detected");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
         
         String dateStr = new SimpleDateFormat("MMMM dd, yyyy 'at' hh:mm:ss a").format(new Date(snapshot.timestamp));
-        JLabel subLabel = new JLabel("<html>SchemaSync detected an unexpected shutdown from <b>" + dateStr + "</b>.</html>");
+        String descText = isManualRestore
+                ? "<html>Snapshot saved on <b>" + dateStr + "</b>. Review workspace contents below to restore.</html>"
+                : "<html>SchemaSync detected an unexpected shutdown from <b>" + dateStr + "</b>.</html>";
+        JLabel subLabel = new JLabel(descText);
         headerTextP.add(titleLabel);
         headerTextP.add(subLabel);
         headerPanel.add(headerTextP, BorderLayout.CENTER);
@@ -53,7 +60,7 @@ public class RecoveryDialog extends JDialog {
         // Content details card
         JPanel detailsCard = new JPanel(new GridBagLayout());
         detailsCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createTitledBorder("Recoverable Work Summary"),
+                BorderFactory.createTitledBorder("Workspace Snapshot Summary"),
                 BorderFactory.createEmptyBorder(8, 8, 8, 8)
         ));
 
@@ -73,7 +80,13 @@ public class RecoveryDialog extends JDialog {
             if ("SANDBOX".equalsIgnoreCase(snapshot.connection.type)) {
                 dbDesc = "⚡ Sample Sandbox DB (In-Memory)";
             } else if ("POSTGRES".equalsIgnoreCase(snapshot.connection.type)) {
-                dbDesc = snapshot.connection.dbName + " (" + snapshot.connection.host + ":" + snapshot.connection.port + ")";
+                dbDesc = "PostgreSQL: " + snapshot.connection.dbName + " (" + snapshot.connection.host + ":" + snapshot.connection.port + ")";
+            } else if ("MYSQL".equalsIgnoreCase(snapshot.connection.type)) {
+                dbDesc = "MySQL: " + snapshot.connection.dbName + " (" + snapshot.connection.host + ":" + snapshot.connection.port + ")";
+            } else if ("SQLITE".equalsIgnoreCase(snapshot.connection.type)) {
+                dbDesc = "SQLite: " + (snapshot.connection.filePath != null ? new File(snapshot.connection.filePath).getName() : snapshot.connection.dbName);
+            } else if ("ACCESS".equalsIgnoreCase(snapshot.connection.type)) {
+                dbDesc = "MS Access: " + (snapshot.connection.filePath != null ? new File(snapshot.connection.filePath).getName() : snapshot.connection.dbName);
             } else if (snapshot.connection.filePath != null && !snapshot.connection.filePath.isEmpty()) {
                 dbDesc = new File(snapshot.connection.filePath).getName();
             }
@@ -88,7 +101,7 @@ public class RecoveryDialog extends JDialog {
         String sqlPreview = "Empty";
         if (snapshot.sqlEditor != null && snapshot.sqlEditor.queryText != null && !snapshot.sqlEditor.queryText.trim().isEmpty()) {
             int lines = snapshot.sqlEditor.queryText.split("\r\n|\r|\n").length;
-            sqlPreview = lines + " line(s) of unsaved SQL code";
+            sqlPreview = lines + " line(s) of SQL code";
         }
         detailsCard.add(new JLabel(sqlPreview), gbc);
         row++;
@@ -98,7 +111,11 @@ public class RecoveryDialog extends JDialog {
         detailsCard.add(new JLabel("🔍 Browse & Search:"), gbc);
         gbc.gridx = 1; gbc.gridy = row; gbc.weightx = 1.0;
         int browseCount = snapshot.browseTabs != null ? snapshot.browseTabs.size() : 0;
-        detailsCard.add(new JLabel(browseCount + " tab(s) with custom filters and columns"), gbc);
+        String browseDesc = browseCount + " tab(s)";
+        if (browseCount > 0 && snapshot.browseTabs.get(0).tableName != null) {
+            browseDesc += " (Table: " + snapshot.browseTabs.get(0).tableName + ")";
+        }
+        detailsCard.add(new JLabel(browseDesc), gbc);
         row++;
 
         // Visual Join Tabs
@@ -106,7 +123,11 @@ public class RecoveryDialog extends JDialog {
         detailsCard.add(new JLabel("🔗 Visual Joins:"), gbc);
         gbc.gridx = 1; gbc.gridy = row; gbc.weightx = 1.0;
         int joinCount = snapshot.joinTabs != null ? snapshot.joinTabs.size() : 0;
-        detailsCard.add(new JLabel(joinCount + " tab(s) with visual join queries and conditions"), gbc);
+        String joinDesc = joinCount + " tab(s)";
+        if (joinCount > 0 && snapshot.joinTabs.get(0).baseTable != null) {
+            joinDesc += " (Base: " + snapshot.joinTabs.get(0).baseTable + ")";
+        }
+        detailsCard.add(new JLabel(joinDesc), gbc);
         row++;
 
         // Compare Queries
@@ -124,7 +145,7 @@ public class RecoveryDialog extends JDialog {
         // SQL Snippet preview area if available
         if (snapshot.sqlEditor != null && snapshot.sqlEditor.queryText != null && !snapshot.sqlEditor.queryText.trim().isEmpty()) {
             JPanel snippetP = new JPanel(new BorderLayout(4, 4));
-            snippetP.setBorder(BorderFactory.createTitledBorder("SQL Draft Preview"));
+            snippetP.setBorder(BorderFactory.createTitledBorder("SQL Query Preview"));
             JTextArea previewArea = new JTextArea(snapshot.sqlEditor.queryText);
             previewArea.setRows(5);
             previewArea.setEditable(false);
@@ -136,34 +157,36 @@ public class RecoveryDialog extends JDialog {
         // Bottom Actions
         JPanel bottomBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
 
-        JButton exportBtn = new JButton("💾 Export to File...");
-        exportBtn.setToolTipText("Save this recovery snapshot to a file on your computer");
+        JButton exportBtn = new JButton("💾 Export Snapshot File...");
+        exportBtn.setToolTipText("Save this session snapshot (.session.json) to disk");
         exportBtn.addActionListener(e -> {
             JFileChooser fc = new JFileChooser();
-            fc.setSelectedFile(new File("recovered_draft.sql"));
+            fc.setSelectedFile(new File("schemasync_snapshot_" + new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date()) + ".session.json"));
             if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-                try {
-                    File f = fc.getSelectedFile();
-                    String content = snapshot.sqlEditor != null ? snapshot.sqlEditor.queryText : "";
-                    try (FileOutputStream fos = new FileOutputStream(f)) {
-                        fos.write(content.getBytes(StandardCharsets.UTF_8));
-                    }
-                    JOptionPane.showMessageDialog(this, "Saved draft to " + f.getAbsolutePath());
-                } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(this, "Failed to save file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                File f = fc.getSelectedFile();
+                boolean saved = SessionRecoveryManager.saveSnapshotToFile(f, snapshot);
+                if (saved) {
+                    JOptionPane.showMessageDialog(this, "Snapshot exported successfully to:\n" + f.getAbsolutePath(), "Snapshot Exported", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Failed to export snapshot.", "Export Error", JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
 
-        JButton discardBtn = new JButton("Discard");
+        JButton discardBtn = new JButton(isManualRestore ? "Cancel" : "Discard");
         discardBtn.addActionListener(e -> {
-            int confirm = JOptionPane.showConfirmDialog(this,
-                    "Are you sure you want to discard this unsaved session? It will be archived and removed.",
-                    "Confirm Discard", JOptionPane.YES_NO_OPTION);
-            if (confirm == JOptionPane.YES_OPTION) {
-                choice = RecoveryChoice.DISCARD;
-                SessionRecoveryManager.discardCrashedSession();
+            if (isManualRestore) {
+                choice = RecoveryChoice.CANCEL;
                 dispose();
+            } else {
+                int confirm = JOptionPane.showConfirmDialog(this,
+                        "Are you sure you want to discard this unsaved session? It will be archived and removed.",
+                        "Confirm Discard", JOptionPane.YES_NO_OPTION);
+                if (confirm == JOptionPane.YES_OPTION) {
+                    choice = RecoveryChoice.DISCARD;
+                    SessionRecoveryManager.discardCrashedSession();
+                    dispose();
+                }
             }
         });
 

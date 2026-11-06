@@ -17,6 +17,10 @@ public class DatabaseManager {
             connectMySQL(lastHost, lastPort, lastDbName, lastUser, lastPass);
         } else if ("SQLITE".equalsIgnoreCase(lastType) && (lastDumpFile != null || lastDbName != null)) {
             connectSQLite(lastDumpFile != null ? lastDumpFile : lastDbName);
+        } else if ("ACCESS".equalsIgnoreCase(lastType) && lastDumpFile != null) {
+            connect(lastDumpFile);
+        } else if (isSandbox()) {
+            connectSandbox();
         } else if (lastHost != null) {
             connectExistingPostgres(lastHost, lastPort, lastDbName, lastUser, lastPass);
         }
@@ -232,6 +236,10 @@ public class DatabaseManager {
             
         } else if (dbFilePath.toLowerCase().endsWith(".accdb") || dbFilePath.toLowerCase().endsWith(".mdb")) {
             System.out.println("Connecting to MS Access Database...");
+            this.lastType = "ACCESS";
+            this.lastDumpFile = dbFilePath;
+            this.lastHost = null; this.lastPort = null; this.lastDbName = new File(dbFilePath).getName(); this.lastUser = null; this.lastPass = null;
+            clearCache();
             String url = "jdbc:ucanaccess://" + dbFilePath;
             connection = DriverManager.getConnection(url);
             com.dbtool.util.AppUsageTracker.recordConnection("MS Access");
@@ -401,6 +409,7 @@ public class DatabaseManager {
 
     public void connectSandbox(String memDbName) throws Exception {
         String dbLabel = "schemasync_sandbox".equals(memDbName) ? "Sandbox (In-Memory)" : "Sandbox (" + memDbName + ")";
+        this.lastType = "SANDBOX";
         this.lastHost = null; this.lastPort = null; this.lastDbName = dbLabel; this.lastUser = "sa"; this.lastPass = ""; this.lastDumpFile = null;
         clearCache();
         if (connection != null && !connection.isClosed()) {

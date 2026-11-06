@@ -29,7 +29,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.8.0";
+    public static final String APP_VERSION = "1.8.1";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -4542,16 +4542,105 @@ public class Main extends JFrame {
         topPanel.add(adminToolsBtn);
 
         // Auto-Save Indicator Button
-        autoSaveIndicatorBtn.setToolTipText("Auto-Save is active (Click for recovery options)");
+        autoSaveIndicatorBtn.setToolTipText("Auto-Save & Workspace Snapshots (Click for recovery & snapshot options)");
         autoSaveIndicatorBtn.addActionListener(e -> {
             JPopupMenu menu = new JPopupMenu();
+
             JMenuItem saveNowItem = new JMenuItem("💾 Save Snapshot Now");
             saveNowItem.addActionListener(ev -> {
-                boolean saved = com.dbtool.util.SessionRecoveryManager.saveSessionSnapshot(captureCurrentSessionSnapshot());
+                com.dbtool.model.SessionSnapshot snapshot = captureCurrentSessionSnapshot();
+                boolean saved = com.dbtool.util.SessionRecoveryManager.saveSessionSnapshot(snapshot);
+                com.dbtool.util.SessionRecoveryManager.archiveCurrentSnapshot(snapshot);
                 String timeStr = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
                 onAutoSaved(timeStr);
-                JOptionPane.showMessageDialog(this, saved ? "Session snapshot saved successfully!" : "Session is already up to date.", "Snapshot Info", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Session snapshot saved and archived successfully!", "Snapshot Info", JOptionPane.INFORMATION_MESSAGE);
             });
+            menu.add(saveNowItem);
+
+            JMenuItem restoreLatestItem = new JMenuItem("♻️ Restore Latest Autosaved Snapshot...");
+            restoreLatestItem.setEnabled(com.dbtool.util.SessionRecoveryManager.hasAutosavedSession());
+            restoreLatestItem.addActionListener(ev -> {
+                com.dbtool.model.SessionSnapshot snapshot = com.dbtool.util.SessionRecoveryManager.loadAutosavedSession();
+                if (snapshot != null) {
+                    com.dbtool.panels.RecoveryDialog dlg = new com.dbtool.panels.RecoveryDialog(this, snapshot, true);
+                    dlg.setVisible(true);
+                    if (dlg.getChoice() == com.dbtool.panels.RecoveryDialog.RecoveryChoice.RESTORE) {
+                        restoreSessionSnapshot(snapshot);
+                    }
+                } else {
+                    JOptionPane.showMessageDialog(this, "No autosaved snapshot found.", "Snapshot Recovery", JOptionPane.INFORMATION_MESSAGE);
+                }
+            });
+            menu.add(restoreLatestItem);
+
+            JMenuItem loadFileItem = new JMenuItem("📂 Load Snapshot from File...");
+            loadFileItem.addActionListener(ev -> {
+                JFileChooser fc = new JFileChooser(com.dbtool.util.SessionRecoveryManager.getRecoveryDir());
+                fc.setDialogTitle("Select Saved Session Snapshot (.json)");
+                fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Session Snapshots (*.json)", "json"));
+                if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                    File file = fc.getSelectedFile();
+                    com.dbtool.model.SessionSnapshot snapshot = com.dbtool.util.SessionRecoveryManager.loadSnapshotFromFile(file);
+                    if (snapshot != null) {
+                        com.dbtool.panels.RecoveryDialog dlg = new com.dbtool.panels.RecoveryDialog(this, snapshot, true);
+                        dlg.setVisible(true);
+                        if (dlg.getChoice() == com.dbtool.panels.RecoveryDialog.RecoveryChoice.RESTORE) {
+                            restoreSessionSnapshot(snapshot);
+                        }
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Failed to load snapshot from:\n" + file.getAbsolutePath(), "Load Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            });
+            menu.add(loadFileItem);
+
+            JMenuItem exportFileItem = new JMenuItem("💾 Export Current Snapshot to File...");
+            exportFileItem.addActionListener(ev -> {
+                com.dbtool.model.SessionSnapshot snapshot = captureCurrentSessionSnapshot();
+                JFileChooser fc = new JFileChooser();
+                fc.setSelectedFile(new File("schemasync_snapshot_" + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(new java.util.Date()) + ".session.json"));
+                if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+                    File f = fc.getSelectedFile();
+                    boolean saved = com.dbtool.util.SessionRecoveryManager.saveSnapshotToFile(f, snapshot);
+                    if (saved) {
+                        JOptionPane.showMessageDialog(this, "Snapshot exported successfully to:\n" + f.getAbsolutePath(), "Snapshot Exported", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Failed to export snapshot.", "Export Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            });
+            menu.add(exportFileItem);
+
+            menu.addSeparator();
+
+            // Submenu for recent archived snapshots
+            JMenu recentMenu = new JMenu("📜 Recent / Archived Snapshots");
+            java.util.List<File> archives = com.dbtool.util.SessionRecoveryManager.listArchivedSnapshots();
+            if (archives.isEmpty()) {
+                JMenuItem noneItem = new JMenuItem("(No archived snapshots)");
+                noneItem.setEnabled(false);
+                recentMenu.add(noneItem);
+            } else {
+                int limit = Math.min(archives.size(), 10);
+                for (int i = 0; i < limit; i++) {
+                    File af = archives.get(i);
+                    String dateStr = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(af.lastModified()));
+                    JMenuItem item = new JMenuItem(af.getName() + " (" + dateStr + ")");
+                    item.addActionListener(ev -> {
+                        com.dbtool.model.SessionSnapshot snap = com.dbtool.util.SessionRecoveryManager.loadSnapshotFromFile(af);
+                        if (snap != null) {
+                            com.dbtool.panels.RecoveryDialog dlg = new com.dbtool.panels.RecoveryDialog(this, snap, true);
+                            dlg.setVisible(true);
+                            if (dlg.getChoice() == com.dbtool.panels.RecoveryDialog.RecoveryChoice.RESTORE) {
+                                restoreSessionSnapshot(snap);
+                            }
+                        }
+                    });
+                    recentMenu.add(item);
+                }
+            }
+            menu.add(recentMenu);
+
             JMenuItem openFolderItem = new JMenuItem("📁 Open Recovery Folder...");
             openFolderItem.addActionListener(ev -> {
                 try {
@@ -4560,16 +4649,18 @@ public class Main extends JFrame {
                     JOptionPane.showMessageDialog(this, "Recovery folder: " + com.dbtool.util.SessionRecoveryManager.getRecoveryDir().getAbsolutePath());
                 }
             });
+            menu.add(openFolderItem);
+
+            menu.addSeparator();
+
             JMenuItem discardItem = new JMenuItem("🗑 Clear Autosave Backup");
             discardItem.addActionListener(ev -> {
                 com.dbtool.util.SessionRecoveryManager.discardCrashedSession();
                 autoSaveIndicatorBtn.setText("💾 Auto-Save: Active");
                 JOptionPane.showMessageDialog(this, "Autosave backup cleared.");
             });
-            menu.add(saveNowItem);
-            menu.add(openFolderItem);
-            menu.addSeparator();
             menu.add(discardItem);
+
             menu.show(autoSaveIndicatorBtn, 0, autoSaveIndicatorBtn.getHeight());
         });
         topPanel.add(autoSaveIndicatorBtn);
@@ -4687,7 +4778,64 @@ public class Main extends JFrame {
         items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
                 "STUDIO", "🧪 Generate Synthetic Mock Data", "Populate realistic FK-safe test records", "", this::openMockDataDialog));
 
-        // 4. Theme Presets & UI Zoom
+        // 4. Session & Workspace Snapshots
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "SNAPSHOT", "💾 Save Workspace Snapshot Now", "Capture and archive current workspace snapshot", "",
+                () -> {
+                    com.dbtool.model.SessionSnapshot snap = captureCurrentSessionSnapshot();
+                    com.dbtool.util.SessionRecoveryManager.saveSessionSnapshot(snap);
+                    com.dbtool.util.SessionRecoveryManager.archiveCurrentSnapshot(snap);
+                    JOptionPane.showMessageDialog(this, "Session snapshot saved and archived successfully!", "Snapshot Saved", JOptionPane.INFORMATION_MESSAGE);
+                }));
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "SNAPSHOT", "♻️ Restore Latest Autosaved Workspace Snapshot", "Load and restore latest auto-saved session", "",
+                () -> {
+                    com.dbtool.model.SessionSnapshot snap = com.dbtool.util.SessionRecoveryManager.loadAutosavedSession();
+                    if (snap != null) {
+                        com.dbtool.panels.RecoveryDialog dlg = new com.dbtool.panels.RecoveryDialog(this, snap, true);
+                        dlg.setVisible(true);
+                        if (dlg.getChoice() == com.dbtool.panels.RecoveryDialog.RecoveryChoice.RESTORE) {
+                            restoreSessionSnapshot(snap);
+                        }
+                    } else {
+                        JOptionPane.showMessageDialog(this, "No autosaved snapshot found.", "Snapshot Recovery", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                }));
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "SNAPSHOT", "📂 Load Workspace Snapshot from File...", "Load a saved .session.json snapshot file", "",
+                () -> {
+                    JFileChooser fc = new JFileChooser(com.dbtool.util.SessionRecoveryManager.getRecoveryDir());
+                    fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Session Snapshots (*.json)", "json"));
+                    if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                        File file = fc.getSelectedFile();
+                        com.dbtool.model.SessionSnapshot snap = com.dbtool.util.SessionRecoveryManager.loadSnapshotFromFile(file);
+                        if (snap != null) {
+                            com.dbtool.panels.RecoveryDialog dlg = new com.dbtool.panels.RecoveryDialog(this, snap, true);
+                            dlg.setVisible(true);
+                            if (dlg.getChoice() == com.dbtool.panels.RecoveryDialog.RecoveryChoice.RESTORE) {
+                                restoreSessionSnapshot(snap);
+                            }
+                        } else {
+                            JOptionPane.showMessageDialog(this, "Failed to load snapshot from:\n" + file.getAbsolutePath(), "Load Error", JOptionPane.ERROR_MESSAGE);
+                        }
+                    }
+                }));
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "SNAPSHOT", "💾 Export Workspace Snapshot to File...", "Save current tabs and queries to a portable JSON file", "",
+                () -> {
+                    com.dbtool.model.SessionSnapshot snap = captureCurrentSessionSnapshot();
+                    JFileChooser fc = new JFileChooser();
+                    fc.setSelectedFile(new File("schemasync_snapshot_" + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(new java.util.Date()) + ".session.json"));
+                    if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+                        File f = fc.getSelectedFile();
+                        boolean saved = com.dbtool.util.SessionRecoveryManager.saveSnapshotToFile(f, snap);
+                        if (saved) {
+                            JOptionPane.showMessageDialog(this, "Snapshot exported successfully to:\n" + f.getAbsolutePath(), "Snapshot Exported", JOptionPane.INFORMATION_MESSAGE);
+                        }
+                    }
+                }));
+
+        // 5. Theme Presets & UI Zoom
         for (com.dbtool.util.ThemeManager.ThemePreset preset : com.dbtool.util.ThemeManager.ThemePreset.values()) {
             items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
                     "THEME",
@@ -4827,17 +4975,13 @@ public class Main extends JFrame {
     }
 
     public void openSchemaDriftDialog() {
-        if (dbManager.connection == null) {
-            JOptionPane.showMessageDialog(this, "Please connect to a database first to inspect schema drift.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
         com.dbtool.util.AppUsageTracker.recordFeatureUse("📐 Schema Drift");
         new com.dbtool.panels.SchemaDriftDialog(this, dbManager).setVisible(true);
     }
 
     private void onAutoSaved(String timeStr) {
         autoSaveIndicatorBtn.setText("💾 Auto-Saved (" + timeStr + ")");
-        autoSaveIndicatorBtn.setToolTipText("Last auto-saved at " + timeStr + ". Click for recovery options.");
+        autoSaveIndicatorBtn.setToolTipText("Last auto-saved at " + timeStr + ". Click for recovery & snapshot options.");
     }
 
     public com.dbtool.model.SessionSnapshot captureCurrentSessionSnapshot() {
@@ -4851,11 +4995,35 @@ public class Main extends JFrame {
         // Connection
         if (dbManager != null) {
             snapshot.connection = new com.dbtool.model.SessionSnapshot.ConnectionInfo();
-            if (dbManager.isSandbox()) {
+            String lastType = dbManager.getLastType();
+            String dumpFile = dbManager.getLastDumpFile();
+
+            if (dbManager.isSandbox() || "SANDBOX".equalsIgnoreCase(lastType)) {
                 snapshot.connection.type = "SANDBOX";
-            } else if (dbManager.getLastDumpFile() != null) {
-                snapshot.connection.type = "FILE";
-                snapshot.connection.filePath = dbManager.getLastDumpFile();
+                snapshot.connection.dbName = dbManager.getLastDbName();
+            } else if ("SQLITE".equalsIgnoreCase(lastType) || (dumpFile != null && (dumpFile.toLowerCase().endsWith(".sqlite") || dumpFile.toLowerCase().endsWith(".db") || dumpFile.toLowerCase().endsWith(".sqlite3")))) {
+                snapshot.connection.type = "SQLITE";
+                snapshot.connection.filePath = dumpFile;
+                snapshot.connection.dbName = dbManager.getLastDbName();
+            } else if ("ACCESS".equalsIgnoreCase(lastType) || (dumpFile != null && (dumpFile.toLowerCase().endsWith(".accdb") || dumpFile.toLowerCase().endsWith(".mdb")))) {
+                snapshot.connection.type = "ACCESS";
+                snapshot.connection.filePath = dumpFile;
+                snapshot.connection.dbName = dbManager.getLastDbName();
+            } else if ("MYSQL".equalsIgnoreCase(lastType)) {
+                snapshot.connection.type = "MYSQL";
+                snapshot.connection.host = dbManager.getLastHost();
+                snapshot.connection.port = dbManager.getLastPort();
+                snapshot.connection.dbName = dbManager.getLastDbName();
+                snapshot.connection.user = dbManager.getLastUser();
+                snapshot.connection.pass = dbManager.getLastPass();
+            } else if (dumpFile != null && (dumpFile.toLowerCase().endsWith(".sql") || dumpFile.toLowerCase().endsWith(".sql.gz"))) {
+                snapshot.connection.type = "POSTGRES";
+                snapshot.connection.filePath = dumpFile;
+                snapshot.connection.host = dbManager.getLastHost();
+                snapshot.connection.port = dbManager.getLastPort();
+                snapshot.connection.dbName = dbManager.getLastDbName();
+                snapshot.connection.user = dbManager.getLastUser();
+                snapshot.connection.pass = dbManager.getLastPass();
             } else if (dbManager.getLastHost() != null) {
                 snapshot.connection.type = "POSTGRES";
                 snapshot.connection.host = dbManager.getLastHost();
@@ -4863,6 +5031,9 @@ public class Main extends JFrame {
                 snapshot.connection.dbName = dbManager.getLastDbName();
                 snapshot.connection.user = dbManager.getLastUser();
                 snapshot.connection.pass = dbManager.getLastPass();
+            } else if (dumpFile != null) {
+                snapshot.connection.type = "FILE";
+                snapshot.connection.filePath = dumpFile;
             } else {
                 snapshot.connection.type = "NONE";
             }
@@ -4900,68 +5071,143 @@ public class Main extends JFrame {
     public void restoreSessionSnapshot(com.dbtool.model.SessionSnapshot snapshot) {
         if (snapshot == null) return;
 
-        // 1. Restore Database Connection
-        if (snapshot.connection != null && !"NONE".equals(snapshot.connection.type)) {
-            new Thread(() -> {
+        statusLabel.setText("Restoring workspace session...");
+        statusLabel.setForeground(java.awt.Color.BLUE);
+
+        new Thread(() -> {
+            boolean dbReconnected = false;
+            String errorMsg = null;
+
+            if (snapshot.connection != null && !"NONE".equalsIgnoreCase(snapshot.connection.type)) {
                 try {
-                    if ("SANDBOX".equals(snapshot.connection.type)) {
+                    String connType = snapshot.connection.type != null ? snapshot.connection.type.toUpperCase() : "NONE";
+                    String filePath = snapshot.connection.filePath;
+
+                    // Fallback detection if generic FILE
+                    if ("FILE".equalsIgnoreCase(connType) && filePath != null) {
+                        String lower = filePath.toLowerCase();
+                        if (lower.endsWith(".sqlite") || lower.endsWith(".db") || lower.endsWith(".sqlite3")) {
+                            connType = "SQLITE";
+                        } else if (lower.endsWith(".accdb") || lower.endsWith(".mdb")) {
+                            connType = "ACCESS";
+                        } else if (lower.endsWith(".sql") || lower.endsWith(".sql.gz")) {
+                            connType = "POSTGRES";
+                        }
+                    }
+
+                    if ("SANDBOX".equalsIgnoreCase(connType)) {
                         dbManager.connectSandbox();
-                        SwingUtilities.invokeLater(() -> {
-                            statusLabel.setText("Database: Sandbox (In-Memory)");
-                            statusLabel.setForeground(new java.awt.Color(0, 150, 0));
-                            populateTablesUI();
-                        });
-                    } else if ("POSTGRES".equals(snapshot.connection.type) && snapshot.connection.host != null) {
-                        dbManager.connectExistingPostgres(snapshot.connection.host, snapshot.connection.port, snapshot.connection.dbName, snapshot.connection.user, snapshot.connection.pass);
-                        SwingUtilities.invokeLater(() -> {
-                            statusLabel.setText("Connected: " + snapshot.connection.dbName);
-                            statusLabel.setForeground(new java.awt.Color(0, 150, 0));
-                            populateTablesUI();
-                            connectExistingBtn.setVisible(false);
-                            loadDbButton.setVisible(false);
-                            disconnectDbButton.setVisible(true);
-                            exportDbBtn.setVisible(true);
-                        });
+                        dbReconnected = true;
+                    } else if ("SQLITE".equalsIgnoreCase(connType) && filePath != null) {
+                        dbManager.connectSQLite(filePath);
+                        dbReconnected = true;
+                    } else if ("ACCESS".equalsIgnoreCase(connType) && filePath != null) {
+                        dbManager.connect(filePath);
+                        dbReconnected = true;
+                    } else if ("MYSQL".equalsIgnoreCase(connType) && snapshot.connection.host != null) {
+                        dbManager.connectMySQL(snapshot.connection.host, snapshot.connection.port, snapshot.connection.dbName, snapshot.connection.user, snapshot.connection.pass);
+                        dbReconnected = true;
+                    } else if ("POSTGRES".equalsIgnoreCase(connType)) {
+                        if (filePath != null && !filePath.isEmpty() && (filePath.toLowerCase().endsWith(".sql") || filePath.toLowerCase().endsWith(".sql.gz"))) {
+                            dbManager.connectPostgres(filePath,
+                                    snapshot.connection.host != null ? snapshot.connection.host : "localhost",
+                                    snapshot.connection.port != null ? snapshot.connection.port : "5432",
+                                    snapshot.connection.user != null ? snapshot.connection.user : "postgres",
+                                    snapshot.connection.pass != null ? snapshot.connection.pass : "postgres",
+                                    snapshot.connection.dbName != null ? snapshot.connection.dbName : "analyzer_db");
+                        } else if (snapshot.connection.host != null) {
+                            dbManager.connectExistingPostgres(snapshot.connection.host, snapshot.connection.port, snapshot.connection.dbName, snapshot.connection.user, snapshot.connection.pass);
+                        }
+                        dbReconnected = true;
+                    }
+
+                    if (dbReconnected) {
+                        dbManager.getTableNames();
+                        dbManager.preloadAllColumns();
+                        dbManager.preloadAllForeignKeys();
                     }
                 } catch (Exception ex) {
+                    errorMsg = ex.getMessage();
                     System.err.println("Could not auto-reconnect on restore: " + ex.getMessage());
                 }
-            }).start();
-        }
-
-        // 2. Restore SQL Editor
-        if (sqlEditorPanel != null && snapshot.sqlEditor != null && snapshot.sqlEditor.queryText != null) {
-            sqlEditorPanel.setEditorText(snapshot.sqlEditor.queryText);
-        }
-
-        // 3. Restore Browse Tabs
-        if (browseTabContainer != null && snapshot.browseTabs != null && !snapshot.browseTabs.isEmpty()) {
-            browseTabContainer.clearAllTabs();
-            for (com.dbtool.model.SessionSnapshot.BrowseState bs : snapshot.browseTabs) {
-                BrowseTab tab = browseTabContainer.addNewTabAndGet();
-                tab.restoreBrowseState(bs);
             }
-        }
 
-        // 4. Restore Visual Join Tabs
-        if (joinTabContainer != null && snapshot.joinTabs != null && !snapshot.joinTabs.isEmpty()) {
-            joinTabContainer.clearAllTabs();
-            for (com.dbtool.model.VisualJoinState js : snapshot.joinTabs) {
-                VisualJoinTab tab = joinTabContainer.addNewTabAndGet();
-                tab.restoreJoinState(js);
-            }
-        }
+            final boolean finalReconnected = dbReconnected;
+            final String finalErrorMsg = errorMsg;
 
-        // 5. Restore Table Compare
-        if (tableComparePanel != null && snapshot.tableCompare != null) {
-            tableComparePanel.setQueryA(snapshot.tableCompare.queryA);
-            tableComparePanel.setQueryB(snapshot.tableCompare.queryB);
-        }
+            SwingUtilities.invokeLater(() -> {
+                // 1. Update Connection UI
+                if (finalReconnected) {
+                    String title = dbManager.isSandbox()
+                            ? "Database: Sandbox (In-Memory)"
+                            : "Connected: " + (dbManager.getLastDbName() != null ? dbManager.getLastDbName() : "Database");
+                    statusLabel.setText(title);
+                    statusLabel.setForeground(new java.awt.Color(0, 150, 0));
+                    connectExistingBtn.setVisible(false);
+                    loadDbButton.setVisible(false);
+                    disconnectDbButton.setVisible(true);
+                    exportDbBtn.setVisible(true);
+                    populateTablesUI();
+                } else if (finalErrorMsg != null) {
+                    statusLabel.setText("Reconnection failed: " + finalErrorMsg);
+                    statusLabel.setForeground(java.awt.Color.RED);
+                }
 
-        // 6. Restore Active Tab
-        if (tabbedPane != null && snapshot.activeTabIndex >= 0 && snapshot.activeTabIndex < tabbedPane.getTabCount()) {
-            tabbedPane.setSelectedIndex(snapshot.activeTabIndex);
-        }
+                // 2. Restore SQL Editor
+                if (sqlEditorPanel != null && snapshot.sqlEditor != null && snapshot.sqlEditor.queryText != null) {
+                    sqlEditorPanel.setEditorText(snapshot.sqlEditor.queryText);
+                }
+
+                // 3. Restore Browse Tabs
+                if (browseTabContainer != null && snapshot.browseTabs != null && !snapshot.browseTabs.isEmpty()) {
+                    browseTabContainer.clearAllTabs();
+                    for (com.dbtool.model.SessionSnapshot.BrowseState bs : snapshot.browseTabs) {
+                        BrowseTab tab = browseTabContainer.addNewTabAndGet();
+                        if (finalReconnected) {
+                            tab.refreshTables();
+                        }
+                        tab.restoreBrowseState(bs);
+                        if (finalReconnected && bs.tableName != null && !bs.tableName.trim().isEmpty()) {
+                            tab.loadTableData();
+                        }
+                    }
+                }
+
+                // 4. Restore Visual Join Tabs
+                if (joinTabContainer != null && snapshot.joinTabs != null && !snapshot.joinTabs.isEmpty()) {
+                    joinTabContainer.clearAllTabs();
+                    for (com.dbtool.model.VisualJoinState js : snapshot.joinTabs) {
+                        VisualJoinTab tab = joinTabContainer.addNewTabAndGet();
+                        if (finalReconnected) {
+                            tab.refreshTables();
+                        }
+                        tab.restoreJoinState(js);
+                        if (finalReconnected && js.baseTable != null && !js.baseTable.trim().isEmpty()) {
+                            tab.executeVisualJoin();
+                        }
+                    }
+                }
+
+                // 5. Restore Table Compare
+                if (tableComparePanel != null && snapshot.tableCompare != null) {
+                    tableComparePanel.setQueryA(snapshot.tableCompare.queryA != null ? snapshot.tableCompare.queryA : "");
+                    tableComparePanel.setQueryB(snapshot.tableCompare.queryB != null ? snapshot.tableCompare.queryB : "");
+                }
+
+                // 6. Restore Active Tab
+                if (tabbedPane != null && snapshot.activeTabIndex >= 0 && snapshot.activeTabIndex < tabbedPane.getTabCount()) {
+                    tabbedPane.setSelectedIndex(snapshot.activeTabIndex);
+                }
+
+                if (finalReconnected) {
+                    JOptionPane.showMessageDialog(this, "Workspace session restored successfully!", "Session Restored", JOptionPane.INFORMATION_MESSAGE);
+                } else if (snapshot.connection != null && !"NONE".equalsIgnoreCase(snapshot.connection.type)) {
+                    JOptionPane.showMessageDialog(this, "Workspace tabs and queries restored, but database reconnection failed:\n" + (finalErrorMsg != null ? finalErrorMsg : "Unknown connection error") + "\n\nPlease connect manually to run queries.", "Partial Restore", JOptionPane.WARNING_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Workspace session restored successfully (no database was active in snapshot).", "Session Restored", JOptionPane.INFORMATION_MESSAGE);
+                }
+            });
+        }).start();
     }
 
     

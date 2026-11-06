@@ -60,6 +60,79 @@ public class SessionRecoveryManager {
         return AUTOSAVE_FILE;
     }
 
+    public static File getArchiveDir() {
+        return ARCHIVE_DIR;
+    }
+
+    /**
+     * Checks if any autosaved session exists (whether clean or crashed).
+     */
+    public static boolean hasAutosavedSession() {
+        return AUTOSAVE_FILE.exists() && AUTOSAVE_FILE.length() > 0;
+    }
+
+    /**
+     * Returns a list of all archived snapshot files sorted from newest to oldest.
+     */
+    public static java.util.List<File> listArchivedSnapshots() {
+        java.util.List<File> result = new java.util.ArrayList<>();
+        if (ARCHIVE_DIR.exists() && ARCHIVE_DIR.isDirectory()) {
+            File[] files = ARCHIVE_DIR.listFiles((dir, name) -> name.toLowerCase().endsWith(".json"));
+            if (files != null) {
+                java.util.Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+                result.addAll(java.util.Arrays.asList(files));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Loads a session snapshot from any specified file on disk.
+     */
+    public static SessionSnapshot loadSnapshotFromFile(File file) {
+        if (file == null || !file.exists() || file.length() == 0) return null;
+        try {
+            return mapper.readValue(file, SessionSnapshot.class);
+        } catch (Exception e) {
+            System.err.println("Failed to read snapshot file (" + file.getName() + "): " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Saves a session snapshot to a custom file on disk.
+     */
+    public static boolean saveSnapshotToFile(File file, SessionSnapshot snapshot) {
+        if (file == null || snapshot == null) return false;
+        try {
+            if (file.getParentFile() != null && !file.getParentFile().exists()) {
+                file.getParentFile().mkdirs();
+            }
+            mapper.writeValue(file, snapshot);
+            return true;
+        } catch (Exception e) {
+            System.err.println("Failed to save snapshot to file (" + file.getName() + "): " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Saves a timestamped copy of the snapshot into the recovery archive folder.
+     */
+    public static boolean archiveCurrentSnapshot(SessionSnapshot snapshot) {
+        if (snapshot == null) return false;
+        try {
+            if (!ARCHIVE_DIR.exists()) ARCHIVE_DIR.mkdirs();
+            String ts = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+            File archiveFile = new File(ARCHIVE_DIR, "snapshot_" + ts + ".json");
+            mapper.writeValue(archiveFile, snapshot);
+            return true;
+        } catch (Exception e) {
+            System.err.println("Failed to archive snapshot: " + e.getMessage());
+            return false;
+        }
+    }
+
     /**
      * Checks if a crashed or unclosed session exists from a previous run.
      */
