@@ -4125,11 +4125,15 @@ public class Main extends JFrame {
         scriptBuilderPanel = new ScriptBuilderPanel(dbManager);
         dataOpsPanel = new DataOpsPanel(dbManager);
 
-        // Schema panel: double-click loads table in browse
+        // Schema panel: double-click loads table in browse (auto-creates tab if all tabs were closed)
         schemaPanel.setOnTableSelected(tableName -> {
             if (tabbedPane != null) tabbedPane.setSelectedComponent(browseTabContainer); // switch to browse tab
-            if (loadedTables.contains(tableName) && browseTabContainer != null && !browseTabContainer.getTabs().isEmpty()) {
-                browseTabContainer.getTabs().get(0).setBrowseTableDropdownValue(tableName);
+            if (loadedTables.contains(tableName) && browseTabContainer != null) {
+                BrowseTab active = browseTabContainer.getActiveTab();
+                if (active == null) {
+                    active = browseTabContainer.addNewTabAndGet();
+                }
+                active.setBrowseTableDropdownValue(tableName);
             }
         });
 
@@ -4655,10 +4659,11 @@ public class Main extends JFrame {
         }
         if (browseTabContainer != null) {
             BrowseTab activeTab = browseTabContainer.getActiveTab();
-            if (activeTab != null) {
-                activeTab.browseTableDropdown.setSelectedItem(tableName);
-                activeTab.loadTableData();
+            if (activeTab == null) {
+                activeTab = browseTabContainer.addNewTabAndGet();
             }
+            activeTab.browseTableDropdown.setSelectedItem(tableName);
+            activeTab.loadTableData();
         }
         toFront();
         requestFocus();
@@ -4670,10 +4675,11 @@ public class Main extends JFrame {
         }
         if (browseTabContainer != null) {
             BrowseTab activeTab = browseTabContainer.getActiveTab();
-            if (activeTab != null) {
-                activeTab.browseTableDropdown.setSelectedItem(tableName);
-                activeTab.loadTableData();
+            if (activeTab == null) {
+                activeTab = browseTabContainer.addNewTabAndGet();
             }
+            activeTab.browseTableDropdown.setSelectedItem(tableName);
+            activeTab.loadTableData();
         }
         toFront();
         requestFocus();
