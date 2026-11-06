@@ -448,12 +448,15 @@ public class DataCompareTabPanel extends JPanel {
         dataViewsTabbedPane.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
         unifiedDiffTable.setDefaultRenderer(Object.class, new DiffTableCellRenderer());
         unifiedDiffTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        com.dbtool.ui.components.SmartTableColumnAdjuster.install(unifiedDiffTable);
         JScrollPane unifiedScroll = new JScrollPane(unifiedDiffTable);
         com.dbtool.util.TableRowUtilities.addRowNumbers(unifiedDiffTable, unifiedScroll);
         dataViewsTabbedPane.addTab("Unified Diff View", unifiedScroll);
 
         sideTableA.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         sideTableB.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        com.dbtool.ui.components.SmartTableCellRenderer.install(sideTableA, null, null);
+        com.dbtool.ui.components.SmartTableCellRenderer.install(sideTableB, null, null);
         JScrollPane scrollA = new JScrollPane(sideTableA);
         JScrollPane scrollB = new JScrollPane(sideTableB);
         scrollA.setBorder(BorderFactory.createTitledBorder("Source Database Results"));
@@ -469,7 +472,9 @@ public class DataCompareTabPanel extends JPanel {
         };
         executionResultsTable.setModel(executionResultsModel);
         executionResultsTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        com.dbtool.ui.components.SmartTableColumnAdjuster.install(executionResultsTable);
         executionResultsTable.setDefaultRenderer(Object.class, new ExecutionResultsCellRenderer());
+        com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(executionResultsTable);
         executionScroll = new JScrollPane(executionResultsTable);
         executionScroll.setBorder(BorderFactory.createTitledBorder("Multi-Database Statement Execution & Audit Log"));
         com.dbtool.util.TableRowUtilities.addRowNumbers(executionResultsTable, executionScroll);
@@ -1939,6 +1944,7 @@ public class DataCompareTabPanel extends JPanel {
         unifiedDiffSorter = new TableRowSorter<>(unifiedDiffModel);
         unifiedDiffTable.setModel(unifiedDiffModel);
         unifiedDiffTable.setRowSorter(unifiedDiffSorter);
+        com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(unifiedDiffTable);
 
         dataStatusLabel.setText(String.format("Compared in %d ms:  🟢 %d Identical | 🟨 %d Modified | 🟥 %d Only in %s | 🟩 %d Only in %s",
                 durationMs, countIdent, countMod, countOnlyA, labelA, countOnlyB, labelB));

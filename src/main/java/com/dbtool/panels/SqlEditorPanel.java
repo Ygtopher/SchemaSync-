@@ -1323,6 +1323,7 @@ public class SqlEditorPanel extends JPanel {
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setCellSelectionEnabled(true);
         com.dbtool.ui.components.SmartTableCellRenderer.install(table, null, null);
+        com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(table);
         TableRowSorter<TableModel> sorter = new TableRowSorter<>(model);
         table.setRowSorter(sorter);
 
@@ -1569,6 +1570,11 @@ public class SqlEditorPanel extends JPanel {
 
     private void attachResultTableContextMenu(JTable table, String querySql) {
         JPopupMenu popup = new JPopupMenu();
+        JMenuItem autoFitItem = new JMenuItem("⚡ Auto-Fit Columns to Content");
+        autoFitItem.addActionListener(e -> com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(table));
+        popup.add(autoFitItem);
+        popup.addSeparator();
+
         JMenuItem copyCell = new JMenuItem("Copy Cell");
         copyCell.addActionListener(e -> {
             int r = table.getSelectedRow();

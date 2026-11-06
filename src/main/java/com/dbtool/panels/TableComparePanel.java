@@ -145,11 +145,11 @@ public class TableComparePanel extends JPanel {
                 modelB = dbManager.executeQuery(qB);
                 
                 SwingUtilities.invokeLater(() -> {
-                    dataTableA.setModel(modelA);
+                    dataTableA.setModel(modelA); com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(dataTableA);
                     dataTableA.setAutoCreateRowSorter(true);
         dataTableA.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         dataTableA.setShowGrid(true);
-                    dataTableB.setModel(modelB);
+                    dataTableB.setModel(modelB); com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(dataTableB);
                     dataTableB.setAutoCreateRowSorter(true);
         dataTableB.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         dataTableB.setShowGrid(true);
@@ -274,7 +274,7 @@ public class TableComparePanel extends JPanel {
             int finalDiffCount = diffCount;
             
             SwingUtilities.invokeLater(() -> {
-                diffTable.setModel(diffModel);
+                diffTable.setModel(diffModel); com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(diffTable);
                 diffTable.setAutoCreateRowSorter(true);
         diffTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         diffTable.setShowGrid(true);

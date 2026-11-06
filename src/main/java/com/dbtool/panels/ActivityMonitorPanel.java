@@ -172,7 +172,7 @@ public class ActivityMonitorPanel extends JPanel {
                     }
 
                     tableModel = newModel;
-                    table.setModel(tableModel);
+                    table.setModel(tableModel); com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(table);
                     
                     // Restore selection if process still exists
                     if (selectedPid != null && pidCol != -1) {

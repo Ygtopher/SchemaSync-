@@ -775,7 +775,7 @@ public class DualDatabaseComparePanel extends JPanel {
             colModel.addRow(new Object[]{status, cName, typeA, nullA, defA, typeB, nullB, defB, diffDesc});
         }
 
-        columnDiffTable.setModel(colModel);
+        columnDiffTable.setModel(colModel); com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(columnDiffTable);
         columnDiffTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
 
         // Generate Single Table Sync DDL
