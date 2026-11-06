@@ -56,6 +56,8 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
         int scaledRowHeight = Math.max(24, Math.round(26 * ThemeManager.getUiScaleFactor()));
         table.setRowHeight(scaledRowHeight);
         table.setIntercellSpacing(new Dimension(1, 1));
+        table.setFillsViewportHeight(true);
+        table.setBackground(new javax.swing.plaf.ColorUIResource(ThemeManager.getTableBackgroundColor()));
 
         JTableHeader header = table.getTableHeader();
         if (header != null) {
@@ -110,9 +112,9 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
             } else if (row % 2 == 1) {
                 setBackground(ThemeManager.getZebraAlternateColor());
             } else {
-                setBackground(table.getBackground());
+                setBackground(ThemeManager.getTableBackgroundColor());
             }
-            setForeground(table.getForeground());
+            setForeground(dark ? new Color(226, 232, 240) : new Color(15, 23, 42));
         }
 
         Font baseFont = table.getFont();
@@ -271,6 +273,10 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
             }
 
             Component c = delegate.getTableCellRendererComponent(table, decorated, isSelected, hasFocus, row, column);
+            Color hdrBg = UIManager.getColor("TableHeader.background");
+            Color hdrFg = UIManager.getColor("TableHeader.foreground");
+            if (hdrBg != null) c.setBackground(hdrBg);
+            if (hdrFg != null) c.setForeground(hdrFg);
             if (c instanceof JLabel) {
                 JLabel lbl = (JLabel) c;
                 lbl.setFont(lbl.getFont().deriveFont(Font.BOLD));
