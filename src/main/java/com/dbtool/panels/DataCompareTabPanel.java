@@ -50,6 +50,10 @@ public class DataCompareTabPanel extends JPanel {
 
     private final CardLayout modeCardLayout = new CardLayout();
     private final JPanel modeContentContainer = new JPanel(modeCardLayout);
+    private final JPanel topConfigPanel = new JPanel(new BorderLayout(0, 0));
+    private final JPanel quickTableBox = new JPanel();
+    private final JToolBar tbData = new JToolBar();
+    private final JPanel unifiedSouthPanel = new JPanel();
 
     // Database Selectors
     private final JComboBox<DatabaseEntry> comboDbA = new JComboBox<>();
@@ -144,7 +148,6 @@ public class DataCompareTabPanel extends JPanel {
     }
 
     private void buildUI() {
-        JPanel topConfigPanel = new JPanel(new BorderLayout(0, 0));
         topConfigPanel.setBorder(BorderFactory.createEmptyBorder(1, 4, 1, 4));
 
         // 1. Mode Switcher
@@ -170,8 +173,8 @@ public class DataCompareTabPanel extends JPanel {
 
         // 2. Quick Table Container
         quickTableContainer.setLayout(new BorderLayout(0, 0));
-        JPanel quickTableTopRows = new JPanel();
-        quickTableTopRows.setLayout(new BoxLayout(quickTableTopRows, BoxLayout.Y_AXIS));
+        quickTableBox.setLayout(new BoxLayout(quickTableBox, BoxLayout.Y_AXIS));
+        quickTableBox.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 
         // Row A: Database Selectors & Tables
         JPanel rowDbAndTable = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
@@ -240,7 +243,7 @@ public class DataCompareTabPanel extends JPanel {
         txtOffset.setPreferredSize(new Dimension(45, 26));
         rowDbAndTable.add(txtOffset);
 
-        quickTableTopRows.add(rowDbAndTable);
+        quickTableBox.add(rowDbAndTable);
 
         // Row B: Clauses Toolbar
         JToolBar tbClauses = new JToolBar();
@@ -346,8 +349,7 @@ public class DataCompareTabPanel extends JPanel {
         tbClauses.add(templatesBtn);
         tbClauses.add(cheatSheetBtn);
 
-        quickTableTopRows.add(tbClauses);
-        quickTableContainer.add(quickTableTopRows, BorderLayout.NORTH);
+        quickTableBox.add(tbClauses);
 
         // Row C: Dynamic Clauses Scroll Pane
         clausesContainer.setLayout(new BoxLayout(clausesContainer, BoxLayout.Y_AXIS));
@@ -371,7 +373,9 @@ public class DataCompareTabPanel extends JPanel {
         clausesScrollPane.getVerticalScrollBar().setUnitIncrement(14);
         clausesScrollPane.setBorder(BorderFactory.createTitledBorder("Active Query Clauses"));
         clausesScrollPane.setVisible(false);
-        quickTableContainer.add(clausesScrollPane, BorderLayout.CENTER);
+        quickTableBox.add(clausesScrollPane);
+
+        quickTableContainer.add(quickTableBox, BorderLayout.NORTH);
 
         // 2b. Unified SQL Controls
         buildUnifiedSqlPanel();
@@ -394,9 +398,10 @@ public class DataCompareTabPanel extends JPanel {
         topConfigPanel.add(modeContentContainer, BorderLayout.CENTER);
 
         // 4. Execution & Filters Toolbar
-        JToolBar tbData = new JToolBar();
+        tbData.removeAll();
         tbData.setFloatable(false);
         tbData.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
+        tbData.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 
         executeDataDiffBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         executeDataDiffBtn.setForeground(ThemeManager.getSuccessColor());
@@ -473,7 +478,7 @@ public class DataCompareTabPanel extends JPanel {
         tbData.add(exportCsvBtn);
         tbData.add(exportPdfBtn);
 
-        topConfigPanel.add(tbData, BorderLayout.SOUTH);
+        quickTableBox.add(tbData);
 
         JScrollPane configScroll = new JScrollPane(topConfigPanel);
         configScroll.setBorder(BorderFactory.createEmptyBorder());
@@ -571,9 +576,16 @@ public class DataCompareTabPanel extends JPanel {
         dataCompareSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, configScroll, dataViewsTabbedPane);
         dataCompareSplit.setResizeWeight(0.0);
         dataCompareSplit.setDividerSize(4);
-        dataCompareSplit.setDividerLocation(112);
+        dataCompareSplit.setDividerLocation(115);
         dataCompareSplit.setBorder(BorderFactory.createEmptyBorder());
         add(dataCompareSplit, BorderLayout.CENTER);
+
+        addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentShown(java.awt.event.ComponentEvent e) {
+                updateConfigDivider();
+            }
+        });
 
         dataStatusLabel.setBorder(BorderFactory.createEmptyBorder(3, 6, 3, 6));
         add(dataStatusLabel, BorderLayout.SOUTH);
@@ -671,7 +683,11 @@ public class DataCompareTabPanel extends JPanel {
         JLabel tip = new JLabel(" 💡 Unified Mode: Write ONE query. SELECT statements perform row diffing across all DBs; UPDATE, INSERT, DELETE, and DDL affect all DBs concurrently.");
         tip.setFont(ThemeManager.getUiFont(Font.ITALIC, 11));
         tip.setForeground(ThemeManager.getMutedTextColor());
-        unifiedSqlPanel.add(tip, BorderLayout.SOUTH);
+
+        unifiedSouthPanel.setLayout(new BoxLayout(unifiedSouthPanel, BoxLayout.Y_AXIS));
+        unifiedSouthPanel.removeAll();
+        unifiedSouthPanel.add(tip);
+        unifiedSqlPanel.add(unifiedSouthPanel, BorderLayout.SOUTH);
 
         return unifiedSqlPanel;
     }
@@ -681,13 +697,18 @@ public class DataCompareTabPanel extends JPanel {
         radioUnifiedSql.setSelected(mode == CompareMode.UNIFIED_SQL);
         radioCustomSql.setSelected(mode == CompareMode.CUSTOM_SQL);
 
-        modeCardLayout.show(modeContentContainer, mode.name());
-
-        if (mode == CompareMode.UNIFIED_SQL) {
-            executeDataDiffBtn.setText("▶ Execute on All Databases & Compare");
-        } else {
+        if (mode == CompareMode.QUICK_TABLE) {
             executeDataDiffBtn.setText("Run Data Diff (Compare Rows)");
+            quickTableBox.add(tbData);
+        } else if (mode == CompareMode.UNIFIED_SQL) {
+            executeDataDiffBtn.setText("▶ Execute on All Databases & Compare");
+            unifiedSouthPanel.add(tbData);
+        } else if (mode == CompareMode.CUSTOM_SQL) {
+            executeDataDiffBtn.setText("Run Data Diff (Compare Rows)");
+            customSqlPanel.add(tbData, BorderLayout.SOUTH);
         }
+
+        modeCardLayout.show(modeContentContainer, mode.name());
         updateConfigDivider();
         revalidate();
         repaint();
@@ -697,7 +718,9 @@ public class DataCompareTabPanel extends JPanel {
         if (dataCompareSplit == null) return;
         SwingUtilities.invokeLater(() -> {
             if (radioQuickTable.isSelected()) {
-                dataCompareSplit.setDividerLocation(clausesScrollPane != null && clausesScrollPane.isVisible() ? 235 : 112);
+                boolean hasClauses = clausesScrollPane != null && clausesScrollPane.isVisible();
+                int h = hasClauses ? 245 : 115;
+                dataCompareSplit.setDividerLocation(h);
             } else {
                 dataCompareSplit.setDividerLocation(260);
             }
