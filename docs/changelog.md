@@ -1,8 +1,18 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.7.8  
+**Current Version:** 1.7.9  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v1.7.9] - 2026-11-06
+### Added & Improved
+* **Fixed-Width Semantic Clause Badges & Aligned Grid Columns (`ClauseBadgeFactory`, `Main`, `DataCompareTabPanel`):**
+  * Added `ClauseBadgeFactory` with theme-aware `96px × 26px` semantic clause badges (`🔗 JOIN`, `↳ ON`, `↳ AND`, `➕ TABLE`, `🔍 WHERE`, `↕ ORDER`, `📂 GROUP`, `🎯 HAVING`, `∑ AGG`, `🪟 OVER`) that adapt automatically to both Dark Mode and Solar Daylight (Light Mode).
+  * Standardized fixed column widths across all stacked clause rows (`PREFIX_WIDTH = 96`, `TABLE_WIDTH = 148`, `DOT_WIDTH = 18`, `COLUMN_WIDTH = 168`, `OPERATOR_WIDTH = 94`, `VALUE_WIDTH = 165`) in **Visual Join Builder**, **Browse & Search**, **Subquery Clauses Builder**, and **Dual DB Compare** so table, column, operator, and value inputs align in a clean vertical grid.
+  * Fixed `WherePanel` value input visibility when restoring saved session tabs (`restoreWhereState` / `updateInControlsLayout`) so `=` and comparison conditions always display their value text box, and automatically promote the second `WHERE` / `HAVING` row to display the semantic `🔍 WHERE` / `🎯 HAVING` badge when the first row is removed.
+  * Unified `ORDER BY` rows into the main clause scroll container in **Visual Join Builder**.
 
 ---
 
