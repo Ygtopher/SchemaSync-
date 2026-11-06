@@ -6,7 +6,9 @@ import com.formdev.flatlaf.themes.FlatMacLightLaf;
 import com.formdev.flatlaf.util.FontUtils;
 
 import javax.swing.*;
+import javax.swing.plaf.ColorUIResource;
 import javax.swing.plaf.FontUIResource;
+import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -120,6 +122,11 @@ public class ThemeManager {
         return isDarkMode ? new Color(156, 163, 175) : new Color(107, 114, 128);
     }
 
+    public static Color getTableBackgroundColor() {
+        return currentPreset != null ? currentPreset.getTableBg()
+                : (isDarkMode ? new Color(18, 22, 31) : Color.WHITE);
+    }
+
     public static Color getZebraAlternateColor() {
         return currentPreset != null ? currentPreset.getTableAltRowBg()
                 : (isDarkMode ? new Color(28, 32, 42) : new Color(246, 248, 252));
@@ -190,17 +197,17 @@ public class ThemeManager {
         try {
             if (isDarkMode) {
                 UIManager.setLookAndFeel(new FlatMacDarkLaf());
-                UIManager.put("ScrollBar.thumb", new Color(95, 105, 125, 180));
-                UIManager.put("ScrollBar.hoverThumb", new Color(140, 155, 180, 230));
-                UIManager.put("ScrollBar.pressedThumb", currentPreset.getAccentColor());
-                UIManager.put("ScrollBar.track", new Color(22, 25, 32));
+                UIManager.put("ScrollBar.thumb", new ColorUIResource(new Color(95, 105, 125)));
+                UIManager.put("ScrollBar.hoverThumb", new ColorUIResource(new Color(140, 155, 180)));
+                UIManager.put("ScrollBar.pressedThumb", new ColorUIResource(currentPreset.getAccentColor()));
+                UIManager.put("ScrollBar.track", new ColorUIResource(new Color(22, 25, 32)));
                 if (toggleButton != null) toggleButton.setText("🎨 Theme ▾");
             } else {
                 UIManager.setLookAndFeel(new FlatMacLightLaf());
-                UIManager.put("ScrollBar.thumb", new Color(165, 175, 190, 190));
-                UIManager.put("ScrollBar.hoverThumb", new Color(115, 125, 145, 230));
-                UIManager.put("ScrollBar.pressedThumb", currentPreset.getAccentColor());
-                UIManager.put("ScrollBar.track", new Color(245, 247, 250));
+                UIManager.put("ScrollBar.thumb", new ColorUIResource(new Color(165, 175, 190)));
+                UIManager.put("ScrollBar.hoverThumb", new ColorUIResource(new Color(115, 125, 145)));
+                UIManager.put("ScrollBar.pressedThumb", new ColorUIResource(currentPreset.getAccentColor()));
+                UIManager.put("ScrollBar.track", new ColorUIResource(new Color(245, 247, 250)));
                 if (toggleButton != null) toggleButton.setText("🎨 Theme ▾");
             }
 
@@ -225,22 +232,35 @@ public class ThemeManager {
             UIManager.put("CheckBox.arc", 5);
             UIManager.put("TabbedPane.tabArc", 8);
             UIManager.put("TabbedPane.cardTabArc", 8);
-            UIManager.put("TabbedPane.selectedBackground", isDarkMode ? new Color(36, 44, 62) : new Color(232, 242, 255));
-            UIManager.put("Component.focusColor", currentPreset.getAccentColor());
+            UIManager.put("TabbedPane.selectedBackground", new ColorUIResource(isDarkMode ? new Color(36, 44, 62) : new Color(232, 242, 255)));
+            UIManager.put("Component.focusColor", new ColorUIResource(currentPreset.getAccentColor()));
 
-            // TablePlus-style table polish
+            // TablePlus-style table polish (MUST use ColorUIResource so Swing updates existing JTables on theme switch!)
+            ColorUIResource tableBg = new ColorUIResource(currentPreset.getTableBg());
+            ColorUIResource tableFg = new ColorUIResource(isDarkMode ? new Color(226, 232, 240) : new Color(15, 23, 42));
+            ColorUIResource tableAltBg = new ColorUIResource(currentPreset.getTableAltRowBg());
+            ColorUIResource gridCol = new ColorUIResource(isDarkMode ? new Color(42, 48, 60) : new Color(226, 232, 240));
+            ColorUIResource selBg = new ColorUIResource(isDarkMode ? new Color(30, 74, 130) : new Color(191, 219, 254));
+            ColorUIResource selFg = new ColorUIResource(isDarkMode ? Color.WHITE : new Color(15, 23, 42));
+            ColorUIResource headerBg = new ColorUIResource(isDarkMode ? new Color(26, 32, 44) : new Color(241, 245, 249));
+            ColorUIResource headerFg = new ColorUIResource(isDarkMode ? new Color(226, 232, 240) : new Color(30, 41, 59));
+
             UIManager.put("Table.showHorizontalLines", true);
             UIManager.put("Table.showVerticalLines", true);
             UIManager.put("Table.rowHeight", Math.round(26 * uiScaleFactor));
             UIManager.put("Table.cellMargins", new Insets(3, 8, 3, 8));
-            UIManager.put("Table.gridColor", isDarkMode ? new Color(42, 48, 60) : new Color(226, 232, 240));
-            UIManager.put("Table.background", currentPreset.getTableBg());
-            UIManager.put("Table.alternateRowColor", currentPreset.getTableAltRowBg());
-            UIManager.put("Table.selectionBackground", isDarkMode ? new Color(30, 74, 130) : new Color(191, 219, 254));
-            UIManager.put("Table.selectionForeground", isDarkMode ? Color.WHITE : new Color(15, 23, 42));
+            UIManager.put("Table.gridColor", gridCol);
+            UIManager.put("Table.background", tableBg);
+            UIManager.put("Table.foreground", tableFg);
+            UIManager.put("Table.alternateRowColor", tableAltBg);
+            UIManager.put("Table.selectionBackground", selBg);
+            UIManager.put("Table.selectionForeground", selFg);
             UIManager.put("TableHeader.height", Math.round(30 * uiScaleFactor));
-            UIManager.put("TableHeader.background", isDarkMode ? new Color(26, 32, 44) : new Color(241, 245, 249));
-            UIManager.put("TableHeader.bottomSeparatorColor", currentPreset.getAccentColor());
+            UIManager.put("TableHeader.background", headerBg);
+            UIManager.put("TableHeader.foreground", headerFg);
+            UIManager.put("TableHeader.bottomSeparatorColor", new ColorUIResource(currentPreset.getAccentColor()));
+            UIManager.put("Viewport.background", tableBg);
+            UIManager.put("ScrollPane.background", tableBg);
 
             // Apply UI Font Scale if needed
             applyFontScaling();
@@ -263,9 +283,45 @@ public class ThemeManager {
 
             for (Window window : Window.getWindows()) {
                 SwingUtilities.updateComponentTreeUI(window);
+                syncComponentTreeThemeColors(window);
             }
         } catch (Exception ex) {
             ex.printStackTrace();
+        }
+    }
+
+    /**
+     * Recursively synchronizes JTable, JTableHeader, and JViewport theme colors across
+     * live component hierarchies when switching between Dark and Light modes.
+     */
+    public static void syncComponentTreeThemeColors(Component c) {
+        if (c == null) return;
+        if (c instanceof JTable) {
+            JTable table = (JTable) c;
+            table.setBackground(new ColorUIResource(getTableBackgroundColor()));
+            table.setForeground(new ColorUIResource(isDarkMode ? new Color(226, 232, 240) : new Color(15, 23, 42)));
+            table.setGridColor(new ColorUIResource(isDarkMode ? new Color(42, 48, 60) : new Color(226, 232, 240)));
+            table.setSelectionBackground(new ColorUIResource(isDarkMode ? new Color(30, 74, 130) : new Color(191, 219, 254)));
+            table.setSelectionForeground(new ColorUIResource(isDarkMode ? Color.WHITE : new Color(15, 23, 42)));
+            table.setRowHeight(Math.max(24, Math.round(26 * uiScaleFactor)));
+            JTableHeader header = table.getTableHeader();
+            if (header != null) {
+                header.setBackground(new ColorUIResource(isDarkMode ? new Color(26, 32, 44) : new Color(241, 245, 249)));
+                header.setForeground(new ColorUIResource(isDarkMode ? new Color(226, 232, 240) : new Color(30, 41, 59)));
+                header.repaint();
+            }
+            table.repaint();
+        } else if (c instanceof JViewport) {
+            JViewport vp = (JViewport) c;
+            Component view = vp.getView();
+            if (view instanceof JTable) {
+                vp.setBackground(new ColorUIResource(getTableBackgroundColor()));
+            }
+        }
+        if (c instanceof Container) {
+            for (Component child : ((Container) c).getComponents()) {
+                syncComponentTreeThemeColors(child);
+            }
         }
     }
 
