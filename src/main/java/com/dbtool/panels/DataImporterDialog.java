@@ -81,9 +81,9 @@ public class DataImporterDialog extends JDialog {
         JPanel titleBox = new JPanel(new GridLayout(2, 1, 2, 2));
         titleBox.setOpaque(false);
         JLabel titleLabel = new JLabel("📥 Smart CSV & Excel Data Importer");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        titleLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 16));
         JLabel subtitleLabel = new JLabel("Import data from CSV, TSV, or Excel (.xlsx) files with intelligent column mapping and atomic batch transactions.");
-        subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        subtitleLabel.setFont(ThemeManager.getUiFont(Font.PLAIN, 12));
         subtitleLabel.setForeground(Color.GRAY);
         titleBox.add(titleLabel);
         titleBox.add(subtitleLabel);
