@@ -1,11 +1,16 @@
 package com.dbtool.panels;
 
 import com.dbtool.DatabaseManager;
-import com.dbtool.DatabaseManager.ColumnDefinition;
-import com.dbtool.core.diff.*;
+import com.dbtool.core.diff.ColumnDiff;
+import com.dbtool.core.diff.DiffScriptGenerator;
+import com.dbtool.core.diff.DifferenceType;
+import com.dbtool.core.diff.SchemaComparator;
+import com.dbtool.core.diff.SchemaDiffResult;
+import com.dbtool.core.diff.TableDiff;
 import com.dbtool.core.model.ColumnMetadata;
 import com.dbtool.core.model.TableMetadata;
-import com.dbtool.util.ThemeManager;
+import com.dbtool.DatabaseManager.ColumnDefinition;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
@@ -16,33 +21,35 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.awt.datatransfer.StringSelection;
 import java.io.File;
 import java.io.FileWriter;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Schema Snapshot, Drift Detector & Migration Studio.
- * Captures portable JSON schema snapshots, compares live database schemas against baselines,
- * detects schema drift (tables, columns, types, nullability, keys), and generates reversible
- * UP and DOWN migration DDL scripts with transaction dry-run safety testing.
+ * Allows capturing portable JSON schema snapshots, loading baseline and target snapshots,
+ * detecting structural drift across environments (live vs snapshot or snapshot vs snapshot),
+ * and generating reversible UP and DOWN SQL migration scripts with transaction dry-run safety.
  */
 public class SchemaDriftDialog extends JDialog {
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class SchemaSnapshot {
-        public String snapshotName;
-        public String databaseProductName;
-        public String databaseVersion;
-        public String createdAt;
+        public String snapshotName = "Schema Snapshot";
+        public String databaseProductName = "";
+        public String databaseVersion = "";
+        public String createdAt = "";
         public List<TableSnapshot> tables = new ArrayList<>();
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class TableSnapshot {
         public String tableName;
         public List<ColumnSnapshot> columns = new ArrayList<>();
@@ -50,6 +57,7 @@ public class SchemaDriftDialog extends JDialog {
         public List<ForeignKeySnapshot> foreignKeys = new ArrayList<>();
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ColumnSnapshot {
         public String name;
         public String type;
@@ -60,6 +68,7 @@ public class SchemaDriftDialog extends JDialog {
         public boolean autoIncrement;
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ForeignKeySnapshot {
         public String fkColumn;
         public String pkTable;
@@ -67,7 +76,8 @@ public class SchemaDriftDialog extends JDialog {
     }
 
     private final DatabaseManager dbManager;
-    private final JLabel statusLabel = new JLabel("Take a schema snapshot or load a baseline snapshot to compare drift.");
+    private final JLabel statusLabel = new JLabel("Take a schema snapshot or load baseline/target snapshots to compare drift.");
+    private final JLabel compareSourceLabel = new JLabel("Baseline: [None]  ↔  Target: [Live Database]");
     private final DefaultTableModel driftTableModel;
     private final JTable driftTable;
     private final RSyntaxTextArea upArea;
@@ -76,50 +86,83 @@ public class SchemaDriftDialog extends JDialog {
     private final ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
     private SchemaSnapshot loadedBaselineSnapshot;
+    private String baselineFileName = null;
+    private SchemaSnapshot loadedTargetSnapshot;
+    private String targetFileName = null;
     private SchemaSnapshot currentLiveSnapshot;
     private SchemaDiffResult lastDiffResult;
+    private JButton takeSnapshotBtn;
 
     public SchemaDriftDialog(Frame parent, DatabaseManager dbManager) {
         super(parent, "📐 SchemaSync Schema Snapshot, Drift & Migration Studio", true);
         this.dbManager = dbManager;
 
-        setSize(1040, 720);
+        setSize(1080, 740);
         setLocationRelativeTo(parent);
         setLayout(new BorderLayout());
+
+        boolean hasLiveDb = (dbManager != null && dbManager.connection != null);
 
         // 1. Top Header & Snapshot Toolbar
         JPanel topContainer = new JPanel(new BorderLayout());
         JPanel headerPanel = new JPanel(new BorderLayout(15, 6));
-        headerPanel.setBorder(BorderFactory.createEmptyBorder(12, 16, 8, 16));
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(12, 16, 6, 16));
 
         JLabel titleLabel = new JLabel("📐 Schema Snapshot & Drift Studio");
         titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 15f));
         statusLabel.setForeground(Color.GRAY);
-        headerPanel.add(titleLabel, BorderLayout.NORTH);
+        compareSourceLabel.setFont(compareSourceLabel.getFont().deriveFont(Font.BOLD, 12f));
+        compareSourceLabel.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
+
+        JPanel titleBlock = new JPanel(new BorderLayout(4, 2));
+        titleBlock.add(titleLabel, BorderLayout.NORTH);
+        titleBlock.add(compareSourceLabel, BorderLayout.SOUTH);
+
+        headerPanel.add(titleBlock, BorderLayout.NORTH);
         headerPanel.add(statusLabel, BorderLayout.SOUTH);
         topContainer.add(headerPanel, BorderLayout.NORTH);
 
         JPanel snapshotBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
         snapshotBar.setBorder(BorderFactory.createEmptyBorder(0, 12, 8, 12));
 
-        JButton takeSnapshotBtn = new JButton("💾 Save Live Schema Snapshot (.json)");
-        takeSnapshotBtn.setToolTipText("Export full schema definition to portable JSON file");
+        takeSnapshotBtn = new JButton("💾 Save Live Schema Snapshot (.json)");
+        takeSnapshotBtn.setToolTipText(hasLiveDb ? "Export full live schema definition to portable JSON file" : "Connect to a database first to capture live schema");
+        takeSnapshotBtn.setEnabled(hasLiveDb);
         takeSnapshotBtn.addActionListener(e -> saveCurrentSnapshot());
         snapshotBar.add(takeSnapshotBtn);
 
         JButton loadBaselineBtn = new JButton("📂 Load Baseline Snapshot (.json)");
-        loadBaselineBtn.setToolTipText("Load a previously saved schema JSON to detect drift");
+        loadBaselineBtn.setToolTipText("Load a previously saved schema JSON baseline to detect drift");
         loadBaselineBtn.addActionListener(e -> loadBaselineSnapshot());
         snapshotBar.add(loadBaselineBtn);
 
+        JButton loadTargetBtn = new JButton("📂 Load Target Snapshot (.json)");
+        loadTargetBtn.setToolTipText("Load a target schema snapshot file (enables comparing 2 snapshot files offline)");
+        loadTargetBtn.addActionListener(e -> loadTargetSnapshot());
+        snapshotBar.add(loadTargetBtn);
+
+        JButton swapBtn = new JButton("⇄ Swap");
+        swapBtn.setToolTipText("Swap Baseline and Target sources");
+        swapBtn.addActionListener(e -> swapSources());
+        snapshotBar.add(swapBtn);
+
         JButton compareDriftBtn = new JButton("🔄 Detect Schema Drift");
         compareDriftBtn.setFont(compareDriftBtn.getFont().deriveFont(Font.BOLD, 12f));
-        compareDriftBtn.setToolTipText("Compare live database against baseline snapshot");
+        compareDriftBtn.setForeground(new Color(0, 140, 0));
+        compareDriftBtn.setToolTipText("Compare schemas and generate UP / DOWN migrations");
         compareDriftBtn.addActionListener(e -> runDriftComparison());
         snapshotBar.add(compareDriftBtn);
 
+        JButton inspectBtn = new JButton("📜 Inspect Tables");
+        inspectBtn.setToolTipText("View table definitions inside the currently loaded snapshots");
+        inspectBtn.addActionListener(e -> inspectLoadedSnapshots());
+        snapshotBar.add(inspectBtn);
+
         topContainer.add(snapshotBar, BorderLayout.SOUTH);
         add(topContainer, BorderLayout.NORTH);
+
+        // Update initial label state
+        updateComparisonSourceLabels();
 
         // 2. Center Split (Drift Overview on Top, UP/DOWN Scripts on Bottom)
         JSplitPane mainSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
@@ -160,49 +203,75 @@ public class SchemaDriftDialog extends JDialog {
         downArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_SQL);
         downArea.setEditable(true);
 
-        scriptTabs.addTab("⚡ Forward Migration Script (UP)", new RTextScrollPane(upArea));
-        scriptTabs.addTab("🔄 Rollback Script (DOWN)", new RTextScrollPane(downArea));
-
+        scriptTabs.addTab("⚡ Forward Migration (UP)", new RTextScrollPane(upArea));
+        scriptTabs.addTab("↩️ Rollback Script (DOWN)", new RTextScrollPane(downArea));
         mainSplit.setBottomComponent(scriptTabs);
+
         add(mainSplit, BorderLayout.CENTER);
 
-        // 3. Bottom Action Bar
-        JPanel bottomBar = new JPanel(new BorderLayout(10, 5));
-        bottomBar.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        // 3. Bottom Execution Bar
+        JPanel bottomBar = new JPanel(new BorderLayout());
+        bottomBar.setBorder(BorderFactory.createEmptyBorder(8, 12, 12, 12));
 
-        JPanel leftActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
-        JButton dryRunBtn = new JButton("🧪 Dry-Run (Test in Transaction)");
-        dryRunBtn.setToolTipText("Simulate execution in an uncommitted transaction to test SQL validity");
+        JPanel actionsRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+
+        JButton dryRunBtn = new JButton("🧪 Dry-Run Transaction");
+        dryRunBtn.setToolTipText("Test UP migration script inside a transaction and rollback automatically");
         dryRunBtn.addActionListener(e -> executeDryRun());
-        leftActions.add(dryRunBtn);
+        actionsRight.add(dryRunBtn);
 
-        JButton applyMigrationBtn = new JButton("⚡ Apply Migration to Live DB");
-        applyMigrationBtn.setFont(applyMigrationBtn.getFont().deriveFont(Font.BOLD, 12f));
-        applyMigrationBtn.setForeground(ThemeManager.getDangerColor());
-        applyMigrationBtn.setToolTipText("Execute forward migration statements on the connected database");
-        applyMigrationBtn.addActionListener(e -> applyMigration());
-        leftActions.add(applyMigrationBtn);
+        JButton exportScriptsBtn = new JButton("💾 Export Migration Files (.sql)");
+        exportScriptsBtn.setToolTipText("Save UP and DOWN scripts to disk (Flyway/Liquibase compatible)");
+        exportScriptsBtn.addActionListener(e -> exportMigrationScripts());
+        actionsRight.add(exportScriptsBtn);
 
-        JPanel rightActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 2));
-        JButton copySqlBtn = new JButton("📋 Copy Active Script");
-        copySqlBtn.addActionListener(e -> {
-            String sql = scriptTabs.getSelectedIndex() == 1 ? downArea.getText() : upArea.getText();
-            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(sql), null);
-            JOptionPane.showMessageDialog(this, "Active migration script copied to clipboard!");
-        });
-        rightActions.add(copySqlBtn);
-
-        JButton exportSqlBtn = new JButton("💾 Export Migration (.sql)");
-        exportSqlBtn.addActionListener(e -> exportMigrationScripts());
-        rightActions.add(exportSqlBtn);
+        JButton applyBtn = new JButton("⚡ Apply Migration to Live DB");
+        applyBtn.setFont(applyBtn.getFont().deriveFont(Font.BOLD, 12f));
+        applyBtn.setForeground(new Color(220, 38, 38));
+        applyBtn.setToolTipText("Execute UP migration statements against the active database");
+        applyBtn.addActionListener(e -> applyMigration());
+        actionsRight.add(applyBtn);
 
         JButton closeBtn = new JButton("Close");
         closeBtn.addActionListener(e -> dispose());
-        rightActions.add(closeBtn);
+        actionsRight.add(closeBtn);
 
-        bottomBar.add(leftActions, BorderLayout.WEST);
-        bottomBar.add(rightActions, BorderLayout.EAST);
+        bottomBar.add(actionsRight, BorderLayout.EAST);
         add(bottomBar, BorderLayout.SOUTH);
+    }
+
+    private void updateComparisonSourceLabels() {
+        boolean hasLiveDb = (dbManager != null && dbManager.connection != null);
+        String baseDesc = loadedBaselineSnapshot != null
+                ? (baselineFileName != null ? baselineFileName : "Baseline Snapshot") + " (" + loadedBaselineSnapshot.tables.size() + " tables)"
+                : "[None - Load .json file]";
+
+        String targetDesc;
+        if (loadedTargetSnapshot != null) {
+            targetDesc = (targetFileName != null ? targetFileName : "Target Snapshot") + " (" + loadedTargetSnapshot.tables.size() + " tables)";
+        } else if (hasLiveDb) {
+            targetDesc = "Live DB: " + (dbManager.getLastDbName() != null ? dbManager.getLastDbName() : "Connected");
+        } else {
+            targetDesc = "[None - Connect DB or Load .json file]";
+        }
+
+        compareSourceLabel.setText("Baseline: " + baseDesc + "   ⇄   Target: " + targetDesc);
+    }
+
+    private void swapSources() {
+        SchemaSnapshot tempSnap = loadedBaselineSnapshot;
+        String tempName = baselineFileName;
+
+        loadedBaselineSnapshot = loadedTargetSnapshot;
+        baselineFileName = targetFileName;
+
+        loadedTargetSnapshot = tempSnap;
+        targetFileName = tempName;
+
+        updateComparisonSourceLabels();
+        if (loadedBaselineSnapshot != null && (loadedTargetSnapshot != null || (dbManager != null && dbManager.connection != null))) {
+            runDriftComparison();
+        }
     }
 
     private SchemaSnapshot captureLiveSchema() throws Exception {
@@ -220,41 +289,51 @@ public class SchemaDriftDialog extends JDialog {
         snapshot.createdAt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
 
         List<String> tables = dbManager.getTableNames();
-        for (String tbl : tables) {
-            if (tbl.startsWith("pg_") || tbl.startsWith("sql_") || tbl.equalsIgnoreCase("information_schema")) continue;
+        if (tables != null) {
+            for (String tbl : tables) {
+                if (tbl == null) continue;
+                if (tbl.startsWith("pg_") || tbl.startsWith("sql_") || tbl.equalsIgnoreCase("information_schema")) continue;
 
-            TableSnapshot ts = new TableSnapshot();
-            ts.tableName = tbl;
+                TableSnapshot ts = new TableSnapshot();
+                ts.tableName = tbl;
 
-            // Columns
-            List<ColumnDefinition> cols = dbManager.getDetailedColumns(tbl);
-            if (cols != null) {
-                for (ColumnDefinition c : cols) {
-                    ColumnSnapshot cs = new ColumnSnapshot();
-                    cs.name = c.name;
-                    cs.type = c.getFriendlyType();
-                    cs.size = c.size;
-                    cs.nullable = c.isNullable;
-                    cs.primaryKey = c.isPrimaryKey;
-                    cs.autoIncrement = c.isAutoIncrement;
-                    if (c.isPrimaryKey) ts.primaryKeys.add(c.name);
-                    ts.columns.add(cs);
-                }
+                // Columns
+                try {
+                    List<ColumnDefinition> cols = dbManager.getDetailedColumns(tbl);
+                    if (cols != null) {
+                        for (ColumnDefinition c : cols) {
+                            if (c == null) continue;
+                            ColumnSnapshot cs = new ColumnSnapshot();
+                            cs.name = c.name;
+                            cs.type = c.getFriendlyType() != null ? c.getFriendlyType() : "VARCHAR";
+                            cs.size = c.size;
+                            cs.nullable = c.isNullable;
+                            cs.primaryKey = c.isPrimaryKey;
+                            cs.autoIncrement = c.isAutoIncrement;
+                            if (c.isPrimaryKey) ts.primaryKeys.add(c.name);
+                            ts.columns.add(cs);
+                        }
+                    }
+                } catch (Exception ignored) {}
+
+                // Foreign Keys
+                try {
+                    Map<String, String[]> fks = dbManager.getForeignKeys(tbl);
+                    if (fks != null) {
+                        for (Map.Entry<String, String[]> entry : fks.entrySet()) {
+                            if (entry.getKey() != null && entry.getValue() != null && entry.getValue().length >= 2) {
+                                ForeignKeySnapshot fk = new ForeignKeySnapshot();
+                                fk.fkColumn = entry.getKey();
+                                fk.pkTable = entry.getValue()[0];
+                                fk.pkColumn = entry.getValue()[1];
+                                ts.foreignKeys.add(fk);
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+
+                snapshot.tables.add(ts);
             }
-
-            // Foreign Keys
-            Map<String, String[]> fks = dbManager.getForeignKeys(tbl);
-            if (fks != null) {
-                for (Map.Entry<String, String[]> entry : fks.entrySet()) {
-                    ForeignKeySnapshot fk = new ForeignKeySnapshot();
-                    fk.fkColumn = entry.getKey();
-                    fk.pkTable = entry.getValue()[0];
-                    fk.pkColumn = entry.getValue()[1];
-                    ts.foreignKeys.add(fk);
-                }
-            }
-
-            snapshot.tables.add(ts);
         }
 
         return snapshot;
@@ -286,12 +365,70 @@ public class SchemaDriftDialog extends JDialog {
             try {
                 File file = chooser.getSelectedFile();
                 loadedBaselineSnapshot = mapper.readValue(file, SchemaSnapshot.class);
+                baselineFileName = file.getName();
                 statusLabel.setText("Baseline loaded: " + file.getName() + " (" + loadedBaselineSnapshot.tables.size() + " tables). Click 'Detect Schema Drift'.");
+                updateComparisonSourceLabels();
                 runDriftComparison();
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this, "Failed to load snapshot JSON: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         }
+    }
+
+    private void loadTargetSnapshot() {
+        JFileChooser chooser = new JFileChooser();
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            try {
+                File file = chooser.getSelectedFile();
+                loadedTargetSnapshot = mapper.readValue(file, SchemaSnapshot.class);
+                targetFileName = file.getName();
+                statusLabel.setText("Target loaded: " + file.getName() + " (" + loadedTargetSnapshot.tables.size() + " tables).");
+                updateComparisonSourceLabels();
+                if (loadedBaselineSnapshot != null) {
+                    runDriftComparison();
+                } else {
+                    JOptionPane.showMessageDialog(this, "Target snapshot loaded. Now load a Baseline Snapshot to detect differences.", "Baseline Needed", JOptionPane.INFORMATION_MESSAGE);
+                }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Failed to load target snapshot JSON: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void inspectLoadedSnapshots() {
+        if (loadedBaselineSnapshot == null && loadedTargetSnapshot == null && (dbManager == null || dbManager.connection == null)) {
+            JOptionPane.showMessageDialog(this, "No snapshots or live databases are currently loaded to inspect.", "No Schemas Loaded", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        if (loadedBaselineSnapshot != null) {
+            sb.append("=== BASELINE SNAPSHOT: ").append(baselineFileName != null ? baselineFileName : "Baseline").append(" ===\n");
+            sb.append("Created: ").append(loadedBaselineSnapshot.createdAt).append("\n");
+            sb.append("Database: ").append(loadedBaselineSnapshot.databaseProductName).append(" ").append(loadedBaselineSnapshot.databaseVersion).append("\n");
+            sb.append("Tables (").append(loadedBaselineSnapshot.tables.size()).append("):\n");
+            for (TableSnapshot ts : loadedBaselineSnapshot.tables) {
+                sb.append("  • ").append(ts.tableName).append(" (").append(ts.columns.size()).append(" columns)\n");
+            }
+            sb.append("\n");
+        }
+
+        if (loadedTargetSnapshot != null) {
+            sb.append("=== TARGET SNAPSHOT: ").append(targetFileName != null ? targetFileName : "Target").append(" ===\n");
+            sb.append("Created: ").append(loadedTargetSnapshot.createdAt).append("\n");
+            sb.append("Database: ").append(loadedTargetSnapshot.databaseProductName).append(" ").append(loadedTargetSnapshot.databaseVersion).append("\n");
+            sb.append("Tables (").append(loadedTargetSnapshot.tables.size()).append("):\n");
+            for (TableSnapshot ts : loadedTargetSnapshot.tables) {
+                sb.append("  • ").append(ts.tableName).append(" (").append(ts.columns.size()).append(" columns)\n");
+            }
+        }
+
+        JTextArea area = new JTextArea(sb.toString());
+        area.setEditable(false);
+        area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        JScrollPane sp = new JScrollPane(area);
+        sp.setPreferredSize(new Dimension(550, 400));
+        JOptionPane.showMessageDialog(this, sp, "Loaded Snapshot Structure", JOptionPane.PLAIN_MESSAGE);
     }
 
     private void runDriftComparison() {
@@ -300,21 +437,38 @@ public class SchemaDriftDialog extends JDialog {
             return;
         }
 
+        boolean hasLiveDb = (dbManager != null && dbManager.connection != null);
+        if (loadedTargetSnapshot == null && !hasLiveDb) {
+            JOptionPane.showMessageDialog(this, "Please connect to a live database or load a Target Snapshot JSON file to compare against the baseline.", "No Target Schema", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         driftTableModel.setRowCount(0);
         upArea.setText("");
         downArea.setText("");
-        statusLabel.setText("Comparing live schema against baseline snapshot...");
+        statusLabel.setText("Comparing schema against baseline snapshot...");
 
         new Thread(() -> {
             try {
-                currentLiveSnapshot = captureLiveSchema();
+                final SchemaSnapshot targetSnap;
+                final String targetLabel;
+                final String baselineLabel = baselineFileName != null ? baselineFileName : "Baseline Snapshot";
+
+                if (loadedTargetSnapshot != null) {
+                    targetSnap = loadedTargetSnapshot;
+                    targetLabel = targetFileName != null ? targetFileName : "Target Snapshot";
+                } else {
+                    currentLiveSnapshot = captureLiveSchema();
+                    targetSnap = currentLiveSnapshot;
+                    targetLabel = "Live DB (" + (dbManager.getLastDbName() != null ? dbManager.getLastDbName() : "Active") + ")";
+                }
 
                 // Convert to TableMetadata for SchemaComparator
                 List<TableMetadata> baselineTables = convertToTableMetadata(loadedBaselineSnapshot);
-                List<TableMetadata> liveTables = convertToTableMetadata(currentLiveSnapshot);
+                List<TableMetadata> targetTables = convertToTableMetadata(targetSnap);
 
                 SchemaComparator comparator = new SchemaComparator();
-                lastDiffResult = comparator.compareSchemas(liveTables, baselineTables);
+                lastDiffResult = comparator.compareSchemas(targetTables, baselineTables);
 
                 SwingUtilities.invokeLater(() -> {
                     int newCount = 0;
@@ -323,15 +477,15 @@ public class SchemaDriftDialog extends JDialog {
 
                     for (TableDiff td : lastDiffResult.getTableDiffs()) {
                         if (td.getType() == DifferenceType.ADDED) {
-                            // Present in Live, missing in Baseline
+                            // Present in Target, missing in Baseline
                             driftTableModel.addRow(new Object[]{
-                                "🟢 NEW TABLE", td.getTableName(), "Table exists in live DB but not in baseline", "CREATE TABLE in target / Keep in live"
+                                "🟢 NEW TABLE", td.getTableName(), "Table exists in " + targetLabel + " but not in baseline", "CREATE TABLE in baseline / Keep in target"
                             });
                             newCount++;
                         } else if (td.getType() == DifferenceType.REMOVED) {
-                            // Present in Baseline, missing in Live
+                            // Present in Baseline, missing in Target
                             driftTableModel.addRow(new Object[]{
-                                "🔴 MISSING TABLE", td.getTableName(), "Table defined in baseline is missing in live DB", "CREATE TABLE in live DB"
+                                "🔴 MISSING TABLE", td.getTableName(), "Table defined in baseline is missing in " + targetLabel, "CREATE TABLE in target"
                             });
                             missingCount++;
                         } else if (td.getType() == DifferenceType.MODIFIED) {
@@ -346,8 +500,8 @@ public class SchemaDriftDialog extends JDialog {
                     }
 
                     // Generate UP & DOWN Migration SQL
-                    String upSql = DiffScriptGenerator.generateSchemaSyncScript(lastDiffResult, "Live DB", "Baseline Snapshot");
-                    String downSql = DiffScriptGenerator.generateRollbackScript(lastDiffResult, "Live DB", "Baseline Snapshot");
+                    String upSql = DiffScriptGenerator.generateSchemaSyncScript(lastDiffResult, targetLabel, baselineLabel);
+                    String downSql = DiffScriptGenerator.generateRollbackScript(lastDiffResult, targetLabel, baselineLabel);
 
                     upArea.setText(upSql);
                     downArea.setText(downSql);
@@ -371,12 +525,14 @@ public class SchemaDriftDialog extends JDialog {
         if (snapshot == null || snapshot.tables == null) return list;
 
         for (TableSnapshot ts : snapshot.tables) {
+            if (ts == null || ts.tableName == null) continue;
             TableMetadata tm = new TableMetadata(null, ts.tableName);
             if (ts.columns != null) {
                 for (ColumnSnapshot cs : ts.columns) {
+                    if (cs == null || cs.name == null) continue;
                     ColumnMetadata cm = new ColumnMetadata();
                     cm.setColumnName(cs.name);
-                    cm.setTypeName(cs.type);
+                    cm.setTypeName(cs.type != null ? cs.type : "VARCHAR");
                     cm.setColumnSize(cs.size);
                     cm.setNullable(cs.nullable);
                     cm.setDefaultValue(cs.defaultValue);
@@ -390,6 +546,11 @@ public class SchemaDriftDialog extends JDialog {
     }
 
     private void executeDryRun() {
+        if (dbManager == null || dbManager.connection == null) {
+            JOptionPane.showMessageDialog(this, "Dry-run requires an active database connection to test transactions.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         String sql = upArea.getText().trim();
         if (sql.isEmpty()) {
             JOptionPane.showMessageDialog(this, "No migration SQL to dry-run.", "Empty Script", JOptionPane.WARNING_MESSAGE);
@@ -426,6 +587,11 @@ public class SchemaDriftDialog extends JDialog {
     }
 
     private void applyMigration() {
+        if (dbManager == null || dbManager.connection == null) {
+            JOptionPane.showMessageDialog(this, "Applying migration requires an active live database connection.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         String sql = upArea.getText().trim();
         if (sql.isEmpty()) {
             JOptionPane.showMessageDialog(this, "No migration statements to apply.", "Empty Script", JOptionPane.WARNING_MESSAGE);

@@ -20,4 +20,26 @@ public class SchemaComparatorTest {
         TableDiff diff = comp.compareTables(t1, t2);
         assertTrue(diff.getColumnDiffs().isEmpty());
     }
+
+    @Test
+    void testNullTypeAndNullColumnSafety() {
+        TableMetadata t1 = new TableMetadata("public", "users");
+        ColumnMetadata c1 = new ColumnMetadata();
+        c1.setColumnName("username");
+        c1.setTypeName(null);
+        t1.addColumn(c1);
+
+        TableMetadata t2 = new TableMetadata("public", "users");
+        ColumnMetadata c2 = new ColumnMetadata();
+        c2.setColumnName("username");
+        c2.setTypeName("VARCHAR");
+        t2.addColumn(c2);
+
+        SchemaComparator comp = new SchemaComparator();
+        assertDoesNotThrow(() -> {
+            TableDiff diff = comp.compareTables(t1, t2);
+            assertNotNull(diff);
+            assertFalse(diff.getColumnDiffs().isEmpty(), "Should detect type difference without throwing NullPointerException");
+        });
+    }
 }
