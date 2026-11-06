@@ -1,8 +1,26 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.7.9  
+**Current Version:** 1.8.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v1.8.0] - 2026-11-06
+### Added & Improved
+* **Intelligent Content-Based Column Width Auto-Sizing (`SmartTableColumnAdjuster`, `UpdatableTable`, `Main`):**
+  * Added `SmartTableColumnAdjuster` to calculate optimal column widths dynamically from cell content lengths and header titles (including `🔑` PK / `🔗` FK icons and sort arrows).
+  * Automatically sets `AUTO_RESIZE_OFF` with smooth horizontal scrolling when total column width exceeds the viewport, preventing the "barcode sliver" column squishing in `Visual Join Builder` and data truncation (`2090...`, `GITWA...`) in `Browse & Search`.
+  * Added interactive double-click auto-fit on header separators, allowing users to auto-fit individual columns instantly.
+  * Added dedicated **`[⚡ Auto-Fit]`** toolbar buttons in both **Browse & Search** and **Visual Join Builder**, and an **`⚡ Auto-Fit All Columns to Content`** action to table context menus.
+  * Integrated automatic column width adjustment across `SQL Editor`, `Dual Database Compare`, `Table Compare`, and `Activity Monitor`.
+* **Crisp Table Grid & Header Theme Matching (`ThemeManager`, `TableRowUtilities`):**
+  * Added preset-specific grid line colors: clean, visible Slate 300 (`#cbd5e1`) for **Solar Daylight (Light Mode)** and coordinated navy slate for all Dark Mode presets (**Midnight Blue**, **Emerald Studio**, **Obsidian Slate**, **Cyber Amethyst**).
+  * Explicitly synchronized `setShowGrid(true)`, horizontal/vertical grid lines, cell spacing, and row header borders across live tables and scroll viewports.
+* **High-Contrast Data Visibility & Semantic Badges (`SmartTableCellRenderer`):**
+  * Tuned cell text foreground to deep Slate 900 (`#0f172a`) in Light Mode and crisp Slate 100 (`#f1f5f9`) in Dark Mode for maximum legibility.
+  * Redesigned `NULL` badges with high-contrast text (`#475569` bold on `#f1f5f9` with `#cbd5e1` border in Light Mode, WCAG > 4.8:1 contrast).
+  * Enhanced monospaced numeric formatting, boolean badges (`● true` / `○ false`), and date/timestamp highlighting.
 
 ---
 
