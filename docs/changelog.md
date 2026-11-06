@@ -1,8 +1,21 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.8.3  
+**Current Version:** 1.8.4  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v1.8.4] - 2026-11-06
+### Added & Improved
+* **Eliminated Massive Vertical Gaps in Data Diff Configuration Toolbar (`DataCompareTabPanel`):**
+  * Re-architected `quickTableContainer` layout into a compact `BorderLayout`: database selector row (`rowDbAndTable`) and clauses toolbar (`tbClauses`) are tightly stacked in `quickTableTopRows` (`BoxLayout.Y_AXIS`) docked at `BorderLayout.NORTH`.
+  * Positioned dynamic query clauses (`clausesScrollPane`) in `BorderLayout.CENTER`, eliminating empty voids and expanding only when query clauses are active.
+  * Re-configured `dataCompareSplit` with `setResizeWeight(0.0)` so window resizing and maximization allocates 100% of vertical expansion to diff tables and comparison results rather than stretching toolbar gaps.
+  * Added dynamic split divider positioning (`updateConfigDivider()`): automatically adjusts divider height between `112px` (compact Quick Table mode), `235px` (when clauses are added), and `260px` (SQL editor modes).
+* **Fixed Database Connection Card Button Clipping & Overlapping (`DualDatabaseComparePanel`):**
+  * Updated connection card dimensions to `460px × 82px` with zero-margin tight padding (`FlowLayout(FlowLayout.LEFT, 2, 0)`), ensuring all 6 database action buttons (`App DB`, `Sandbox`, `Postgres...`, `Snapshot...`, `Disconnect`, and `✕`) sit comfortably on a single line without wrapping, overlapping, or clipping the card border.
+  * Upgraded `dbCardsContainer` to `FlowLayout(FlowLayout.LEFT, 8, 2)` and increased `dbCardsScrollPane` preferred height to `92px` to prevent unexpected wrapping and provide smooth horizontal scrolling across N databases.
 
 ---
 

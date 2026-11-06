@@ -36,7 +36,7 @@ public class DualDatabaseComparePanel extends JPanel {
 
     // Database Pool (A, B, C, D...)
     private final List<DatabaseEntry> databaseEntries = new ArrayList<>();
-    private final JPanel dbCardsContainer = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 8, 4));
+    private final JPanel dbCardsContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
     private final JScrollPane dbCardsScrollPane = new JScrollPane(dbCardsContainer);
 
     // Sub-Tabs
@@ -140,6 +140,7 @@ public class DualDatabaseComparePanel extends JPanel {
         dbCardsScrollPane.setBorder(BorderFactory.createEmptyBorder());
         dbCardsScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
         dbCardsScrollPane.getHorizontalScrollBar().setUnitIncrement(16);
+        dbCardsScrollPane.setPreferredSize(new Dimension(0, 92));
 
         rebuildDatabaseCardsUI();
 
@@ -1194,38 +1195,40 @@ public class DualDatabaseComparePanel extends JPanel {
 
         private JPanel buildCard() {
             JPanel card = new JPanel(new BorderLayout(4, 2));
-            card.setPreferredSize(new Dimension(320, 78));
+            card.setPreferredSize(new Dimension(460, 82));
+            card.setMinimumSize(new Dimension(420, 82));
             card.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), label, TitledBorder.LEFT, TitledBorder.TOP, ThemeManager.getUiFont(Font.BOLD, 11)));
 
             statusLabel.setFont(ThemeManager.getUiFont(Font.PLAIN, 11));
             card.add(statusLabel, BorderLayout.NORTH);
 
-            JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 1));
+            JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
+            actions.setBorder(BorderFactory.createEmptyBorder(1, 0, 0, 0));
             JButton linkAppBtn = new JButton("App DB");
-            linkAppBtn.setMargin(new Insets(1, 4, 1, 4));
+            linkAppBtn.setMargin(new Insets(1, 3, 1, 3));
             linkAppBtn.setToolTipText("Link with active application connection");
             linkAppBtn.addActionListener(e -> linkWithApp());
             actions.add(linkAppBtn);
 
             JButton sandboxBtn = new JButton("Sandbox");
-            sandboxBtn.setMargin(new Insets(1, 4, 1, 4));
+            sandboxBtn.setMargin(new Insets(1, 3, 1, 3));
             sandboxBtn.setToolTipText("Launch independent in-memory sandbox for " + label);
             sandboxBtn.addActionListener(e -> connectSandbox());
             actions.add(sandboxBtn);
 
             JButton connectPgBtn = new JButton("Postgres...");
-            connectPgBtn.setMargin(new Insets(1, 4, 1, 4));
+            connectPgBtn.setMargin(new Insets(1, 3, 1, 3));
             connectPgBtn.addActionListener(e -> connectPostgres());
             actions.add(connectPgBtn);
 
             JButton snapshotBtn = new JButton("Snapshot...");
-            snapshotBtn.setMargin(new Insets(1, 4, 1, 4));
+            snapshotBtn.setMargin(new Insets(1, 3, 1, 3));
             snapshotBtn.setToolTipText("Load a saved .schema.json snapshot to compare against offline baseline");
             snapshotBtn.addActionListener(e -> loadSnapshot());
             actions.add(snapshotBtn);
 
             JButton disconnectBtn = new JButton("Disconnect");
-            disconnectBtn.setMargin(new Insets(1, 4, 1, 4));
+            disconnectBtn.setMargin(new Insets(1, 3, 1, 3));
             disconnectBtn.setToolTipText("Disconnect " + label);
             disconnectBtn.addActionListener(e -> disconnect());
             actions.add(disconnectBtn);
@@ -1234,7 +1237,7 @@ public class DualDatabaseComparePanel extends JPanel {
                 JButton removeBtn = new JButton("✕");
                 removeBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
                 removeBtn.setForeground(ThemeManager.getDangerColor());
-                removeBtn.setMargin(new Insets(1, 4, 1, 4));
+                removeBtn.setMargin(new Insets(1, 3, 1, 3));
                 removeBtn.setToolTipText("Remove " + label + " from comparison workspace");
                 removeBtn.addActionListener(e -> removeDatabaseEntry(this));
                 actions.add(removeBtn);

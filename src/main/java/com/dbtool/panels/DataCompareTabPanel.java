@@ -102,6 +102,7 @@ public class DataCompareTabPanel extends JPanel {
     private final JTable sideTableA = new JTable();
     private final JTable sideTableB = new JTable();
     private final JTabbedPane dataViewsTabbedPane = new JTabbedPane();
+    private JSplitPane dataCompareSplit;
 
     // Multi-Database Statement Execution Log
     private final JTable executionResultsTable = new JTable();
@@ -143,8 +144,8 @@ public class DataCompareTabPanel extends JPanel {
     }
 
     private void buildUI() {
-        JPanel topConfigPanel = new JPanel(new BorderLayout(4, 4));
-        topConfigPanel.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+        JPanel topConfigPanel = new JPanel(new BorderLayout(0, 0));
+        topConfigPanel.setBorder(BorderFactory.createEmptyBorder(1, 4, 1, 4));
 
         // 1. Mode Switcher
         JPanel modeSwitcherPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 10, 2));
@@ -168,7 +169,9 @@ public class DataCompareTabPanel extends JPanel {
         topConfigPanel.add(modeSwitcherPanel, BorderLayout.NORTH);
 
         // 2. Quick Table Container
-        quickTableContainer.setLayout(new BoxLayout(quickTableContainer, BoxLayout.Y_AXIS));
+        quickTableContainer.setLayout(new BorderLayout(0, 0));
+        JPanel quickTableTopRows = new JPanel();
+        quickTableTopRows.setLayout(new BoxLayout(quickTableTopRows, BoxLayout.Y_AXIS));
 
         // Row A: Database Selectors & Tables
         JPanel rowDbAndTable = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
@@ -237,7 +240,7 @@ public class DataCompareTabPanel extends JPanel {
         txtOffset.setPreferredSize(new Dimension(45, 26));
         rowDbAndTable.add(txtOffset);
 
-        quickTableContainer.add(rowDbAndTable);
+        quickTableTopRows.add(rowDbAndTable);
 
         // Row B: Clauses Toolbar
         JToolBar tbClauses = new JToolBar();
@@ -343,7 +346,8 @@ public class DataCompareTabPanel extends JPanel {
         tbClauses.add(templatesBtn);
         tbClauses.add(cheatSheetBtn);
 
-        quickTableContainer.add(tbClauses);
+        quickTableTopRows.add(tbClauses);
+        quickTableContainer.add(quickTableTopRows, BorderLayout.NORTH);
 
         // Row C: Dynamic Clauses Scroll Pane
         clausesContainer.setLayout(new BoxLayout(clausesContainer, BoxLayout.Y_AXIS));
@@ -367,7 +371,7 @@ public class DataCompareTabPanel extends JPanel {
         clausesScrollPane.getVerticalScrollBar().setUnitIncrement(14);
         clausesScrollPane.setBorder(BorderFactory.createTitledBorder("Active Query Clauses"));
         clausesScrollPane.setVisible(false);
-        quickTableContainer.add(clausesScrollPane);
+        quickTableContainer.add(clausesScrollPane, BorderLayout.CENTER);
 
         // 2b. Unified SQL Controls
         buildUnifiedSqlPanel();
@@ -564,9 +568,10 @@ public class DataCompareTabPanel extends JPanel {
         com.dbtool.util.TableRowUtilities.addRowNumbers(executionResultsTable, executionScroll);
         dataViewsTabbedPane.addTab("⚡ Execution Results (All DBs)", executionScroll);
 
-        JSplitPane dataCompareSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, configScroll, dataViewsTabbedPane);
-        dataCompareSplit.setResizeWeight(0.35);
-        dataCompareSplit.setDividerSize(5);
+        dataCompareSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, configScroll, dataViewsTabbedPane);
+        dataCompareSplit.setResizeWeight(0.0);
+        dataCompareSplit.setDividerSize(4);
+        dataCompareSplit.setDividerLocation(112);
         dataCompareSplit.setBorder(BorderFactory.createEmptyBorder());
         add(dataCompareSplit, BorderLayout.CENTER);
 
@@ -683,8 +688,20 @@ public class DataCompareTabPanel extends JPanel {
         } else {
             executeDataDiffBtn.setText("Run Data Diff (Compare Rows)");
         }
+        updateConfigDivider();
         revalidate();
         repaint();
+    }
+
+    public void updateConfigDivider() {
+        if (dataCompareSplit == null) return;
+        SwingUtilities.invokeLater(() -> {
+            if (radioQuickTable.isSelected()) {
+                dataCompareSplit.setDividerLocation(clausesScrollPane != null && clausesScrollPane.isVisible() ? 235 : 112);
+            } else {
+                dataCompareSplit.setDividerLocation(260);
+            }
+        });
     }
 
     public void runUnifiedSqlExecution() {
@@ -1347,7 +1364,7 @@ public class DataCompareTabPanel extends JPanel {
         aggregateRows.add(row);
         aggregateContainer.add(row);
         updateClauseDropdowns();
-        clausesScrollPane.setVisible(true);
+        checkClausesVisibility();
         revalidate(); repaint();
     }
 
@@ -1363,7 +1380,7 @@ public class DataCompareTabPanel extends JPanel {
         groupByRows.add(row);
         groupByContainer.add(row);
         updateClauseDropdowns();
-        clausesScrollPane.setVisible(true);
+        checkClausesVisibility();
         revalidate(); repaint();
     }
 
@@ -1380,7 +1397,7 @@ public class DataCompareTabPanel extends JPanel {
         havingRows.add(row);
         havingContainer.add(row);
         updateClauseDropdowns();
-        clausesScrollPane.setVisible(true);
+        checkClausesVisibility();
         revalidate(); repaint();
     }
 
@@ -1397,7 +1414,7 @@ public class DataCompareTabPanel extends JPanel {
         windowFuncRows.add(row);
         windowFuncContainer.add(row);
         updateClauseDropdowns();
-        clausesScrollPane.setVisible(true);
+        checkClausesVisibility();
         revalidate(); repaint();
     }
 
@@ -1414,7 +1431,7 @@ public class DataCompareTabPanel extends JPanel {
         whereRows.add(row);
         whereContainer.add(row);
         updateClauseDropdowns();
-        clausesScrollPane.setVisible(true);
+        checkClausesVisibility();
         revalidate(); repaint();
     }
 
@@ -1431,7 +1448,7 @@ public class DataCompareTabPanel extends JPanel {
         joinRows.add(row);
         joinsContainer.add(row);
         updateClauseDropdowns();
-        clausesScrollPane.setVisible(true);
+        checkClausesVisibility();
         revalidate(); repaint();
     }
 
@@ -1447,7 +1464,7 @@ public class DataCompareTabPanel extends JPanel {
         orderByRows.add(row);
         orderByContainer.add(row);
         updateClauseDropdowns();
-        clausesScrollPane.setVisible(true);
+        checkClausesVisibility();
         revalidate(); repaint();
     }
 
@@ -1481,6 +1498,7 @@ public class DataCompareTabPanel extends JPanel {
         boolean hasAny = !whereRows.isEmpty() || !joinRows.isEmpty() || !orderByRows.isEmpty()
                 || !aggregateRows.isEmpty() || !groupByRows.isEmpty() || !havingRows.isEmpty() || !windowFuncRows.isEmpty();
         clausesScrollPane.setVisible(hasAny);
+        updateConfigDivider();
     }
 
     public void showExplainMenu(JComponent invoker) {
