@@ -1014,6 +1014,8 @@ public class DataCompareTabPanel extends JPanel {
         boolean inDoubleQuotes = false;
         boolean inLineComment = false;
         boolean inBlockComment = false;
+        boolean inDollarQuote = false;
+        String dollarTag = "";
 
         for (int i = 0; i < script.length(); i++) {
             char c = script.charAt(i);
@@ -1057,6 +1059,14 @@ public class DataCompareTabPanel extends JPanel {
                 } else {
                     current.append(c);
                 }
+            } else if (inDollarQuote) {
+                if (c == '$' && script.startsWith(dollarTag, i)) {
+                    inDollarQuote = false;
+                    current.append(dollarTag);
+                    i += dollarTag.length() - 1;
+                } else {
+                    current.append(c);
+                }
             } else {
                 if (c == '-' && next == '-') {
                     inLineComment = true;
@@ -1073,6 +1083,19 @@ public class DataCompareTabPanel extends JPanel {
                     current.append(c);
                 } else if (c == '"') {
                     inDoubleQuotes = true;
+                    current.append(c);
+                } else if (c == '$') {
+                    int nextDollar = script.indexOf('$', i + 1);
+                    if (nextDollar != -1) {
+                        String candidate = script.substring(i, nextDollar + 1);
+                        if (candidate.matches("^\\$[A-Za-z0-9_]*\\$$")) {
+                            inDollarQuote = true;
+                            dollarTag = candidate;
+                            current.append(candidate);
+                            i = nextDollar;
+                            continue;
+                        }
+                    }
                     current.append(c);
                 } else if (c == ';') {
                     String stmt = current.toString().trim();
@@ -1863,7 +1886,7 @@ public class DataCompareTabPanel extends JPanel {
         }
 
         String keyCol = (String) comboKeyCol.getSelectedItem();
-        if (keyCol == null || keyCol.isEmpty()) {
+        if ((keyCol == null || keyCol.isEmpty()) && radioQuickTable.isSelected()) {
             JOptionPane.showMessageDialog(this, "Please select a Key Column to match records between databases.", "Missing Key Column", JOptionPane.WARNING_MESSAGE);
             return;
         }
@@ -1897,7 +1920,19 @@ public class DataCompareTabPanel extends JPanel {
                     sideTableA.setModel(modelA);
                     sideTableB.setModel(modelB);
 
-                    computeUnifiedDataDiff(modelA, modelB, keyCol, System.currentTimeMillis() - start, dbA.getLabel(), dbB.getLabel());
+                    String effectiveKey = keyCol;
+                    if (effectiveKey == null || effectiveKey.isEmpty() || !hasColumn(modelA, effectiveKey) || !hasColumn(modelB, effectiveKey)) {
+                        effectiveKey = resolveKeyColumn(modelA, modelB);
+                    }
+
+                    if (effectiveKey == null) {
+                        dataStatusLabel.setText(String.format("Executed: %d rows from %s, %d rows from %s. (No matching key column found for unified diff)",
+                                modelA.getRowCount(), dbA.getLabel(), modelB.getRowCount(), dbB.getLabel()));
+                        dataViewsTabbedPane.setSelectedIndex(1); // Switch to Side-by-Side View
+                        return;
+                    }
+
+                    computeUnifiedDataDiff(modelA, modelB, effectiveKey, System.currentTimeMillis() - start, dbA.getLabel(), dbB.getLabel());
                 });
             } catch (Exception ex) {
                 SwingUtilities.invokeLater(() -> {
