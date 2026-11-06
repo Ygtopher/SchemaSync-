@@ -106,7 +106,7 @@ public class Main extends JFrame {
             tbSelect.add(browseTableDropdown);
 
             JButton runBrowseTopBtn = new JButton("▶ Run Query");
-            runBrowseTopBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            runBrowseTopBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
             runBrowseTopBtn.setForeground(new Color(0, 150, 0));
             runBrowseTopBtn.setToolTipText("Execute query for selected table (Ctrl+Enter / F5)");
             runBrowseTopBtn.addActionListener(e -> loadTableData());
@@ -137,7 +137,7 @@ public class Main extends JFrame {
             JPanel tbQuery = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
             JButton applyOrderBtn = new JButton("▶ Run Query");
-            applyOrderBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            applyOrderBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
             applyOrderBtn.setForeground(new java.awt.Color(0, 150, 0));
             applyOrderBtn.setToolTipText("Execute query (Ctrl+Enter / F5)");
             applyOrderBtn.addActionListener(e -> loadTableData());
@@ -1901,7 +1901,7 @@ public class Main extends JFrame {
             tbBase.add(baseTableDropdown);
 
             JButton runJoinTopBtn = new JButton("▶ Run Query");
-            runJoinTopBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            runJoinTopBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
             runJoinTopBtn.setForeground(new Color(0, 150, 0));
             runJoinTopBtn.setToolTipText("Execute the Visual Join query (or press Ctrl+Enter / F5)");
             runJoinTopBtn.addActionListener(e -> executeVisualJoin());
@@ -1968,7 +1968,7 @@ public class Main extends JFrame {
             tbRun.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
             JButton runJoinBtn = new JButton("▶ Run Query");
-            runJoinBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            runJoinBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
             runJoinBtn.setForeground(new Color(0, 150, 0));
             runJoinBtn.setToolTipText("Execute the Visual Join query (Ctrl+Enter / F5)");
             runJoinBtn.addActionListener(e -> executeVisualJoin());
@@ -4021,28 +4021,28 @@ public class Main extends JFrame {
         textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
 
         JLabel titleLbl = new JLabel("SchemaSync");
-        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLbl.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 18));
         textPanel.add(titleLbl);
         textPanel.add(Box.createVerticalStrut(4));
 
         JLabel verLbl = new JLabel("Version " + APP_VERSION);
-        verLbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        verLbl.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 12));
         textPanel.add(verLbl);
         textPanel.add(Box.createVerticalStrut(10));
 
         JLabel creatorLbl = new JLabel("Created & Developed by: NSENGIYUMVA Christophe");
-        creatorLbl.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        creatorLbl.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 13));
         creatorLbl.setForeground(new Color(16, 185, 129));
         textPanel.add(creatorLbl);
         textPanel.add(Box.createVerticalStrut(6));
 
         JLabel copyLbl = new JLabel("Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.");
-        copyLbl.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        copyLbl.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 11));
         textPanel.add(copyLbl);
         textPanel.add(Box.createVerticalStrut(6));
 
         JLabel descLbl = new JLabel("Multi-Database Synchronization, Visual Query Builder & Data Operations");
-        descLbl.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+        descLbl.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.ITALIC, 11));
         textPanel.add(descLbl);
 
         panel.add(textPanel, BorderLayout.CENTER);
