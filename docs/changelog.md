@@ -1,8 +1,21 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.7.7  
+**Current Version:** 1.7.8  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v1.7.8] - 2026-11-06
+### Fixed & Improved
+* **Close Every Tab Including the Last Tab Across All Modules (`MultiTabContainer`, `DualDatabaseComparePanel`, `SshTerminalPanel`, `SqlEditorPanel`, `Main`):**
+  * Removed restrictions blocking closing the final tab (`Browse 1`, `Join 1`, `Compare Session 1`, `Terminal 1`) so every tab in every module can be closed freely via its `✕` button, middle-click, or right-click menu.
+  * Added **`✕ Close All`** toolbar buttons and right-click context menus (**`Close Tab`**, **`Close Other Tabs`**, **`Close All Tabs`**) across **Browse & Search**, **Visual Join Builder**, **Dual DB Compare**, **SSH / Server**, and **SQL Editor Result Tabs**, plus clean empty-state views and automatic tab creation when selecting a table after closing all tabs.
+* **Light Mode (`☀️ Solar Daylight`) Data Grid & Viewport Sync (`ThemeManager`, `SmartTableCellRenderer`, `TableRowUtilities`):**
+  * Wrapped all `Table.*`, `TableHeader.*`, `Viewport.*`, and `ScrollPane.*` defaults in `ColorUIResource` and added recursive `ThemeManager.syncComponentTreeThemeColors(...)` so `JTable` grids, row number gutters, and scroll viewports immediately switch to crisp white/light-zebra colors in Light Mode.
+* **Composite Font Emoji/Symbol Fallback & Release Notes Encoding Sanitizer (`ThemeManager`, `UpdateChecker`):**
+  * Preserved OS composite font fallback chains (`FontUtils.getCompositeFont`) during UI scaling and custom button font creation so all emojis and geometric symbols render cleanly on Windows.
+  * Added `UpdateChecker.repairMojibake(...)` and `UpdateChecker.formatReleaseNotesForDisplay(...)` to automatically repair UTF-8/Windows-1252 encoding artifacts and format Markdown in the In-App Update Dialog.
 
 ---
 

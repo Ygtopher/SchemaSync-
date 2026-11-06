@@ -1,6 +1,6 @@
 # SchemaSync
 
-**Version:** 1.7.7  
+**Version:** 1.7.8  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -20,7 +20,7 @@ Explore the comprehensive documentation suite located in the [`docs/`](docs/READ
 * **[Security & Cryptography](docs/security.md):** AES-256-GCM Credential Vault, PII masking, and Windows Smart App Control compliance.
 * **[Installation & Packaging](docs/installation-and-packaging.md):** Guides for Windows (`.exe`), Ubuntu (`.deb`), Fedora (`.rpm`), and Fat JAR.
 * **[Troubleshooting & FAQ](docs/troubleshooting.md):** Solutions for Smart App Control, Java runtime, and Wayland dock icons.
-* **[Changelog & History](docs/changelog.md):** Full version history from v1.0.0 through v1.7.7.
+* **[Changelog & History](docs/changelog.md):** Full version history from v1.0.0 through v1.7.8.
 * **[CLI & Configuration Guide](docs/api-and-cli.md):** JVM runtime tuning, system properties, and psql meta-commands.
 
 ---
@@ -121,11 +121,11 @@ This will generate a self-contained executable JAR in the `target/` directory.
 ### Ubuntu Desktop Linux (DEB Package)
 Install SchemaSync natively on Ubuntu Desktop (20.04, 22.04, 24.04 LTS+) with automatic Java dependency resolution:
 ```bash
-sudo apt install ./schemasync_1.7.7_all.deb
+sudo apt install ./schemasync_1.7.8_all.deb
 ```
 Or install using `dpkg`:
 ```bash
-sudo dpkg -i ./schemasync_1.7.7_all.deb
+sudo dpkg -i ./schemasync_1.7.8_all.deb
 sudo apt-get install -f  # resolves dependencies if needed
 ```
 Launch directly from the Ubuntu App Grid, dock, or terminal:
@@ -136,7 +136,7 @@ schemasync
 ### Fedora 44 Linux (RPM Package)
 Install SchemaSync natively on Fedora 44 with automatic Java dependency resolution:
 ```bash
-sudo dnf install ./schemasync-1.7.7-1.fc44.noarch.rpm
+sudo dnf install ./schemasync-1.7.8-1.fc44.noarch.rpm
 ```
 Launch directly from the GNOME/KDE App Menu or from terminal:
 ```bash
