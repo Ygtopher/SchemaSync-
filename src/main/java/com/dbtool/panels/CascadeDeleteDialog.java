@@ -62,10 +62,10 @@ public class CascadeDeleteDialog extends JDialog {
         JPanel titleBox = new JPanel(new GridLayout(2, 1, 2, 2));
         titleBox.setOpaque(false);
         JLabel titleLabel = new JLabel("⚡ Foreign Key Dependency Inspector & Cascade Delete");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        titleLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 16));
 
         JLabel subtitleLabel = new JLabel("Preview referencing child records across all dependency levels and delete safely inside an atomic transaction.");
-        subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        subtitleLabel.setFont(ThemeManager.getUiFont(Font.PLAIN, 12));
         subtitleLabel.setForeground(Color.GRAY);
 
         titleBox.add(titleLabel);
@@ -78,14 +78,14 @@ public class CascadeDeleteDialog extends JDialog {
         totalBadge.setOpaque(true);
         totalBadge.setBackground(new Color(239, 68, 68));
         totalBadge.setForeground(Color.WHITE);
-        totalBadge.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        totalBadge.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         totalBadge.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
 
         JLabel tableBadge = new JLabel("  " + plan.tableCounts.size() + " Table(s) Involved  ");
         tableBadge.setOpaque(true);
         tableBadge.setBackground(new Color(59, 130, 246));
         tableBadge.setForeground(Color.WHITE);
-        tableBadge.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        tableBadge.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         tableBadge.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
 
         badgesPanel.add(totalBadge);
@@ -183,7 +183,7 @@ public class CascadeDeleteDialog extends JDialog {
         // Details on tree node click
         selectedNodeInfoLabel = new JLabel("Click any record node above to view its column data and relational constraint.");
         selectedNodeInfoLabel.setBorder(new EmptyBorder(6, 8, 6, 8));
-        selectedNodeInfoLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        selectedNodeInfoLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
 
         recordDetailsModel = new DefaultTableModel(new String[]{"Column Name", "Value"}, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
