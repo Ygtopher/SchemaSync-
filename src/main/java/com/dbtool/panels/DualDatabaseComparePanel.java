@@ -822,6 +822,9 @@ public class DualDatabaseComparePanel extends JPanel {
     // ==========================================
     // 2. Data Diff Multi-Tab Container Construction
     // ==========================================
+    private final JPanel dataCompareCardPanel = new JPanel(new CardLayout());
+    private final JButton btnCloseAllTabs = new JButton("✕ Close All");
+
     private JPanel buildDataDiffContainerPanel() {
         JPanel panel = new JPanel(new BorderLayout());
 
@@ -840,6 +843,10 @@ public class DualDatabaseComparePanel extends JPanel {
         btnDuplicateTab.addActionListener(e -> duplicateActiveDataCompareTab());
         tbTabs.add(btnDuplicateTab);
 
+        btnCloseAllTabs.setToolTipText("Close all open data comparison tabs");
+        btnCloseAllTabs.addActionListener(e -> closeAllDataCompareTabs());
+        tbTabs.add(btnCloseAllTabs);
+
         tbTabs.add(Box.createHorizontalGlue());
         tipLabel.setForeground(ThemeManager.getMutedTextColor());
         tbTabs.add(tipLabel);
@@ -847,8 +854,28 @@ public class DualDatabaseComparePanel extends JPanel {
         dataCompareTabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
         dataCompareTabbedPane.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
 
+        JPanel emptyComparePanel = new JPanel(new GridBagLayout());
+        JPanel emptyBox = new JPanel();
+        emptyBox.setLayout(new BoxLayout(emptyBox, BoxLayout.Y_AXIS));
+        emptyBox.setOpaque(false);
+        JLabel emptyMsg = new JLabel("No open Data Comparison tabs.");
+        emptyMsg.setFont(ThemeManager.getUiFont(Font.BOLD, 14));
+        emptyMsg.setForeground(ThemeManager.getMutedTextColor());
+        emptyMsg.setAlignmentX(Component.CENTER_ALIGNMENT);
+        JButton openNewCompareBtn = new JButton("+ New Compare Tab");
+        openNewCompareBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
+        openNewCompareBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        openNewCompareBtn.addActionListener(e -> addDataCompareTab("Compare Session " + (++dataTabCounter)));
+        emptyBox.add(emptyMsg);
+        emptyBox.add(Box.createVerticalStrut(10));
+        emptyBox.add(openNewCompareBtn);
+        emptyComparePanel.add(emptyBox);
+
+        dataCompareCardPanel.add(dataCompareTabbedPane, "TABS");
+        dataCompareCardPanel.add(emptyComparePanel, "EMPTY");
+
         panel.add(tbTabs, BorderLayout.NORTH);
-        panel.add(dataCompareTabbedPane, BorderLayout.CENTER);
+        panel.add(dataCompareCardPanel, BorderLayout.CENTER);
         return panel;
     }
 
@@ -865,32 +892,91 @@ public class DualDatabaseComparePanel extends JPanel {
         JLabel titleLbl = new JLabel(title);
         tab.setTabTitleLabel(titleLbl);
 
-        JButton closeBtn = new JButton("×");
-        closeBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
+        JButton closeBtn = new JButton("✕");
+        closeBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
         closeBtn.setMargin(new Insets(0, 4, 0, 4));
         closeBtn.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
         closeBtn.setContentAreaFilled(false);
         closeBtn.setFocusPainted(false);
         closeBtn.setOpaque(false);
         closeBtn.setToolTipText("Close this comparison tab");
-        closeBtn.addActionListener(e -> {
-            if (dataCompareTabbedPane.getTabCount() > 1) {
-                dataCompareTabbedPane.remove(tab);
-                dataCompareTabs.remove(tab);
-            } else {
-                JOptionPane.showMessageDialog(this, "At least one comparison tab must remain open.", "Notice", JOptionPane.INFORMATION_MESSAGE);
-            }
-        });
+        closeBtn.addActionListener(e -> closeDataCompareTab(tab));
         closeBtn.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseEntered(java.awt.event.MouseEvent e) { closeBtn.setForeground(Color.RED); }
             public void mouseExited(java.awt.event.MouseEvent e) { closeBtn.setForeground(null); }
         });
 
+        JPopupMenu tabMenu = new JPopupMenu();
+        JMenuItem mClose = new JMenuItem("Close Tab");
+        mClose.addActionListener(e -> closeDataCompareTab(tab));
+        JMenuItem mCloseOthers = new JMenuItem("Close Other Tabs");
+        mCloseOthers.addActionListener(e -> {
+            for (DataCompareTabPanel t : new ArrayList<>(dataCompareTabs)) {
+                if (t != tab) closeDataCompareTab(t);
+            }
+        });
+        JMenuItem mCloseAll = new JMenuItem("Close All Tabs");
+        mCloseAll.addActionListener(e -> closeAllDataCompareTabs());
+        tabMenu.add(mClose);
+        tabMenu.add(mCloseOthers);
+        tabMenu.addSeparator();
+        tabMenu.add(mCloseAll);
+
+        java.awt.event.MouseAdapter popupTrigger = new java.awt.event.MouseAdapter() {
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                if (SwingUtilities.isMiddleMouseButton(e)) {
+                    closeDataCompareTab(tab);
+                } else if (e.isPopupTrigger()) {
+                    tabMenu.show(e.getComponent(), e.getX(), e.getY());
+                } else if (SwingUtilities.isLeftMouseButton(e)) {
+                    int tabIdx = dataCompareTabbedPane.indexOfComponent(tab);
+                    if (tabIdx >= 0) dataCompareTabbedPane.setSelectedIndex(tabIdx);
+                }
+            }
+            @Override
+            public void mouseReleased(java.awt.event.MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    tabMenu.show(e.getComponent(), e.getX(), e.getY());
+                }
+            }
+        };
+        tabHeader.addMouseListener(popupTrigger);
+        titleLbl.addMouseListener(popupTrigger);
+
         tabHeader.add(titleLbl);
         tabHeader.add(closeBtn);
         dataCompareTabbedPane.setTabComponentAt(idx, tabHeader);
         dataCompareTabbedPane.setSelectedIndex(idx);
+        updateDataCompareEmptyState();
         return tab;
+    }
+
+    public void closeDataCompareTab(DataCompareTabPanel tab) {
+        dataCompareTabbedPane.remove(tab);
+        dataCompareTabs.remove(tab);
+        if (dataCompareTabs.isEmpty()) {
+            dataTabCounter = 0;
+        }
+        updateDataCompareEmptyState();
+    }
+
+    public void closeAllDataCompareTabs() {
+        dataCompareTabbedPane.removeAll();
+        dataCompareTabs.clear();
+        dataTabCounter = 0;
+        updateDataCompareEmptyState();
+    }
+
+    private void updateDataCompareEmptyState() {
+        if (dataCompareCardPanel.getLayout() instanceof CardLayout) {
+            CardLayout cl = (CardLayout) dataCompareCardPanel.getLayout();
+            cl.show(dataCompareCardPanel, dataCompareTabs.isEmpty() ? "EMPTY" : "TABS");
+            btnCloseAllTabs.setEnabled(!dataCompareTabs.isEmpty());
+            btnDuplicateTab.setEnabled(!dataCompareTabs.isEmpty());
+            dataCompareCardPanel.revalidate();
+            dataCompareCardPanel.repaint();
+        }
     }
 
     private void duplicateActiveDataCompareTab() {
