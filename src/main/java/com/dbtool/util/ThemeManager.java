@@ -3,6 +3,7 @@ package com.dbtool.util;
 import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.themes.FlatMacDarkLaf;
 import com.formdev.flatlaf.themes.FlatMacLightLaf;
+import com.formdev.flatlaf.util.FontUtils;
 
 import javax.swing.*;
 import javax.swing.plaf.FontUIResource;
@@ -268,18 +269,32 @@ public class ThemeManager {
         }
     }
 
+    /**
+     * Returns a composite UI font that preserves OS emoji and symbol fallback chains
+     * (Segoe UI Emoji / Segoe UI Symbol / Apple Color Emoji / Noto Emoji) instead of
+     * stripping fallbacks like {@code new Font("Segoe UI", ...)} does.
+     */
+    public static Font getUiFont(int style, int size) {
+        int scaled = Math.max(10, Math.round(size * uiScaleFactor));
+        Font base = UIManager.getFont("defaultFont");
+        String family = base != null ? base.getFamily() : "Segoe UI";
+        return FontUtils.getCompositeFont(family, style, scaled);
+    }
+
     private static void applyFontScaling() {
         int scaledSize = Math.max(11, Math.round(baseFontSize * uiScaleFactor));
         Font defaultFont = UIManager.getFont("defaultFont");
         if (defaultFont != null) {
-            UIManager.put("defaultFont", new FontUIResource(defaultFont.getName(), defaultFont.getStyle(), scaledSize));
+            Font composite = FontUtils.getCompositeFont(defaultFont.getFamily(), defaultFont.getStyle(), scaledSize);
+            UIManager.put("defaultFont", new FontUIResource(composite));
         }
         Enumeration<Object> keys = UIManager.getDefaults().keys();
         for (Object key : Collections.list(keys)) {
             Object value = UIManager.get(key);
             if (value instanceof FontUIResource) {
                 FontUIResource orig = (FontUIResource) value;
-                UIManager.put(key, new FontUIResource(orig.getName(), orig.getStyle(), scaledSize));
+                Font composite = FontUtils.getCompositeFont(orig.getFamily(), orig.getStyle(), scaledSize);
+                UIManager.put(key, new FontUIResource(composite));
             }
         }
     }
