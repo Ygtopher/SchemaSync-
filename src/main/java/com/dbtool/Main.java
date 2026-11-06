@@ -1947,6 +1947,7 @@ public class Main extends JFrame {
 
             JPanel listsPanel = new JPanel();
             listsPanel.setLayout(new BoxLayout(listsPanel, BoxLayout.Y_AXIS));
+            joinOrderByContainer.setLayout(new BoxLayout(joinOrderByContainer, BoxLayout.Y_AXIS));
             listsPanel.add(implicitTablesContainer);
             listsPanel.add(joinsContainer);
             listsPanel.add(whereContainer);
@@ -1954,8 +1955,10 @@ public class Main extends JFrame {
             listsPanel.add(joinGroupByContainer);
             listsPanel.add(joinHavingContainer);
             listsPanel.add(joinWindowFuncContainer);
+            listsPanel.add(joinOrderByContainer);
             
             JScrollPane listsScroll = new JScrollPane(listsPanel);
+            listsScroll.setBorder(BorderFactory.createEmptyBorder());
             configPanel.add(listsScroll, BorderLayout.CENTER);
             
             // Bottom Options
@@ -2132,8 +2135,6 @@ public class Main extends JFrame {
             tbActions.add(templatesBtn);
             tbActions.add(cheatSheetBtn);
             
-            joinOrderByContainer.setLayout(new BoxLayout(joinOrderByContainer, BoxLayout.Y_AXIS));
-            bottomOptionsPanel.add(joinOrderByContainer);
             bottomOptionsPanel.add(tbRun);
             bottomOptionsPanel.add(tbClauses);
             bottomOptionsPanel.add(tbActions);
@@ -5372,14 +5373,18 @@ public class Main extends JFrame {
     class GroupByRowPanel extends JPanel {
         SearchableComboBox tableDropdown;
         SearchableComboBox colDropdown = new SearchableComboBox();
-        JButton removeBtn = new JButton("✕");
+        JButton removeBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove GROUP BY column");
 
         public GroupByRowPanel(boolean showTable, List<GroupByRowPanel> ownerList, JPanel container) {
-            setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
-            add(new JLabel("GROUP BY:"));
+            com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+            add(com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+                com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.GROUP_BY
+            ));
             if (showTable) {
                 tableDropdown = new SearchableComboBox();
-                tableDropdown.setPreferredSize(new Dimension(130, 26));
+                com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                    tableDropdown, com.dbtool.ui.components.ClauseBadgeFactory.TABLE_WIDTH
+                );
                 tableDropdown.addActionListener(e -> {
                     String tbl = (String) tableDropdown.getSelectedItem();
                     if (tbl != null) {
@@ -5390,12 +5395,13 @@ public class Main extends JFrame {
                     }
                 });
                 add(tableDropdown);
+                add(com.dbtool.ui.components.ClauseBadgeFactory.createDotSeparator());
             }
-            colDropdown.setPreferredSize(new Dimension(140, 26));
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                colDropdown, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+            );
             add(colDropdown);
 
-            removeBtn.setMargin(new Insets(1, 4, 1, 4));
-            removeBtn.setForeground(Color.RED);
             removeBtn.addActionListener(e -> {
                 ownerList.remove(this);
                 container.remove(this);
@@ -5646,8 +5652,21 @@ public class Main extends JFrame {
         JComboBox<String> dirDropdown = new JComboBox<>(new String[]{"ASC", "DESC"});
 
         public OrderByPanel(boolean showTable, List<OrderByPanel> ownerList, JPanel ownerContainer) {
-            setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
+            com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+            add(com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+                com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.ORDER_BY
+            ));
             
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                tableDropdown, com.dbtool.ui.components.ClauseBadgeFactory.TABLE_WIDTH
+            );
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                columnDropdown, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+            );
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                dirDropdown, com.dbtool.ui.components.ClauseBadgeFactory.OPERATOR_WIDTH
+            );
+
             if (showTable) {
                 tableDropdown.addActionListener(e -> {
                     String t = (String) tableDropdown.getSelectedItem();
@@ -5663,13 +5682,13 @@ public class Main extends JFrame {
                     }
                 });
                 add(tableDropdown);
-                add(new JLabel(" . "));
+                add(com.dbtool.ui.components.ClauseBadgeFactory.createDotSeparator());
             }
             
             add(columnDropdown);
             add(dirDropdown);
             
-            JButton removeBtn = new JButton("X");
+            JButton removeBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove ORDER BY clause");
             removeBtn.addActionListener(e -> {
                 ownerList.remove(this);
                 ownerContainer.remove(this);
