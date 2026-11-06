@@ -380,7 +380,7 @@ public class DataCompareTabPanel extends JPanel {
         tbData.setFloatable(false);
         tbData.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
-        executeDataDiffBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        executeDataDiffBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         executeDataDiffBtn.setForeground(ThemeManager.getSuccessColor());
         executeDataDiffBtn.addActionListener(e -> runDataComparison());
         tbData.add(executeDataDiffBtn);
@@ -501,7 +501,7 @@ public class DataCompareTabPanel extends JPanel {
         tbUnified.setFloatable(false);
         tbUnified.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
-        btnRunUnified.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnRunUnified.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         btnRunUnified.setForeground(ThemeManager.getSuccessColor());
         btnRunUnified.setToolTipText("Execute query on all databases simultaneously (Ctrl+Enter)");
         btnRunUnified.addActionListener(e -> runDataComparison());
@@ -546,7 +546,7 @@ public class DataCompareTabPanel extends JPanel {
         tbUnified.add(btnClear);
 
         tbUnified.add(Box.createHorizontalGlue());
-        unifiedActiveDbsLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        unifiedActiveDbsLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
         unifiedActiveDbsLabel.setForeground(ThemeManager.getPrimaryActionColor());
         tbUnified.add(unifiedActiveDbsLabel);
 
@@ -575,7 +575,7 @@ public class DataCompareTabPanel extends JPanel {
 
         // Bottom status note
         JLabel tip = new JLabel(" 💡 Unified Mode: Write ONE query. SELECT statements perform row diffing across all DBs; UPDATE, INSERT, DELETE, and DDL affect all DBs concurrently.");
-        tip.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+        tip.setFont(ThemeManager.getUiFont(Font.ITALIC, 11));
         tip.setForeground(ThemeManager.getMutedTextColor());
         unifiedSqlPanel.add(tip, BorderLayout.SOUTH);
 
