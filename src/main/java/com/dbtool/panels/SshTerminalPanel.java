@@ -37,6 +37,11 @@ public class SshTerminalPanel extends JPanel {
         redockAllBtn.addActionListener(e -> redockAllSessions());
         topBar.add(redockAllBtn);
 
+        JButton closeAllBtn = new JButton("✕ Close All");
+        closeAllBtn.setToolTipText("Close all open SSH terminal tabs");
+        closeAllBtn.addActionListener(e -> closeAllSessions());
+        topBar.add(closeAllBtn);
+
         JLabel hintLabel = new JLabel(" | Connect to multiple servers or the same server simultaneously (use 🗗 to detach)");
         hintLabel.setForeground(Color.GRAY);
         hintLabel.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.ITALIC, 11));
@@ -57,7 +62,7 @@ public class SshTerminalPanel extends JPanel {
         box.setLayout(new BoxLayout(box, BoxLayout.Y_AXIS));
         box.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        JLabel info = new JLabel("All terminal sessions are currently open in detached floating windows.");
+        JLabel info = new JLabel("No active terminal tabs in this pane.");
         info.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 13));
         info.setAlignmentX(Component.CENTER_ALIGNMENT);
 
@@ -198,9 +203,14 @@ public class SshTerminalPanel extends JPanel {
         allSessions.remove(session);
 
         if (allSessions.isEmpty()) {
-            addNewSession();
-        } else {
-            checkEmptyState();
+            sessionCounter = 0;
+        }
+        checkEmptyState();
+    }
+
+    public void closeAllSessions() {
+        for (SshSessionPanel s : new ArrayList<>(allSessions)) {
+            closeSession(s);
         }
     }
 
