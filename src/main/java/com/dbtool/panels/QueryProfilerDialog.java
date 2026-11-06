@@ -65,7 +65,7 @@ public class QueryProfilerDialog extends JDialog {
         // Header
         JPanel header = new JPanel(new BorderLayout());
         JLabel title = new JLabel("⚡ SQL Query Profiler & Bottleneck Analyzer");
-        title.setFont(new Font("Segoe UI", Font.BOLD, 17));
+        title.setFont(ThemeManager.getUiFont(Font.BOLD, 17));
         JLabel subtitle = new JLabel("<html>Live latency tracking, slow-query detection (>100ms), and 1-click execution plan analysis.</html>");
         subtitle.setForeground(ThemeManager.isDarkMode() ? new Color(170, 170, 170) : new Color(100, 100, 100));
         header.add(title, BorderLayout.NORTH);
@@ -212,11 +212,11 @@ public class QueryProfilerDialog extends JDialog {
         ));
 
         JLabel titleLbl = new JLabel(title);
-        titleLbl.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        titleLbl.setFont(ThemeManager.getUiFont(Font.PLAIN, 11));
         titleLbl.setForeground(ThemeManager.isDarkMode() ? new Color(170, 170, 170) : new Color(100, 100, 100));
         card.add(titleLbl, BorderLayout.NORTH);
 
-        valueLbl.setFont(new Font("Segoe UI", Font.BOLD, 17));
+        valueLbl.setFont(ThemeManager.getUiFont(Font.BOLD, 17));
         valueLbl.setForeground(accentColor);
         card.add(valueLbl, BorderLayout.CENTER);
         return card;
