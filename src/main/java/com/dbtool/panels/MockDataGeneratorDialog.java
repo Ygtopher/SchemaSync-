@@ -93,9 +93,9 @@ public class MockDataGeneratorDialog extends JDialog {
         JPanel titleBox = new JPanel(new GridLayout(2, 1, 2, 2));
         titleBox.setOpaque(false);
         JLabel titleLabel = new JLabel("🧪 Synthetic Realistic Mock Data Generator");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        titleLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 16));
         JLabel subtitleLabel = new JLabel("Populate tables with realistic mock data while strictly maintaining relational foreign key constraints.");
-        subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        subtitleLabel.setFont(ThemeManager.getUiFont(Font.PLAIN, 12));
         subtitleLabel.setForeground(Color.GRAY);
         titleBox.add(titleLabel);
         titleBox.add(subtitleLabel);
