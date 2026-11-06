@@ -27,7 +27,7 @@ public class SshTerminalPanel extends JPanel {
         // Top control bar
         JPanel topBar = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 6, 4));
         JButton newTabBtn = new JButton("➕ New Terminal Tab");
-        newTabBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        newTabBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
         newTabBtn.setToolTipText("Open another SSH terminal session (concurrent connection)");
         newTabBtn.addActionListener(e -> addNewSession());
         topBar.add(newTabBtn);
@@ -39,7 +39,7 @@ public class SshTerminalPanel extends JPanel {
 
         JLabel hintLabel = new JLabel(" | Connect to multiple servers or the same server simultaneously (use 🗗 to detach)");
         hintLabel.setForeground(Color.GRAY);
-        hintLabel.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+        hintLabel.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.ITALIC, 11));
         topBar.add(hintLabel);
 
         add(topBar, BorderLayout.NORTH);
@@ -58,7 +58,7 @@ public class SshTerminalPanel extends JPanel {
         box.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         JLabel info = new JLabel("All terminal sessions are currently open in detached floating windows.");
-        info.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        info.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 13));
         info.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JButton addBtn = new JButton("➕ Open New Terminal Tab");
@@ -97,7 +97,7 @@ public class SshTerminalPanel extends JPanel {
         header.setOpaque(false);
 
         JLabel lbl = new JLabel(title);
-        lbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        lbl.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 12));
 
         JButton detachBtn = new JButton("🗗");
         detachBtn.setToolTipText("Detach to standalone window");
