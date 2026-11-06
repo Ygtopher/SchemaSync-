@@ -22,24 +22,26 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class ThemeManager {
 
     public enum ThemePreset {
-        MIDNIGHT_BLUE("🌌 Midnight Blue (Dark)", true, new Color(56, 189, 248), new Color(18, 22, 31), new Color(24, 30, 42)),
-        EMERALD_DARK("🌲 Emerald Studio (Dark)", true, new Color(52, 211, 153), new Color(17, 24, 21), new Color(23, 33, 29)),
-        OBSIDIAN_SLATE("🌑 Obsidian Slate (Dark)", true, new Color(129, 140, 248), new Color(20, 20, 24), new Color(28, 28, 34)),
-        CYBER_PURPLE("🔮 Cyber Amethyst (Dark)", true, new Color(192, 132, 252), new Color(22, 18, 30), new Color(30, 25, 42)),
-        SOLAR_LIGHT("☀️ Solar Daylight (Light)", false, new Color(2, 132, 199), new Color(255, 255, 255), new Color(246, 248, 252));
+        MIDNIGHT_BLUE("🌌 Midnight Blue (Dark)", true, new Color(56, 189, 248), new Color(18, 22, 31), new Color(24, 30, 42), new Color(38, 48, 64)),
+        EMERALD_DARK("🌲 Emerald Studio (Dark)", true, new Color(52, 211, 153), new Color(17, 24, 21), new Color(23, 33, 29), new Color(30, 44, 38)),
+        OBSIDIAN_SLATE("🌑 Obsidian Slate (Dark)", true, new Color(129, 140, 248), new Color(20, 20, 24), new Color(28, 28, 34), new Color(40, 40, 50)),
+        CYBER_PURPLE("🔮 Cyber Amethyst (Dark)", true, new Color(192, 132, 252), new Color(22, 18, 30), new Color(30, 25, 42), new Color(45, 36, 60)),
+        SOLAR_LIGHT("☀️ Solar Daylight (Light)", false, new Color(2, 132, 199), new Color(255, 255, 255), new Color(246, 248, 252), new Color(203, 213, 225));
 
         private final String displayName;
         private final boolean dark;
         private final Color accentColor;
         private final Color tableBg;
         private final Color tableAltRowBg;
+        private final Color gridColor;
 
-        ThemePreset(String displayName, boolean dark, Color accentColor, Color tableBg, Color tableAltRowBg) {
+        ThemePreset(String displayName, boolean dark, Color accentColor, Color tableBg, Color tableAltRowBg, Color gridColor) {
             this.displayName = displayName;
             this.dark = dark;
             this.accentColor = accentColor;
             this.tableBg = tableBg;
             this.tableAltRowBg = tableAltRowBg;
+            this.gridColor = gridColor;
         }
 
         public String getDisplayName() {
@@ -60,6 +62,10 @@ public class ThemeManager {
 
         public Color getTableAltRowBg() {
             return tableAltRowBg;
+        }
+
+        public Color getGridColor() {
+            return gridColor;
         }
     }
 
@@ -125,6 +131,19 @@ public class ThemeManager {
     public static Color getTableBackgroundColor() {
         return currentPreset != null ? currentPreset.getTableBg()
                 : (isDarkMode ? new Color(18, 22, 31) : Color.WHITE);
+    }
+
+    public static Color getTableGridColor() {
+        return currentPreset != null ? currentPreset.getGridColor()
+                : (isDarkMode ? new Color(38, 48, 64) : new Color(203, 213, 225));
+    }
+
+    public static Color getHeaderBackgroundColor() {
+        return isDarkMode ? new Color(26, 32, 44) : new Color(241, 245, 249);
+    }
+
+    public static Color getHeaderForegroundColor() {
+        return isDarkMode ? new Color(226, 232, 240) : new Color(30, 41, 59);
     }
 
     public static Color getZebraAlternateColor() {
@@ -237,13 +256,13 @@ public class ThemeManager {
 
             // TablePlus-style table polish (MUST use ColorUIResource so Swing updates existing JTables on theme switch!)
             ColorUIResource tableBg = new ColorUIResource(currentPreset.getTableBg());
-            ColorUIResource tableFg = new ColorUIResource(isDarkMode ? new Color(226, 232, 240) : new Color(15, 23, 42));
+            ColorUIResource tableFg = new ColorUIResource(isDarkMode ? new Color(241, 245, 249) : new Color(15, 23, 42));
             ColorUIResource tableAltBg = new ColorUIResource(currentPreset.getTableAltRowBg());
-            ColorUIResource gridCol = new ColorUIResource(isDarkMode ? new Color(42, 48, 60) : new Color(226, 232, 240));
+            ColorUIResource gridCol = new ColorUIResource(currentPreset.getGridColor());
             ColorUIResource selBg = new ColorUIResource(isDarkMode ? new Color(30, 74, 130) : new Color(191, 219, 254));
             ColorUIResource selFg = new ColorUIResource(isDarkMode ? Color.WHITE : new Color(15, 23, 42));
-            ColorUIResource headerBg = new ColorUIResource(isDarkMode ? new Color(26, 32, 44) : new Color(241, 245, 249));
-            ColorUIResource headerFg = new ColorUIResource(isDarkMode ? new Color(226, 232, 240) : new Color(30, 41, 59));
+            ColorUIResource headerBg = new ColorUIResource(getHeaderBackgroundColor());
+            ColorUIResource headerFg = new ColorUIResource(getHeaderForegroundColor());
 
             UIManager.put("Table.showHorizontalLines", true);
             UIManager.put("Table.showVerticalLines", true);
@@ -299,18 +318,35 @@ public class ThemeManager {
         if (c instanceof JTable) {
             JTable table = (JTable) c;
             table.setBackground(new ColorUIResource(getTableBackgroundColor()));
-            table.setForeground(new ColorUIResource(isDarkMode ? new Color(226, 232, 240) : new Color(15, 23, 42)));
-            table.setGridColor(new ColorUIResource(isDarkMode ? new Color(42, 48, 60) : new Color(226, 232, 240)));
+            table.setForeground(new ColorUIResource(isDarkMode ? new Color(241, 245, 249) : new Color(15, 23, 42)));
+            table.setShowGrid(true);
+            table.setShowHorizontalLines(true);
+            table.setShowVerticalLines(true);
+            table.setIntercellSpacing(new Dimension(1, 1));
+            table.setGridColor(new ColorUIResource(getTableGridColor()));
             table.setSelectionBackground(new ColorUIResource(isDarkMode ? new Color(30, 74, 130) : new Color(191, 219, 254)));
             table.setSelectionForeground(new ColorUIResource(isDarkMode ? Color.WHITE : new Color(15, 23, 42)));
             table.setRowHeight(Math.max(24, Math.round(26 * uiScaleFactor)));
             JTableHeader header = table.getTableHeader();
             if (header != null) {
-                header.setBackground(new ColorUIResource(isDarkMode ? new Color(26, 32, 44) : new Color(241, 245, 249)));
-                header.setForeground(new ColorUIResource(isDarkMode ? new Color(226, 232, 240) : new Color(30, 41, 59)));
+                header.setBackground(new ColorUIResource(getHeaderBackgroundColor()));
+                header.setForeground(new ColorUIResource(getHeaderForegroundColor()));
                 header.repaint();
             }
             table.repaint();
+        } else if (c instanceof JScrollPane) {
+            JScrollPane sp = (JScrollPane) c;
+            sp.setBackground(new ColorUIResource(getTableBackgroundColor()));
+            if (sp.getViewport() != null) {
+                sp.getViewport().setBackground(new ColorUIResource(getTableBackgroundColor()));
+            }
+            if (sp.getRowHeader() != null) {
+                sp.getRowHeader().setBackground(new ColorUIResource(getHeaderBackgroundColor()));
+                if (sp.getRowHeader().getView() != null) {
+                    sp.getRowHeader().getView().setBackground(new ColorUIResource(getHeaderBackgroundColor()));
+                    sp.getRowHeader().getView().repaint();
+                }
+            }
         } else if (c instanceof JViewport) {
             JViewport vp = (JViewport) c;
             Component view = vp.getView();

@@ -41,13 +41,13 @@ public class TableRowUtilities {
                 } else {
                     Color bg = UIManager.getColor("TableHeader.background");
                     Color fg = UIManager.getColor("TableHeader.foreground");
-                    label.setBackground(bg != null ? bg : (ThemeManager.isDarkMode() ? new Color(26, 32, 44) : new Color(241, 245, 249)));
-                    label.setForeground(fg != null ? fg : (ThemeManager.isDarkMode() ? new Color(226, 232, 240) : new Color(30, 41, 59)));
+                    label.setBackground(bg != null ? bg : ThemeManager.getHeaderBackgroundColor());
+                    label.setForeground(fg != null ? fg : ThemeManager.getHeaderForegroundColor());
                     label.setFont(label.getFont().deriveFont(java.awt.Font.PLAIN));
                 }
-                Color borderCol = UIManager.getColor("Table.gridColor");
+                Color borderCol = table.getGridColor();
                 if (borderCol == null) {
-                    borderCol = ThemeManager.isDarkMode() ? new Color(42, 48, 60) : new Color(226, 232, 240);
+                    borderCol = ThemeManager.getTableGridColor();
                 }
                 label.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 1, borderCol));
                 return label;
