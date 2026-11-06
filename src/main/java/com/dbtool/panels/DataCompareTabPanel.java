@@ -1987,7 +1987,11 @@ public class DataCompareTabPanel extends JPanel {
         private final JButton inPickBtn = new JButton("Pick...");
         private final JButton subqueryBtn = new JButton("Clauses...");
         private final JPanel inPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
-        private final JButton delBtn = new JButton("✕");
+        private final JButton delBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove WHERE condition");
+        private final JComponent whereBadge = com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+            com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.WHERE
+        );
+        private final JPanel prefixSlot = new JPanel(new BorderLayout());
 
         // Subquery State
         private String subTable = "";
@@ -1998,15 +2002,24 @@ public class DataCompareTabPanel extends JPanel {
         private String subLimit = "";
 
         public DualWhereRow(boolean isFirst) {
-            setLayout(new FlowLayout(FlowLayout.LEFT, 3, 2));
-            logicCombo.setPreferredSize(new Dimension(65, 26));
-            colCombo.setPreferredSize(new Dimension(140, 26));
-            opCombo.setPreferredSize(new Dimension(95, 26));
-            valField.setPreferredSize(new Dimension(130, 26));
+            com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+            com.dbtool.ui.components.ClauseBadgeFactory.styleLogicDropdown(logicCombo);
+            prefixSlot.setOpaque(false);
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                prefixSlot, com.dbtool.ui.components.ClauseBadgeFactory.PREFIX_WIDTH
+            );
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                colCombo, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+            );
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                opCombo, com.dbtool.ui.components.ClauseBadgeFactory.OPERATOR_WIDTH
+            );
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                valField, com.dbtool.ui.components.ClauseBadgeFactory.VALUE_WIDTH
+            );
+            valField.putClientProperty("JTextField.placeholderText", "Enter value...");
             inTypeCombo.setPreferredSize(new Dimension(130, 26));
             inValuesCombo.setPreferredSize(new Dimension(130, 26));
-            delBtn.setPreferredSize(new Dimension(38, 24));
-            delBtn.setMargin(new Insets(1, 4, 1, 4));
 
             inPanel.setOpaque(false);
             inPanel.setVisible(false);
@@ -2019,6 +2032,7 @@ public class DataCompareTabPanel extends JPanel {
 
             setFirst(isFirst);
 
+            add(prefixSlot);
             add(colCombo);
             add(opCombo);
             add(inTypeCombo);
@@ -2046,21 +2060,14 @@ public class DataCompareTabPanel extends JPanel {
         }
 
         public void setFirst(boolean isFirst) {
-            removeAll();
-            if (!isFirst) add(logicCombo);
-            else {
-                JPanel spacer = new JPanel();
-                spacer.setPreferredSize(new Dimension(65, 26));
-                spacer.setOpaque(false);
-                add(spacer);
+            prefixSlot.removeAll();
+            if (isFirst) {
+                prefixSlot.add(whereBadge, BorderLayout.CENTER);
+            } else {
+                prefixSlot.add(logicCombo, BorderLayout.CENTER);
             }
-            add(colCombo);
-            add(opCombo);
-            add(inTypeCombo);
-            add(inPanel);
-            add(valField);
-            add(delBtn);
-            revalidate(); repaint();
+            prefixSlot.revalidate();
+            prefixSlot.repaint();
         }
 
         public String getLogic() { return (String) logicCombo.getSelectedItem(); }
@@ -2318,18 +2325,22 @@ public class DataCompareTabPanel extends JPanel {
         private final SearchableComboBox<String> joinTableCombo = new SearchableComboBox<>();
         private final SearchableComboBox<String> leftColCombo = new SearchableComboBox<>();
         private final SearchableComboBox<String> rightColCombo = new SearchableComboBox<>();
-        private final JButton delBtn = new JButton("X");
+        private final JButton delBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove JOIN clause");
 
         public DualJoinRow() {
-            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
-            joinTypeCombo.setPreferredSize(new Dimension(150, 26));
-            joinTableCombo.setPreferredSize(new Dimension(140, 26));
-            leftColCombo.setPreferredSize(new Dimension(130, 26));
-            rightColCombo.setPreferredSize(new Dimension(130, 26));
-            delBtn.setPreferredSize(new Dimension(38, 24));
-            delBtn.setMargin(new Insets(1, 4, 1, 4));
+            com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                joinTypeCombo, com.dbtool.ui.components.ClauseBadgeFactory.TABLE_WIDTH
+            );
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                joinTableCombo, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+            );
+            leftColCombo.setPreferredSize(new Dimension(135, 26));
+            rightColCombo.setPreferredSize(new Dimension(135, 26));
 
-            add(new JLabel("Join: "));
+            add(com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+                com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.JOIN
+            ));
             add(joinTypeCombo);
             add(joinTableCombo);
             add(new JLabel(" ON Base."));
@@ -2392,16 +2403,20 @@ public class DataCompareTabPanel extends JPanel {
     class DualOrderByRow extends JPanel {
         private final SearchableComboBox<String> colCombo = new SearchableComboBox<>();
         private final JComboBox<String> dirCombo = new JComboBox<>(new String[]{"ASC", "DESC"});
-        private final JButton delBtn = new JButton("X");
+        private final JButton delBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove ORDER BY clause");
 
         public DualOrderByRow() {
-            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
-            colCombo.setPreferredSize(new Dimension(150, 26));
-            dirCombo.setPreferredSize(new Dimension(75, 26));
-            delBtn.setPreferredSize(new Dimension(38, 24));
-            delBtn.setMargin(new Insets(1, 4, 1, 4));
+            com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                colCombo, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+            );
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                dirCombo, com.dbtool.ui.components.ClauseBadgeFactory.OPERATOR_WIDTH
+            );
 
-            add(new JLabel("Order By: "));
+            add(com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+                com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.ORDER_BY
+            ));
             add(colCombo);
             add(dirCombo);
             add(delBtn);
@@ -2430,19 +2445,21 @@ public class DataCompareTabPanel extends JPanel {
         private final SearchableComboBox<String> colCombo = new SearchableComboBox<>();
         private final JTextField aliasField = new JTextField(10);
         private final JTextField filterField = new JTextField(12);
-        private final JButton delBtn = new JButton("X");
+        private final JButton delBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove aggregate row");
 
         public DualAggregateRow() {
-            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
             funcCombo.setPreferredSize(new Dimension(130, 26));
-            colCombo.setPreferredSize(new Dimension(130, 26));
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                colCombo, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+            );
             aliasField.setPreferredSize(new Dimension(90, 26));
             filterField.setPreferredSize(new Dimension(110, 26));
             filterField.setToolTipText("Optional FILTER clause: e.g. status = 'active' or salary > 50000");
-            delBtn.setPreferredSize(new Dimension(38, 24));
-            delBtn.setMargin(new Insets(1, 4, 1, 4));
 
-            add(new JLabel("Agg: "));
+            add(com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+                com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.AGGREGATE
+            ));
             add(funcCombo);
             add(colCombo);
             add(new JLabel(" AS "));
@@ -2496,15 +2513,17 @@ public class DataCompareTabPanel extends JPanel {
 
     class DualGroupByRow extends JPanel {
         private final SearchableComboBox<String> colCombo = new SearchableComboBox<>();
-        private final JButton delBtn = new JButton("X");
+        private final JButton delBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove GROUP BY column");
 
         public DualGroupByRow() {
-            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
-            colCombo.setPreferredSize(new Dimension(150, 26));
-            delBtn.setPreferredSize(new Dimension(38, 24));
-            delBtn.setMargin(new Insets(1, 4, 1, 4));
+            com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                colCombo, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+            );
 
-            add(new JLabel("Group By: "));
+            add(com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+                com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.GROUP_BY
+            ));
             add(colCombo);
             add(delBtn);
 
@@ -2531,22 +2550,33 @@ public class DataCompareTabPanel extends JPanel {
         private final SearchableComboBox<String> colCombo = new SearchableComboBox<>();
         private final JComboBox<String> opCombo = new JComboBox<>(new String[]{">", ">=", "<", "<=", "=", "<>"});
         private final JTextField valField = new JTextField(8);
-        private final JButton delBtn = new JButton("X");
-        private boolean isFirst = false;
+        private final JButton delBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove HAVING condition");
+        private final JComponent havingBadge = com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+            com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.HAVING
+        );
+        private final JPanel prefixSlot = new JPanel(new BorderLayout());
 
         public DualHavingRow(boolean isFirst) {
-            this.isFirst = isFirst;
-            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
-            logicCombo.setPreferredSize(new Dimension(65, 26));
+            com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+            com.dbtool.ui.components.ClauseBadgeFactory.styleLogicDropdown(logicCombo);
+            prefixSlot.setOpaque(false);
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                prefixSlot, com.dbtool.ui.components.ClauseBadgeFactory.PREFIX_WIDTH
+            );
             funcCombo.setPreferredSize(new Dimension(105, 26));
-            colCombo.setPreferredSize(new Dimension(120, 26));
-            opCombo.setPreferredSize(new Dimension(60, 26));
-            valField.setPreferredSize(new Dimension(60, 26));
-            delBtn.setPreferredSize(new Dimension(38, 24));
-            delBtn.setMargin(new Insets(1, 4, 1, 4));
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                colCombo, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+            );
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                opCombo, com.dbtool.ui.components.ClauseBadgeFactory.OPERATOR_WIDTH
+            );
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                valField, com.dbtool.ui.components.ClauseBadgeFactory.VALUE_WIDTH
+            );
+            valField.putClientProperty("JTextField.placeholderText", "Enter value...");
 
-            if (!isFirst) add(logicCombo);
-            add(new JLabel("Having: "));
+            setFirst(isFirst);
+            add(prefixSlot);
             add(funcCombo);
             add(colCombo);
             add(opCombo);
@@ -2563,10 +2593,14 @@ public class DataCompareTabPanel extends JPanel {
         }
 
         public void setFirst(boolean isFirst) {
-            if (this.isFirst != isFirst) {
-                this.isFirst = isFirst;
-                logicCombo.setVisible(!isFirst);
+            prefixSlot.removeAll();
+            if (isFirst) {
+                prefixSlot.add(havingBadge, BorderLayout.CENTER);
+            } else {
+                prefixSlot.add(logicCombo, BorderLayout.CENTER);
             }
+            prefixSlot.revalidate();
+            prefixSlot.repaint();
         }
 
         public String getLogic() { return (String) logicCombo.getSelectedItem(); }
@@ -2613,10 +2647,10 @@ public class DataCompareTabPanel extends JPanel {
             "ROWS 1 PRECEDING EXCLUDE CURRENT ROW"
         });
         private final JTextField aliasField = new JTextField("win_val", 8);
-        private final JButton delBtn = new JButton("X");
+        private final JButton delBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove WINDOW function row");
 
         public DualWindowFuncRow() {
-            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
             funcCombo.setPreferredSize(new Dimension(115, 26));
             colCombo.setPreferredSize(new Dimension(110, 26));
             partCombo.setPreferredSize(new Dimension(110, 26));
@@ -2624,10 +2658,10 @@ public class DataCompareTabPanel extends JPanel {
             dirCombo.setPreferredSize(new Dimension(65, 26));
             frameCombo.setPreferredSize(new Dimension(145, 26));
             aliasField.setPreferredSize(new Dimension(75, 26));
-            delBtn.setPreferredSize(new Dimension(38, 24));
-            delBtn.setMargin(new Insets(1, 4, 1, 4));
 
-            add(new JLabel("Window: "));
+            add(com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+                com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.WINDOW
+            ));
             add(funcCombo);
             add(colCombo);
             add(new JLabel(" PARTITION: "));
