@@ -1388,14 +1388,62 @@ public class SqlEditorPanel extends JPanel {
         if (resultTabs.getTabCount() >= 10) resultTabs.removeTabAt(0);
         int idx = resultTabs.getTabCount();
         resultTabs.addTab(title, content);
-        // Add close button
+        // Add close button & context menu
         JPanel tabHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         tabHeader.setOpaque(false);
         JLabel lbl = new JLabel(title + "  ");
         JButton closeBtn = new JButton("✕");
-        closeBtn.setMargin(new Insets(0, 2, 0, 2));
-        closeBtn.setFocusable(false);
+        closeBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 11));
+        closeBtn.setMargin(new Insets(0, 4, 0, 4));
+        closeBtn.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 2));
+        closeBtn.setContentAreaFilled(false);
+        closeBtn.setFocusPainted(false);
+        closeBtn.setOpaque(false);
+        closeBtn.setToolTipText("Close result tab");
         closeBtn.addActionListener(e -> resultTabs.remove(content));
+        closeBtn.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mouseEntered(java.awt.event.MouseEvent e) { closeBtn.setForeground(Color.RED); }
+            @Override public void mouseExited(java.awt.event.MouseEvent e) { closeBtn.setForeground(null); }
+        });
+
+        JPopupMenu tabMenu = new JPopupMenu();
+        JMenuItem mClose = new JMenuItem("Close Result Tab");
+        mClose.addActionListener(e -> resultTabs.remove(content));
+        JMenuItem mCloseOthers = new JMenuItem("Close Other Result Tabs");
+        mCloseOthers.addActionListener(e -> {
+            for (int i = resultTabs.getTabCount() - 1; i >= 0; i--) {
+                if (resultTabs.getComponentAt(i) != content) {
+                    resultTabs.removeTabAt(i);
+                }
+            }
+        });
+        JMenuItem mCloseAll = new JMenuItem("Close All Result Tabs");
+        mCloseAll.addActionListener(e -> resultTabs.removeAll());
+        tabMenu.add(mClose);
+        tabMenu.add(mCloseOthers);
+        tabMenu.addSeparator();
+        tabMenu.add(mCloseAll);
+
+        java.awt.event.MouseAdapter popupTrigger = new java.awt.event.MouseAdapter() {
+            @Override public void mousePressed(java.awt.event.MouseEvent e) {
+                if (SwingUtilities.isMiddleMouseButton(e)) {
+                    resultTabs.remove(content);
+                } else if (e.isPopupTrigger()) {
+                    tabMenu.show(e.getComponent(), e.getX(), e.getY());
+                } else if (SwingUtilities.isLeftMouseButton(e)) {
+                    int tabIdx = resultTabs.indexOfComponent(content);
+                    if (tabIdx >= 0) resultTabs.setSelectedIndex(tabIdx);
+                }
+            }
+            @Override public void mouseReleased(java.awt.event.MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    tabMenu.show(e.getComponent(), e.getX(), e.getY());
+                }
+            }
+        };
+        tabHeader.addMouseListener(popupTrigger);
+        lbl.addMouseListener(popupTrigger);
+
         tabHeader.add(lbl);
         tabHeader.add(closeBtn);
         resultTabs.setTabComponentAt(idx, tabHeader);
