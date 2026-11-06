@@ -1,8 +1,24 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.8.0  
+**Current Version:** 1.8.1  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v1.8.1] - 2026-11-06
+### Added & Improved
+* **Comprehensive Workspace Session Snapshot Restore & Recovery (`SessionRecoveryManager`, `RecoveryDialog`, `Main`):**
+  * Added **`♻️ Restore Latest Autosaved Snapshot...`**, **`📂 Load Snapshot from File...`**, **`💾 Export Current Snapshot to File...`**, and **`📜 Recent / Archived Snapshots ▾`** directly to the Auto-Save toolbar indicator button and **Command Palette (`Ctrl+K`)**.
+  * Upgraded `RecoveryDialog` with interactive manual restore mode showing recoverable work summaries, connected databases, browse tabs, visual join tabs, and query draft previews.
+  * Re-architected `restoreSessionSnapshot(...)` with asynchronous sequencing: database connections are re-established on a background worker thread, columns and foreign keys are preloaded in bulk, UI tables are populated, and Browse & Visual Join tabs automatically execute queries and render data grids upon restoration.
+  * Added full connection restoration support for all database engines: **SQLite** (`.db`, `.sqlite`, `.sqlite3`), **MS Access** (`.accdb`, `.mdb`), **MySQL / MariaDB**, **PostgreSQL**, and in-memory **H2 Sandbox**.
+  * Added `SessionRecoveryManager.listArchivedSnapshots()`, `loadSnapshotFromFile()`, and `saveSnapshotToFile()` with unit test coverage.
+* **Schema Drift Snapshot Studio Offline Comparison & Null-Safety (`SchemaDriftDialog`, `SchemaComparator`):**
+  * Removed database connection restriction so `SchemaDriftDialog` can be opened at any time.
+  * Added offline file-to-file comparison mode: compare **Saved Baseline Snapshot (.schema.json)** against a **Saved Target Snapshot (.schema.json)** without requiring a live database connection.
+  * Added **`📂 Load Target Snapshot (.json)`**, **`⇄ Swap Baseline ↔ Target`**, and **`📜 Inspect Tables`** to view schema definitions, tables, and column metadata directly from saved snapshot JSON files.
+  * Hardened `SchemaComparator` against `null` types, missing column names, and unexpected metadata to prevent `NullPointerException` during comparison.
 
 ---
 
