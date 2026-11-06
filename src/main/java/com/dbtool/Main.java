@@ -5756,16 +5756,45 @@ public class Main extends JFrame {
         private String customSubqueryText = "";
 
         private List<String> cachedDistinctValues = new ArrayList<>();
+        private final JComponent whereBadge = com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+            com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.WHERE
+        );
+        private final JPanel prefixSlot = new JPanel(new BorderLayout());
+
+        public void setFirst(boolean isFirst) {
+            prefixSlot.removeAll();
+            if (isFirst) {
+                prefixSlot.add(whereBadge, BorderLayout.CENTER);
+            } else {
+                prefixSlot.add(logicDropdown, BorderLayout.CENTER);
+            }
+            prefixSlot.revalidate();
+            prefixSlot.repaint();
+        }
 
         public WherePanel(boolean isFirst, List<WherePanel> ownerList, JPanel ownerContainer) {
-            setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 3, 2));
+            com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+            com.dbtool.ui.components.ClauseBadgeFactory.styleLogicDropdown(logicDropdown);
+            prefixSlot.setOpaque(false);
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                prefixSlot, com.dbtool.ui.components.ClauseBadgeFactory.PREFIX_WIDTH
+            );
+            setFirst(isFirst);
+            add(prefixSlot);
 
-            if (!isFirst) {
-                add(logicDropdown);
-            }
-
-            tableDropdown.setPreferredSize(new Dimension(140, 26));
-            columnDropdown.setPreferredSize(new Dimension(140, 26));
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                tableDropdown, com.dbtool.ui.components.ClauseBadgeFactory.TABLE_WIDTH
+            );
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                columnDropdown, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+            );
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                operatorDropdown, com.dbtool.ui.components.ClauseBadgeFactory.OPERATOR_WIDTH
+            );
+            com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                valueField, com.dbtool.ui.components.ClauseBadgeFactory.VALUE_WIDTH
+            );
+            valueField.putClientProperty("JTextField.placeholderText", "Enter value...");
             inValuesDropdown.setPreferredSize(new Dimension(140, 26));
             inSubTableDropdown.setPreferredSize(new Dimension(130, 26));
             inSubColDropdown.setPreferredSize(new Dimension(130, 26));
@@ -5792,7 +5821,7 @@ public class Main extends JFrame {
             });
 
             add(tableDropdown);
-            add(new JLabel(" . "));
+            add(com.dbtool.ui.components.ClauseBadgeFactory.createDotSeparator());
             add(columnDropdown);
             add(operatorDropdown);
 
@@ -5869,9 +5898,6 @@ public class Main extends JFrame {
                     loadDistinctValues();
                     fetchTablesFromDb();
                 } else {
-                    if (valueField.getParent() != WherePanel.this) {
-                        WherePanel.this.add(valueField, Math.max(0, WherePanel.this.getComponentCount() - 1));
-                    }
                     valueField.setVisible(true);
                     valueField.setToolTipText(null);
                 }
@@ -5883,16 +5909,12 @@ public class Main extends JFrame {
             add(inControlsPanel);
             add(valueField);
 
-            JButton removeBtn = new JButton("X");
+            JButton removeBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove WHERE condition");
             removeBtn.addActionListener(e -> {
-                int idx = ownerList.indexOf(this);
                 ownerList.remove(this);
                 ownerContainer.remove(this);
-                if (idx == 0 && !ownerList.isEmpty()) {
-                    WherePanel newFirst = ownerList.get(0);
-                    newFirst.remove(newFirst.logicDropdown);
-                    newFirst.revalidate();
-                    newFirst.repaint();
+                for (int i = 0; i < ownerList.size(); i++) {
+                    ownerList.get(i).setFirst(i == 0);
                 }
                 ownerContainer.revalidate();
                 ownerContainer.repaint();
@@ -5954,14 +5976,17 @@ public class Main extends JFrame {
 
         private void updateInControlsLayout() {
             inControlsPanel.removeAll();
+            String op = (String) operatorDropdown.getSelectedItem();
+            boolean isInOp = op != null && (op.equalsIgnoreCase("IN") || op.equalsIgnoreCase("NOT IN"));
             String inType = (String) inTypeDropdown.getSelectedItem();
 
             if ("Distinct Values".equals(inType)) {
                 inControlsPanel.add(inValuesDropdown);
                 inControlsPanel.add(inPickBtn);
-                inControlsPanel.add(valueField);
                 valueField.setVisible(true);
-                valueField.setToolTipText("Comma-separated values (pick from dropdown or click Pick...)");
+                if (isInOp) {
+                    valueField.setToolTipText("Comma-separated values (pick from dropdown or click Pick...)");
+                }
             } else if ("Subquery (SELECT)".equals(inType)) {
                 inControlsPanel.add(subSelectLabel);
                 inControlsPanel.add(inSubColDropdown);
@@ -5969,14 +5994,17 @@ public class Main extends JFrame {
                 inControlsPanel.add(inSubTableDropdown);
                 inControlsPanel.add(inSubClausesBtn);
                 inControlsPanel.add(subCloseLabel);
-                valueField.setVisible(false);
+                valueField.setVisible(!isInOp);
 
-                fetchTablesFromDb();
-                updateSubClausesBtnDisplay();
+                if (isInOp) {
+                    fetchTablesFromDb();
+                    updateSubClausesBtnDisplay();
+                }
             } else { // Manual Values
-                inControlsPanel.add(valueField);
                 valueField.setVisible(true);
-                valueField.setToolTipText("Enter values separated by commas: e.g. 101, 102 or 'IT', 'HR'");
+                if (isInOp) {
+                    valueField.setToolTipText("Enter values separated by commas: e.g. 101, 102 or 'IT', 'HR'");
+                }
             }
             inControlsPanel.revalidate();
             inControlsPanel.repaint();
