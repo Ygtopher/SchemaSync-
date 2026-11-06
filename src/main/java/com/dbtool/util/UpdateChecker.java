@@ -413,6 +413,46 @@ public class UpdateChecker {
         return false;
     }
 
+    /**
+     * Detects and repairs UTF-8 strings that were accidentally double-encoded through
+     * Windows-1252 / ISO-8859-1 (e.g., "ðŸŽ›ï¸\uFFFD â–²" -> "🎛️ ▲", "âš¡" -> "⚡", "â€”" -> "—").
+     */
+    public static String repairMojibake(String text) {
+        if (text == null || text.isEmpty()) return text;
+        if (!text.contains("ðŸ") && !text.contains("â") && !text.contains("Ã") && !text.contains("ï¸")) {
+            return text;
+        }
+        try {
+            String patched = text
+                    .replace("ï¸\uFFFD", "ï¸\u008F")
+                    .replace("â—\uFFFD", "â—\u008F")
+                    .replace("ðŸ“\uFFFD", "ðŸ“\u0090")
+                    .replace("ðŸ”\uFFFD", "ðŸ”\u008D");
+
+            java.nio.charset.Charset cp1252 = java.nio.charset.Charset.forName("windows-1252");
+            ByteArrayOutputStream bos = new ByteArrayOutputStream(patched.length() * 2);
+            for (int i = 0; i < patched.length(); i++) {
+                char c = patched.charAt(i);
+                if (c == 0x81 || c == 0x8D || c == 0x8F || c == 0x90 || c == 0x9D) {
+                    bos.write((byte) c);
+                } else {
+                    String single = String.valueOf(c);
+                    if (cp1252.newEncoder().canEncode(single)) {
+                        byte[] encoded = single.getBytes(cp1252);
+                        bos.write(encoded, 0, encoded.length);
+                    } else {
+                        byte[] utf8 = single.getBytes(StandardCharsets.UTF_8);
+                        bos.write(utf8, 0, utf8.length);
+                    }
+                }
+            }
+            String decoded = new String(bos.toByteArray(), StandardCharsets.UTF_8);
+            return decoded.replace("\uFFFD", "");
+        } catch (Exception ignored) {
+            return text;
+        }
+    }
+
     private static void showUpdateDialog(Component parent, String tagName, String releaseName,
                                          String body, String htmlUrl, String downloadUrl,
                                          String downloadFileName, long packageSize,
