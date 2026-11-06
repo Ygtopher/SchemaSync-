@@ -53,9 +53,9 @@ public class EntityCodeGeneratorDialog extends JDialog {
         JPanel titleBox = new JPanel(new GridLayout(2, 1, 2, 2));
         titleBox.setOpaque(false);
         JLabel titleLabel = new JLabel("💻 Instant ORM & Entity Code Generator");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        titleLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 16));
         JLabel subtitleLabel = new JLabel("Export clean, production-ready models for Spring Boot JPA, TypeScript, Python, and C# EF Core.");
-        subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        subtitleLabel.setFont(ThemeManager.getUiFont(Font.PLAIN, 12));
         subtitleLabel.setForeground(Color.GRAY);
         titleBox.add(titleLabel);
         titleBox.add(subtitleLabel);
