@@ -63,4 +63,36 @@ public class ThemeManagerTest {
         assertTrue(customUiFont.canDisplay('▶'), "ThemeManager.getUiFont must render play symbol ▶");
         assertTrue(customUiFont.canDisplay(0x1F50D), "ThemeManager.getUiFont must render magnifier emoji 🔍");
     }
+
+    @Test
+    void testTableGridSwitchesToLightBackgroundInSolarLightMode() {
+        JButton dummyBtn = new JButton();
+        ThemeManager.setPreset(ThemeManager.ThemePreset.MIDNIGHT_BLUE, dummyBtn);
+
+        JTable table = new JTable(new Object[][]{{"Row1"}, {"Row2"}}, new String[]{"Col1"});
+        com.dbtool.ui.components.SmartTableCellRenderer.install(table, c -> false, c -> false);
+        JScrollPane scrollPane = new JScrollPane(table);
+        TableRowUtilities.addRowNumbers(table, scrollPane);
+
+        // Initially dark in Midnight Blue
+        assertTrue(table.getBackground().getRed() < 50, "Table background should start dark in Midnight Blue");
+
+        // Switch to Solar Daylight (Light Mode)
+        ThemeManager.setPreset(ThemeManager.ThemePreset.SOLAR_LIGHT, dummyBtn);
+        ThemeManager.syncComponentTreeThemeColors(scrollPane);
+
+        assertEquals(255, table.getBackground().getRed(), "Table background must become white (255,255,255) in Light Mode");
+        assertEquals(255, scrollPane.getViewport().getBackground().getRed(), "Viewport background must become white in Light Mode");
+
+        java.awt.Component cell0 = table.getDefaultRenderer(Object.class)
+                .getTableCellRendererComponent(table, "Row1", false, false, 0, 0);
+        assertEquals(255, cell0.getBackground().getRed(), "Even row cell background must be white in Light Mode");
+
+        java.awt.Component cell1 = table.getDefaultRenderer(Object.class)
+                .getTableCellRendererComponent(table, "Row2", false, false, 1, 0);
+        assertTrue(cell1.getBackground().getRed() >= 240, "Odd zebra row cell background must be light in Light Mode");
+
+        // Restore default Midnight Blue
+        ThemeManager.setPreset(ThemeManager.ThemePreset.MIDNIGHT_BLUE, dummyBtn);
+    }
 }
