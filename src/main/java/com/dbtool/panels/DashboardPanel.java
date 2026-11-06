@@ -178,9 +178,9 @@ public class DashboardPanel extends JPanel {
         JPanel headerPanel = new JPanel(new BorderLayout(10, 4));
         JPanel leftHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         dbTitleLabel = new JLabel("🏠 Database Overview & Application Usage Dashboard");
-        dbTitleLabel.setFont(new Font("Segoe UI", Font.BOLD, 17));
+        dbTitleLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 17));
         statusPillLabel = new JLabel("● Disconnected");
-        statusPillLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        statusPillLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         statusPillLabel.setForeground(Color.GRAY);
         leftHeader.add(dbTitleLabel);
         leftHeader.add(statusPillLabel);
@@ -193,12 +193,12 @@ public class DashboardPanel extends JPanel {
         rightHeader.add(headerProgress);
 
         lastRefreshedLabel = new JLabel("Ready");
-        lastRefreshedLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        lastRefreshedLabel.setFont(ThemeManager.getUiFont(Font.PLAIN, 11));
         lastRefreshedLabel.setForeground(Color.GRAY);
         rightHeader.add(lastRefreshedLabel);
 
         JButton resetUsageBtn = new JButton("🧹 Reset Usage Stats");
-        resetUsageBtn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        resetUsageBtn.setFont(ThemeManager.getUiFont(Font.PLAIN, 11));
         resetUsageBtn.setToolTipText("Reset cumulative application usage statistics");
         resetUsageBtn.addActionListener(e -> {
             int confirm = JOptionPane.showConfirmDialog(
@@ -216,7 +216,7 @@ public class DashboardPanel extends JPanel {
         rightHeader.add(resetUsageBtn);
 
         JButton refreshBtn = new JButton("🔄 Refresh Metrics");
-        refreshBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        refreshBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         refreshBtn.addActionListener(e -> refresh());
         rightHeader.add(refreshBtn);
         headerPanel.add(rightHeader, BorderLayout.EAST);
@@ -254,7 +254,7 @@ public class DashboardPanel extends JPanel {
                 new JLabel[]{catalogTablesViewsLabel, catalogColsIndexesLabel, catalogCacheStatsLabel}, new Color(16, 185, 129)));
 
         healthScoreLabel = new JLabel("Score: -- / 100");
-        healthScoreLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        healthScoreLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
         healthIssuesLabel = new JLabel("Missing PKs: - | Orphan Tbls: -");
         JLabel healthActionLabel = new JLabel("<html><u>Click to launch Index Advisor →</u></html>");
         healthActionLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -455,7 +455,7 @@ public class DashboardPanel extends JPanel {
 
         JPanel titlePanel = new JPanel(new BorderLayout());
         JLabel titleLbl = new JLabel(title);
-        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        titleLbl.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
         titleLbl.setForeground(accentColor);
         titlePanel.add(titleLbl, BorderLayout.WEST);
         card.add(titlePanel, BorderLayout.NORTH);
@@ -463,7 +463,7 @@ public class DashboardPanel extends JPanel {
         JPanel itemsPanel = new JPanel();
         itemsPanel.setLayout(new BoxLayout(itemsPanel, BoxLayout.Y_AXIS));
         for (JLabel lbl : items) {
-            lbl.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+            lbl.setFont(ThemeManager.getUiFont(Font.PLAIN, 10));
             itemsPanel.add(lbl);
             itemsPanel.add(Box.createVerticalStrut(1));
         }
@@ -482,10 +482,10 @@ public class DashboardPanel extends JPanel {
         textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
 
         JLabel titleLbl = new JLabel(title);
-        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        titleLbl.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
 
         JLabel descLbl = new JLabel("<html>" + description + "</html>");
-        descLbl.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        descLbl.setFont(ThemeManager.getUiFont(Font.PLAIN, 10));
         descLbl.setForeground(ThemeManager.isDarkMode() ? new Color(160, 160, 160) : new Color(100, 100, 100));
 
         textPanel.add(titleLbl);
@@ -494,7 +494,7 @@ public class DashboardPanel extends JPanel {
         tile.add(textPanel, BorderLayout.CENTER);
 
         JButton launchBtn = new JButton("Open →");
-        launchBtn.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        launchBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
         launchBtn.setMargin(new Insets(2, 8, 2, 8));
         launchBtn.addActionListener(e -> {
             if (action != null) action.run();
