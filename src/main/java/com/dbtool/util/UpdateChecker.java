@@ -107,8 +107,8 @@ public class UpdateChecker {
                 JsonNode release = mapper.readTree(sb.toString());
 
                 String tagName = release.path("tag_name").asText("").trim();
-                String releaseName = release.path("name").asText(tagName);
-                String body = release.path("body").asText("No release notes provided.");
+                String releaseName = repairMojibake(release.path("name").asText(tagName));
+                String body = formatReleaseNotesForDisplay(release.path("body").asText("No release notes provided."));
                 String htmlUrl = release.path("html_url").asText("https://github.com/" + GITHUB_REPO + "/releases");
 
                 // Discover assets across platforms (Delta patch .jar, Windows .exe, Ubuntu .deb, Fedora .rpm, Universal .jar)
@@ -525,7 +525,7 @@ public class UpdateChecker {
         dlg.add(header, BorderLayout.NORTH);
 
         // Changelog text area
-        JTextArea notesArea = new JTextArea(body);
+        JTextArea notesArea = new JTextArea(formatReleaseNotesForDisplay(body));
         notesArea.setEditable(false);
         notesArea.setLineWrap(true);
         notesArea.setWrapStyleWord(true);
