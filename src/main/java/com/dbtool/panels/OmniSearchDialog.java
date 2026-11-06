@@ -101,10 +101,10 @@ public class OmniSearchDialog extends JDialog {
         searchRow.setOpaque(false);
 
         JLabel searchIconLabel = new JLabel("🔍 Find:");
-        searchIconLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        searchIconLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 13));
 
         searchField = new JTextField();
-        searchField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        searchField.setFont(ThemeManager.getUiFont(Font.PLAIN, 14));
         searchField.setToolTipText("Enter text, numeric ID, date, or regex pattern to search");
         searchField.addActionListener(e -> startSearch());
 
@@ -159,7 +159,7 @@ public class OmniSearchDialog extends JDialog {
         matchCountBadge.setOpaque(true);
         matchCountBadge.setBackground(new Color(100, 116, 139));
         matchCountBadge.setForeground(Color.WHITE);
-        matchCountBadge.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        matchCountBadge.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         matchCountBadge.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
         optionsRow.add(matchCountBadge);
 
@@ -228,7 +228,7 @@ public class OmniSearchDialog extends JDialog {
         progressBar.setStringPainted(true);
         progressBar.setString("Ready");
         statusLabel = new JLabel("Enter a query and click 'Search' or press Enter.");
-        statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        statusLabel.setFont(ThemeManager.getUiFont(Font.PLAIN, 12));
         statusLabel.setForeground(Color.GRAY);
 
         progressPanel.add(progressBar, BorderLayout.NORTH);
