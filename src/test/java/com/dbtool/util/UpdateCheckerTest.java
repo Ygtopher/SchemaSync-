@@ -128,6 +128,20 @@ public class UpdateCheckerTest {
         assertEquals("BRAND_NEW_FEATURE", exeEntries.get("com/dbtool/NewFeature.class"));
     }
 
+    @Test
+    void testRepairMojibakeAndFormatReleaseNotes() {
+        String garbled = "### ðŸš€ New Features\n- **ðŸŽ›ï¸\uFFFD â–² Compact Grid Toggle**\n- **âš¡ Ctrl+K Command Palette** (`CommandPaletteDialog`)";
+        String formatted = UpdateChecker.formatReleaseNotesForDisplay(garbled);
+
+        assertFalse(formatted.contains("ðŸ"), "Mojibake prefix ðŸ must be repaired");
+        assertFalse(formatted.contains("â–²"), "Mojibake â–² must be repaired to ▲");
+        assertFalse(formatted.contains("###"), "Markdown heading markers must be stripped");
+        assertFalse(formatted.contains("**"), "Markdown bold markers must be stripped");
+        assertTrue(formatted.contains("🚀 New Features"), "Should contain decoded rocket emoji");
+        assertTrue(formatted.contains("▲ Compact Grid Toggle"), "Should contain decoded triangle symbol");
+        assertTrue(formatted.contains("⚡ Ctrl+K Command Palette (CommandPaletteDialog)"), "Should contain decoded lightning emoji and clean inline code");
+    }
+
     private static void writeEntry(ZipOutputStream zos, String name, String content) throws Exception {
         zos.putNextEntry(new ZipEntry(name));
         zos.write(content.getBytes(StandardCharsets.UTF_8));
