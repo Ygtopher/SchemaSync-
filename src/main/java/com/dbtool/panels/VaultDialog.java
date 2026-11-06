@@ -42,7 +42,7 @@ public class VaultDialog extends JDialog {
         // Header
         JPanel headerPanel = new JPanel(new BorderLayout());
         JLabel titleLbl = new JLabel("🛡️ Credential Vault Security");
-        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 17));
+        titleLbl.setFont(ThemeManager.getUiFont(Font.BOLD, 17));
         JLabel subtitleLbl = new JLabel("<html>Military-grade AES-256-GCM encryption with PBKDF2 key derivation for saved database passwords.</html>");
         subtitleLbl.setForeground(ThemeManager.isDarkMode() ? new Color(170, 170, 170) : new Color(100, 100, 100));
         headerPanel.add(titleLbl, BorderLayout.NORTH);
@@ -83,7 +83,7 @@ public class VaultDialog extends JDialog {
         p.setBorder(new EmptyBorder(16, 12, 16, 12));
 
         statusLabel = new JLabel();
-        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        statusLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 14));
         p.add(statusLabel);
         p.add(Box.createVerticalStrut(10));
 
