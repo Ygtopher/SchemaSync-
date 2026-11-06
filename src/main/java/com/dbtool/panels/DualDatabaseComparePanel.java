@@ -138,7 +138,7 @@ public class DualDatabaseComparePanel extends JPanel {
         rebuildDatabaseCardsUI();
 
         JPanel rightActions = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.RIGHT, 4, 4));
-        btnAddDatabase.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnAddDatabase.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         btnAddDatabase.setForeground(ThemeManager.getPrimaryActionColor());
         btnAddDatabase.setToolTipText("Add a 3rd or additional database to compare (Database C, D, etc.)");
         btnAddDatabase.addActionListener(e -> addDatabaseEntry());
@@ -274,7 +274,7 @@ public class DualDatabaseComparePanel extends JPanel {
         tb.setFloatable(false);
         tb.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
 
-        compareSchemasBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        compareSchemasBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         compareSchemasBtn.setForeground(ThemeManager.getSuccessColor());
         compareSchemasBtn.addActionListener(e -> runSchemaComparison());
         tb.add(compareSchemasBtn);
@@ -372,7 +372,7 @@ public class DualDatabaseComparePanel extends JPanel {
         tb.add(cheatSheetBtn);
         tb.addSeparator();
 
-        generateAllSyncBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        generateAllSyncBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         generateAllSyncBtn.addActionListener(e -> openMigrationDdlDialog());
         generateAllSyncBtn.setEnabled(false);
         tb.add(generateAllSyncBtn);
@@ -403,7 +403,7 @@ public class DualDatabaseComparePanel extends JPanel {
         detailPanel.setBorder(BorderFactory.createTitledBorder("Column-by-Column Inspector & Synchronization DDL"));
 
         JPanel detailHeader = new JPanel(new BorderLayout());
-        selectedTableTitleLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        selectedTableTitleLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         selectedTableTitleLabel.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
         detailHeader.add(selectedTableTitleLabel, BorderLayout.CENTER);
         detailPanel.add(detailHeader, BorderLayout.NORTH);
@@ -830,7 +830,7 @@ public class DualDatabaseComparePanel extends JPanel {
         tbTabs.setFloatable(false);
         tbTabs.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 6, 2));
 
-        btnNewTab.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnNewTab.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         btnNewTab.setForeground(ThemeManager.getSuccessColor());
         btnNewTab.setToolTipText("Open another tab to compare a different table or database concurrently");
         btnNewTab.addActionListener(e -> addDataCompareTab("Compare Session " + (++dataTabCounter)));
@@ -866,7 +866,7 @@ public class DualDatabaseComparePanel extends JPanel {
         tab.setTabTitleLabel(titleLbl);
 
         JButton closeBtn = new JButton("×");
-        closeBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        closeBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
         closeBtn.setMargin(new Insets(0, 4, 0, 4));
         closeBtn.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
         closeBtn.setContentAreaFilled(false);
@@ -954,9 +954,9 @@ public class DualDatabaseComparePanel extends JPanel {
         private JPanel buildCard() {
             JPanel card = new JPanel(new BorderLayout(4, 2));
             card.setPreferredSize(new Dimension(300, 78));
-            card.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), label, TitledBorder.LEFT, TitledBorder.TOP, new Font("Segoe UI", Font.BOLD, 11)));
+            card.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), label, TitledBorder.LEFT, TitledBorder.TOP, ThemeManager.getUiFont(Font.BOLD, 11)));
 
-            statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            statusLabel.setFont(ThemeManager.getUiFont(Font.PLAIN, 11));
             card.add(statusLabel, BorderLayout.NORTH);
 
             JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 1));
@@ -985,7 +985,7 @@ public class DualDatabaseComparePanel extends JPanel {
 
             if (removable) {
                 JButton removeBtn = new JButton("✕");
-                removeBtn.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                removeBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
                 removeBtn.setForeground(ThemeManager.getDangerColor());
                 removeBtn.setMargin(new Insets(1, 4, 1, 4));
                 removeBtn.setToolTipText("Remove " + label + " from comparison workspace");
