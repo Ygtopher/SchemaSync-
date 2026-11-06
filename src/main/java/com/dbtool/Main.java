@@ -33,6 +33,12 @@ public class Main extends JFrame {
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
+    private com.dbtool.panels.QueryLogPanel queryLogPanel;
+    private JSplitPane centerSplit;
+    private JButton toggleQueryLogBtn;
+    private boolean isQueryLogMinimized = false;
+    private int queryLogExpandedHeight = 220;
+    private boolean isAdjustingQueryLogSplit = false;
 
     public class BrowseTab extends JPanel {
     private SearchableComboBox browseTableDropdown = new SearchableComboBox();
@@ -4441,10 +4447,59 @@ public class Main extends JFrame {
         // Network Scanner tab is hidden by default
 
         // Main layout: Schema sidebar left, tabs center
-        com.dbtool.panels.QueryLogPanel queryLogPanel = new com.dbtool.panels.QueryLogPanel();
-        JSplitPane centerSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tabbedPane, queryLogPanel);
+        queryLogPanel = new com.dbtool.panels.QueryLogPanel();
+        queryLogPanel.setToggleCallback(this::toggleQueryLog);
+
+        centerSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tabbedPane, queryLogPanel);
+        centerSplit.setResizeWeight(1.0); // 100% of extra vertical space goes to top workspace
         centerSplit.setDividerLocation(600);
-        centerSplit.setResizeWeight(0.8);
+
+        // Pin query log to bottom when minimized on any window resize or maximize
+        centerSplit.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent e) {
+                int totalH = centerSplit.getHeight();
+                if (totalH <= 0) return;
+                int divSize = centerSplit.getDividerSize();
+                int headerH = queryLogPanel.getHeaderPreferredHeight();
+                isAdjustingQueryLogSplit = true;
+                try {
+                    if (isQueryLogMinimized) {
+                        int targetDiv = Math.max(0, totalH - divSize - headerH);
+                        centerSplit.setDividerLocation(targetDiv);
+                    } else {
+                        int targetDiv = Math.max(100, totalH - divSize - queryLogExpandedHeight);
+                        centerSplit.setDividerLocation(targetDiv);
+                    }
+                } finally {
+                    isAdjustingQueryLogSplit = false;
+                }
+            }
+        });
+
+        // Track user dragging divider to remember preferred expanded height or detect minimize
+        centerSplit.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, evt -> {
+            if (isAdjustingQueryLogSplit) return;
+            int totalH = centerSplit.getHeight();
+            if (totalH <= 0) return;
+            int divLoc = centerSplit.getDividerLocation();
+            int divSize = centerSplit.getDividerSize();
+            int headerH = queryLogPanel.getHeaderPreferredHeight();
+            int currentLogHeight = totalH - divLoc - divSize;
+
+            if (currentLogHeight <= headerH + 12) {
+                if (!isQueryLogMinimized) {
+                    isQueryLogMinimized = true;
+                    queryLogPanel.setMinimizedUI(true);
+                }
+            } else {
+                if (isQueryLogMinimized) {
+                    isQueryLogMinimized = false;
+                    queryLogPanel.setMinimizedUI(false);
+                }
+                queryLogExpandedHeight = Math.max(headerH + 50, currentLogHeight);
+            }
+        });
         
         JTabbedPane leftSidebarTabs = new JTabbedPane();
         leftSidebarTabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
@@ -4506,15 +4561,9 @@ public class Main extends JFrame {
         });
         topPanel.add(toggleSidebarBtn, 0); // Add to extreme left
 
-        JButton toggleQueryLogBtn = new JButton("\u2630");
-        toggleQueryLogBtn.setToolTipText("Toggle Global Query Log");
-        toggleQueryLogBtn.addActionListener(e -> {
-            if (centerSplit.getDividerLocation() >= centerSplit.getHeight() - 40) {
-                centerSplit.setDividerLocation(centerSplit.getHeight() - 250); // Expand up
-            } else {
-                centerSplit.setDividerLocation(centerSplit.getHeight()); // Collapse down
-            }
-        });
+        toggleQueryLogBtn = new JButton("\u2630");
+        toggleQueryLogBtn.setToolTipText("Toggle Global Query Log (Show / Minimize)");
+        toggleQueryLogBtn.addActionListener(e -> toggleQueryLog());
         topPanel.add(toggleQueryLogBtn, 1); // Add right next to sidebar toggle
         
         JToggleButton adminToolsBtn = new JToggleButton("Admin Tools");
@@ -4727,6 +4776,40 @@ public class Main extends JFrame {
                 openCommandPaletteDialog();
             }
         });
+    }
+
+    public void setQueryLogMinimized(boolean minimize) {
+        this.isQueryLogMinimized = minimize;
+        if (queryLogPanel != null) {
+            queryLogPanel.setMinimizedUI(minimize);
+        }
+        if (centerSplit != null) {
+            int totalH = centerSplit.getHeight();
+            if (totalH > 0) {
+                int divSize = centerSplit.getDividerSize();
+                int headerH = queryLogPanel != null ? queryLogPanel.getHeaderPreferredHeight() : 28;
+                isAdjustingQueryLogSplit = true;
+                try {
+                    if (minimize) {
+                        int targetDiv = Math.max(0, totalH - divSize - headerH);
+                        centerSplit.setDividerLocation(targetDiv);
+                    } else {
+                        int targetDiv = Math.max(100, totalH - divSize - queryLogExpandedHeight);
+                        centerSplit.setDividerLocation(targetDiv);
+                    }
+                } finally {
+                    isAdjustingQueryLogSplit = false;
+                }
+            }
+        }
+    }
+
+    public void toggleQueryLog() {
+        setQueryLogMinimized(!isQueryLogMinimized);
+    }
+
+    public boolean isQueryLogMinimized() {
+        return isQueryLogMinimized;
     }
 
     public void openCommandPaletteDialog() {

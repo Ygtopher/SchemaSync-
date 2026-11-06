@@ -76,4 +76,22 @@ public class SmartTableColumnAdjusterTest {
         // Reset back to Midnight Blue
         ThemeManager.setPreset(ThemeManager.ThemePreset.MIDNIGHT_BLUE, dummyBtn);
     }
+
+    @Test
+    void testAdCliColumnsWidthCalculation() {
+        DefaultTableModel model = new DefaultTableModel(
+                new Object[][]{
+                        {209000100234L, null, 1, 1, "GITWA NGANZO", null, null, 1, 1, "250788123456", null, null, "philor@gmail.com", 75633, null, null, null, "2020-06-15", 0, 2, null, null}
+                },
+                new Object[]{"id_client", "anc_id_client", "statut_juridique", "qualite", "adresse", "code_postal", "ville", "pays", "pp_pm", "num_tel", "num_fax", "num_portable", "email", "id_cpte_base", "id_loc1", "id_loc2", "loc3", "date_adhesion", "nbre_parts", "etat", "date_radiation", "nb_imf"}
+        );
+
+        JTable table = new JTable(model);
+        SmartTableCellRenderer.install(table, col -> "id_client".equals(col), col -> false);
+        for (int c = 0; c < table.getColumnCount(); c++) {
+            int w = SmartTableColumnAdjuster.calculateOptimalColumnWidth(table, c, 80, 550);
+            System.out.println("COL " + c + " (" + table.getColumnName(c) + ") -> " + w + " px");
+            assertTrue(w >= 80, "Every column should be at least 80px");
+        }
+    }
 }

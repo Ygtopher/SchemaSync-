@@ -12,22 +12,60 @@ import java.util.List;
 public class QueryLogPanel extends JPanel {
     private DefaultTableModel model;
     private JTable table;
+    private JPanel header;
+    private JButton closeBtn;
+    private Runnable toggleCallback;
+    private boolean minimized = false;
+
+    public void setToggleCallback(Runnable callback) {
+        this.toggleCallback = callback;
+    }
+
+    public void setMinimizedUI(boolean isMinimized) {
+        this.minimized = isMinimized;
+        if (closeBtn != null) {
+            closeBtn.setText(isMinimized ? "▲" : "▼");
+            closeBtn.setToolTipText(isMinimized ? "Expand Global Query Log" : "Minimize Global Query Log");
+        }
+    }
+
+    public int getHeaderPreferredHeight() {
+        return header != null ? header.getPreferredSize().height : 28;
+    }
 
     public QueryLogPanel() {
         setLayout(new BorderLayout());
         
-        JPanel header = new JPanel(new BorderLayout());
+        header = new JPanel(new BorderLayout());
+        header.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
+        header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
         JLabel title = new JLabel(" Global Query Log");
         title.setFont(title.getFont().deriveFont(java.awt.Font.BOLD));
-        JButton closeBtn = new JButton("_"); // Minimize mark
-        closeBtn.setToolTipText("Minimize Query Log");
-        closeBtn.setMargin(new java.awt.Insets(0, 4, 0, 4));
+
+        closeBtn = new JButton("▼");
+        closeBtn.setToolTipText("Minimize Global Query Log");
+        closeBtn.setMargin(new java.awt.Insets(0, 6, 0, 6));
+        closeBtn.setFocusable(false);
         closeBtn.addActionListener(e -> {
-            if (getParent() instanceof JSplitPane) {
+            if (toggleCallback != null) {
+                toggleCallback.run();
+            } else if (getParent() instanceof JSplitPane) {
                 JSplitPane split = (JSplitPane) getParent();
-                split.setDividerLocation(split.getHeight() - 30); // Collapse to bottom
+                split.setDividerLocation(split.getHeight() - 30);
             }
         });
+
+        // Double click on header bar to toggle minimize / restore
+        header.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2 && toggleCallback != null) {
+                    toggleCallback.run();
+                }
+            }
+        });
+
         header.add(title, BorderLayout.WEST);
         header.add(closeBtn, BorderLayout.EAST);
         add(header, BorderLayout.NORTH);

@@ -92,16 +92,30 @@ public class MultiTabContainer<T extends JPanel> extends JPanel {
         tabbedPane.addTab(title, tabPanel);
         int index = tabbedPane.indexOfComponent(tabPanel);
 
-        JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         headerPanel.setOpaque(false);
-        JLabel titleLabel = new JLabel(title + "  ");
-        JButton closeBtn = new JButton("✕");
+        JLabel titleLabel = new JLabel(title);
+        JButton closeBtn = new JButton("✕") {
+            @Override
+            protected void paintComponent(Graphics g) {
+                if (getModel().isRollover()) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(new Color(239, 68, 68, 50));
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 4, 4);
+                    g2.dispose();
+                }
+                super.paintComponent(g);
+            }
+        };
         closeBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
-        closeBtn.setMargin(new Insets(0, 4, 0, 4));
-        closeBtn.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 2));
+        closeBtn.setPreferredSize(new Dimension(18, 18));
+        closeBtn.setMargin(new Insets(0, 0, 0, 0));
+        closeBtn.setBorder(BorderFactory.createEmptyBorder());
         closeBtn.setFocusPainted(false);
         closeBtn.setContentAreaFilled(false);
         closeBtn.setOpaque(false);
+        closeBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         closeBtn.setToolTipText("Close this " + baseTitle + " tab");
 
         closeBtn.addActionListener(e -> closeTab(newPanel));
@@ -109,7 +123,7 @@ public class MultiTabContainer<T extends JPanel> extends JPanel {
         closeBtn.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseEntered(MouseEvent evt) {
-                closeBtn.setForeground(Color.RED);
+                closeBtn.setForeground(new Color(239, 68, 68));
             }
             @Override
             public void mouseExited(MouseEvent evt) {
