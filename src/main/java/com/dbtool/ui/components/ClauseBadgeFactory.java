@@ -98,7 +98,7 @@ public final class ClauseBadgeFactory {
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                boolean dark = ThemeManager.isDark();
+                boolean dark = ThemeManager.isDarkMode();
                 g2.setColor(dark ? new Color(255, 255, 255, 18) : new Color(15, 23, 42, 14));
                 g2.fillRoundRect(1, 2, getWidth() - 2, getHeight() - 4, 8, 8);
                 g2.setColor(dark ? new Color(255, 255, 255, 40) : new Color(15, 23, 42, 35));
@@ -161,7 +161,7 @@ public final class ClauseBadgeFactory {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-            boolean dark = ThemeManager.isDark();
+            boolean dark = ThemeManager.isDarkMode();
             Color accent = dark ? type.darkColor : type.lightColor;
 
             Color bg = dark
