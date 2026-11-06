@@ -100,7 +100,7 @@ public class DataMaskingDialog extends JDialog {
         // Header
         JPanel header = new JPanel(new BorderLayout());
         JLabel title = new JLabel("🔒 Sensitive Data Masking & Anonymization Studio");
-        title.setFont(new Font("Segoe UI", Font.BOLD, 17));
+        title.setFont(ThemeManager.getUiFont(Font.BOLD, 17));
         JLabel subtitle = new JLabel("<html>Sanitize personally identifiable information (PII) before exporting or sharing datasets with dev/staging teams.</html>");
         subtitle.setForeground(ThemeManager.isDarkMode() ? new Color(170, 170, 170) : new Color(100, 100, 100));
         header.add(title, BorderLayout.NORTH);
