@@ -1,8 +1,18 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.8.2  
+**Current Version:** 1.8.3  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v1.8.3] - 2026-11-06
+### Added & Improved
+* **PostgreSQL Dollar-Quoting (`$$ ... $$` & `$tag$ ... $tag$`) Support in Multi-Statement Execution (`DataCompareTabPanel`):**
+  * Enhanced statement splitting (`splitSqlStatements`) to natively preserve PostgreSQL dollar-quoted function bodies, procedural blocks, and triggers. Semicolons inside procedural logic (e.g., custom fuzzy matching `CREATE OR REPLACE FUNCTION ... AS $$ ... $$;`) are preserved without premature splitting.
+* **Intelligent Dynamic Key Column Auto-Resolution in Custom SQL Diff (`DataCompareTabPanel`):**
+  * Custom comparison queries now dynamically resolve identifier key columns (`#`, `AccountNumber`, `id`, or first common column) directly from query result sets and aliases.
+  * Eliminates the requirement to pre-select a physical table column when running arbitrary custom SQL, seamlessly displaying cell-level diffs or switching to the side-by-side view.
 
 ---
 
