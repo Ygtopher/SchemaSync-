@@ -453,6 +453,30 @@ public class UpdateChecker {
         }
     }
 
+    /**
+     * Repairs character encoding artifacts and strips raw Markdown syntax markers
+     * so release notes render cleanly inside the Update Dialog changelog view.
+     */
+    public static String formatReleaseNotesForDisplay(String rawBody) {
+        if (rawBody == null || rawBody.isEmpty()) return "No release notes provided.";
+        String repaired = repairMojibake(rawBody);
+        String[] lines = repaired.replace("\r\n", "\n").split("\n");
+        StringBuilder out = new StringBuilder();
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.equals("---")) {
+                out.append("────────────────────────────────────────────────────────\n");
+                continue;
+            }
+            String cleaned = line
+                    .replaceFirst("^#{1,6}\\s+", "")
+                    .replaceAll("\\*\\*([^*]+)\\*\\*", "$1")
+                    .replaceAll("`([^`]+)`", "$1");
+            out.append(cleaned).append("\n");
+        }
+        return out.toString().trim();
+    }
+
     private static void showUpdateDialog(Component parent, String tagName, String releaseName,
                                          String body, String htmlUrl, String downloadUrl,
                                          String downloadFileName, long packageSize,
