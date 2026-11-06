@@ -54,7 +54,7 @@ public class TableComparePanel extends JPanel {
         tbRun.setFloatable(false);
         tbRun.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
         JButton runQueriesBtn = new JButton("▶ Execute Both Queries");
-        runQueriesBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        runQueriesBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
         runQueriesBtn.setForeground(new Color(0, 102, 51));
         runQueriesBtn.addActionListener(e -> runBothQueries());
         
