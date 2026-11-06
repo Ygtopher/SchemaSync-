@@ -55,9 +55,17 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
 
         int scaledRowHeight = Math.max(24, Math.round(26 * ThemeManager.getUiScaleFactor()));
         table.setRowHeight(scaledRowHeight);
+        table.setShowGrid(true);
+        table.setShowHorizontalLines(true);
+        table.setShowVerticalLines(true);
         table.setIntercellSpacing(new Dimension(1, 1));
         table.setFillsViewportHeight(true);
+        table.setGridColor(new javax.swing.plaf.ColorUIResource(ThemeManager.getTableGridColor()));
         table.setBackground(new javax.swing.plaf.ColorUIResource(ThemeManager.getTableBackgroundColor()));
+        table.setForeground(new javax.swing.plaf.ColorUIResource(ThemeManager.isDarkMode() ? new Color(241, 245, 249) : new Color(15, 23, 42)));
+
+        // Automatically install intelligent content-based column width auto-sizing
+        SmartTableColumnAdjuster.install(table);
 
         JTableHeader header = table.getTableHeader();
         if (header != null) {
@@ -65,9 +73,14 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
             header.setDefaultRenderer(new SmartHeaderRenderer(baseHeaderRenderer, isPrimaryKeyColumn, isForeignKeyColumn));
         }
 
-        // Attach hover tracking once
+        // Attach hover tracking and model change column auto-fit listener once
         if (!Boolean.TRUE.equals(table.getClientProperty("SchemaSync.smartInstalled"))) {
             table.putClientProperty("SchemaSync.smartInstalled", Boolean.TRUE);
+
+            table.addPropertyChangeListener("model", evt -> {
+                SmartTableColumnAdjuster.adjustColumnWidths(table);
+            });
+
             table.addMouseMotionListener(new MouseMotionAdapter() {
                 @Override
                 public void mouseMoved(MouseEvent e) {
@@ -114,7 +127,7 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
             } else {
                 setBackground(ThemeManager.getTableBackgroundColor());
             }
-            setForeground(dark ? new Color(226, 232, 240) : new Color(15, 23, 42));
+            setForeground(dark ? new Color(241, 245, 249) : new Color(15, 23, 42));
         }
 
         Font baseFont = table.getFont();
@@ -126,10 +139,10 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
             setText("NULL");
             setHorizontalAlignment(SwingConstants.LEFT);
             if (baseFont != null) {
-                setFont(baseFont.deriveFont(Font.ITALIC, Math.max(11f, baseFont.getSize2D() - 1f)));
+                setFont(baseFont.deriveFont(Font.ITALIC | Font.BOLD, Math.max(11f, baseFont.getSize2D() - 1f)));
             }
             if (!isSelected) {
-                setForeground(dark ? new Color(120, 130, 150) : new Color(148, 163, 184));
+                setForeground(dark ? new Color(203, 213, 225) : new Color(71, 85, 105));
             }
         } else if (booleanValue != null) {
             setText(booleanValue ? "● true" : "○ false");
@@ -139,7 +152,7 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
             }
             if (!isSelected) {
                 setForeground(booleanValue
-                        ? (dark ? new Color(74, 222, 128) : new Color(22, 163, 74))
+                        ? (dark ? new Color(74, 222, 128) : new Color(21, 128, 61))
                         : (dark ? new Color(148, 163, 184) : new Color(100, 116, 139)));
             }
         } else if (isNumericValue(value)) {
@@ -149,7 +162,7 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
                 setFont(new Font(Font.MONOSPACED, Font.PLAIN, baseFont.getSize()));
             }
             if (!isSelected) {
-                setForeground(dark ? new Color(125, 211, 252) : new Color(3, 105, 161));
+                setForeground(dark ? new Color(125, 211, 252) : new Color(14, 116, 144));
             }
         } else {
             String str = String.valueOf(value);
@@ -158,9 +171,12 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
             if (baseFont != null) {
                 setFont(baseFont);
             }
+            if (!isSelected) {
+                setForeground(dark ? new Color(241, 245, 249) : new Color(15, 23, 42));
+            }
             // Highlight date/timestamp strings subtly
             if (!isSelected && isTimestampLike(str)) {
-                setForeground(dark ? new Color(253, 186, 116) : new Color(180, 83, 9));
+                setForeground(dark ? new Color(251, 146, 60) : new Color(194, 65, 12));
             }
         }
 
@@ -176,12 +192,14 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
             g2.fillRect(0, 0, getWidth(), getHeight());
 
             boolean dark = ThemeManager.isDarkMode();
-            Color pillBg = dark ? new Color(45, 52, 68, 180) : new Color(226, 232, 240, 200);
-            Color pillBorder = dark ? new Color(75, 85, 105, 180) : new Color(203, 213, 225);
+            boolean isSelected = (getForeground() != null && getForeground().equals(UIManager.getColor("Table.selectionForeground")));
+            Color pillBg = dark ? new Color(30, 41, 59, 230) : new Color(241, 245, 249);
+            Color pillBorder = dark ? new Color(71, 85, 105) : new Color(203, 213, 225);
+            Color pillText = isSelected ? getForeground() : (dark ? new Color(203, 213, 225) : new Color(71, 85, 105));
 
             FontMetrics fm = g2.getFontMetrics(getFont());
             int textW = fm.stringWidth("NULL");
-            int pillW = textW + 12;
+            int pillW = textW + 14;
             int pillH = Math.min(getHeight() - 6, fm.getHeight() + 2);
             int x = 8;
             int y = (getHeight() - pillH) / 2;
@@ -191,10 +209,10 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
             g2.setColor(pillBorder);
             g2.drawRoundRect(x, y, pillW, pillH, 6, 6);
 
-            g2.setColor(getForeground());
+            g2.setColor(pillText);
             g2.setFont(getFont());
             int textY = (getHeight() - fm.getHeight()) / 2 + fm.getAscent();
-            g2.drawString("NULL", x + 6, textY);
+            g2.drawString("NULL", x + 7, textY);
             g2.dispose();
             return;
         }
@@ -275,8 +293,8 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
             Component c = delegate.getTableCellRendererComponent(table, decorated, isSelected, hasFocus, row, column);
             Color hdrBg = UIManager.getColor("TableHeader.background");
             Color hdrFg = UIManager.getColor("TableHeader.foreground");
-            if (hdrBg != null) c.setBackground(hdrBg);
-            if (hdrFg != null) c.setForeground(hdrFg);
+            c.setBackground(hdrBg != null ? hdrBg : ThemeManager.getHeaderBackgroundColor());
+            c.setForeground(hdrFg != null ? hdrFg : ThemeManager.getHeaderForegroundColor());
             if (c instanceof JLabel) {
                 JLabel lbl = (JLabel) c;
                 lbl.setFont(lbl.getFont().deriveFont(Font.BOLD));
