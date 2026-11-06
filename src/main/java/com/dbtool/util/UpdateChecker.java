@@ -465,7 +465,7 @@ public class UpdateChecker {
         notesArea.setEditable(false);
         notesArea.setLineWrap(true);
         notesArea.setWrapStyleWord(true);
-        notesArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        notesArea.setFont(ThemeManager.getUiFont(Font.PLAIN, 12));
         JScrollPane scroll = new JScrollPane(notesArea);
         scroll.setBorder(BorderFactory.createTitledBorder("Release Notes / Changelog"));
         dlg.add(scroll, BorderLayout.CENTER);
