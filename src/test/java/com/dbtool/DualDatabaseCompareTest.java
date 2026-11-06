@@ -406,4 +406,88 @@ public class DualDatabaseCompareTest {
         assertTrue(execModel.getValueAt(0, 2).toString().contains("affected"), "Database A should report rows affected");
         assertTrue(execModel.getValueAt(1, 2).toString().contains("affected"), "Database B should report rows affected");
     }
+
+    @Test
+    public void testSmartTypeEquivalenceCrossEngine() {
+        assertTrue(SchemaComparator.areTypesEquivalent("INT4", "INTEGER"), "Postgres INT4 and standard INTEGER should be equivalent");
+        assertTrue(SchemaComparator.areTypesEquivalent("INT", "INT4"), "INT and INT4 should be equivalent");
+        assertTrue(SchemaComparator.areTypesEquivalent("BIGINT", "INT8"), "BIGINT and INT8 should be equivalent");
+        assertTrue(SchemaComparator.areTypesEquivalent("VARCHAR(255)", "TEXT"), "VARCHAR and TEXT should be equivalent under smart equivalence");
+        assertTrue(SchemaComparator.areTypesEquivalent("CHARACTER VARYING", "VARCHAR"), "CHARACTER VARYING and VARCHAR should be equivalent");
+        assertTrue(SchemaComparator.areTypesEquivalent("BOOLEAN", "BOOL"), "BOOLEAN and BOOL should be equivalent");
+        assertTrue(SchemaComparator.areTypesEquivalent("BOOLEAN", "TINYINT(1)"), "BOOLEAN and MySQL TINYINT(1) should be equivalent");
+        assertTrue(SchemaComparator.areTypesEquivalent("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE"), "TIMESTAMPTZ and TIMESTAMP WITH TIME ZONE should be equivalent");
+        assertTrue(SchemaComparator.areTypesEquivalent("DOUBLE PRECISION", "FLOAT8"), "DOUBLE PRECISION and FLOAT8 should be equivalent");
+        assertFalse(SchemaComparator.areTypesEquivalent("INTEGER", "VARCHAR(50)"), "INTEGER and VARCHAR should NOT be equivalent");
+    }
+
+    @Test
+    public void testDualDbReportExporterHtmlAndMarkdown() throws Exception {
+        com.dbtool.core.inspector.JdbcSchemaInspector inspector = new com.dbtool.core.inspector.JdbcSchemaInspector();
+        List<TableMetadata> tablesA = new ArrayList<>();
+        List<TableMetadata> tablesB = new ArrayList<>();
+
+        for (String tName : dbManagerA.getTableNames()) {
+            tablesA.add(inspector.inspectTable(dbManagerA.connection, null, null, tName));
+        }
+        for (String tName : dbManagerB.getTableNames()) {
+            tablesB.add(inspector.inspectTable(dbManagerB.connection, null, null, tName));
+        }
+
+        SchemaComparator comparator = new SchemaComparator();
+        SchemaDiffResult diffResult = comparator.compareSchemas(tablesA, tablesB);
+        assertNotNull(diffResult);
+
+        // Generate HTML Report
+        String html = com.dbtool.util.DualDbReportExporter.generateHtmlReport(diffResult, "Production A", "Staging B", "Compared 500 rows: 10 modified");
+        assertNotNull(html);
+        assertTrue(html.contains("<!DOCTYPE html>"), "HTML report should contain valid doctype");
+        assertTrue(html.contains("Production A"), "HTML report should contain source DB label");
+        assertTrue(html.contains("Staging B"), "HTML report should contain target DB label");
+        assertTrue(html.contains("Executive Comparison Summary"), "HTML report should contain executive summary");
+
+        // Generate Markdown Report
+        String md = com.dbtool.util.DualDbReportExporter.generateMarkdownReport(diffResult, "Production A", "Staging B", "500 rows analyzed");
+        assertNotNull(md);
+        assertTrue(md.contains("# SchemaSync — Dual Database Comparison Report"), "Markdown should have report header");
+        assertTrue(md.contains("Production A"), "Markdown should include source DB label");
+    }
+
+    @Test
+    public void testSnapshotConversion() {
+        com.dbtool.panels.SchemaDriftDialog.SchemaSnapshot snapshot = new com.dbtool.panels.SchemaDriftDialog.SchemaSnapshot();
+        snapshot.databaseProductName = "PostgreSQL";
+        snapshot.databaseVersion = "16.1";
+        snapshot.createdAt = "2026-11-06T12:00:00Z";
+        snapshot.tables = new ArrayList<>();
+
+        com.dbtool.panels.SchemaDriftDialog.TableSnapshot ts = new com.dbtool.panels.SchemaDriftDialog.TableSnapshot();
+        ts.tableName = "users_snapshot";
+        ts.columns = new ArrayList<>();
+
+        com.dbtool.panels.SchemaDriftDialog.ColumnSnapshot csId = new com.dbtool.panels.SchemaDriftDialog.ColumnSnapshot();
+        csId.name = "id";
+        csId.type = "BIGINT";
+        csId.primaryKey = true;
+        csId.nullable = false;
+        ts.columns.add(csId);
+
+        com.dbtool.panels.SchemaDriftDialog.ColumnSnapshot csName = new com.dbtool.panels.SchemaDriftDialog.ColumnSnapshot();
+        csName.name = "username";
+        csName.type = "VARCHAR";
+        csName.size = 100;
+        csName.nullable = false;
+        ts.columns.add(csName);
+
+        snapshot.tables.add(ts);
+
+        List<TableMetadata> metaList = com.dbtool.panels.DualDatabaseComparePanel.convertSnapshotToMetadata(snapshot);
+        assertEquals(1, metaList.size(), "Should convert 1 table from snapshot");
+        TableMetadata tm = metaList.get(0);
+        assertEquals("users_snapshot", tm.getTableName());
+        assertEquals(2, tm.getColumns().size());
+        assertTrue(tm.findColumn("id").isPrimaryKey());
+        assertEquals("BIGINT", tm.findColumn("id").getTypeName());
+        assertEquals("VARCHAR", tm.findColumn("username").getTypeName());
+    }
 }

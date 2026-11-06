@@ -19,6 +19,7 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
+import java.io.File;
 import java.sql.Statement;
 import java.util.*;
 import java.util.List;
@@ -54,7 +55,12 @@ public class DualDatabaseComparePanel extends JPanel {
     private final JTable columnDiffTable = new JTable();
     private final JLabel selectedTableTitleLabel = new JLabel("Select a table to inspect column differences");
     private final RSyntaxTextArea tableSyncDdlArea = new RSyntaxTextArea(4, 30);
+    private final RSyntaxTextArea sourceDdlArea = new RSyntaxTextArea(4, 25);
+    private final RSyntaxTextArea targetDdlArea = new RSyntaxTextArea(4, 25);
     private final JButton generateAllSyncBtn = new JButton("Generate Migration DDL Script");
+    private final JButton exportReportBtn = new JButton("📊 Export Report ▾");
+    private final JButton compareTableDataBtn = new JButton("📊 Compare Data");
+    private final JButton swapSchemaBtn = new JButton("⇄ Swap");
     private final JTextField schemaSearchField = new JTextField(12);
 
     private SchemaDiffResult lastSchemaDiffResult;
@@ -288,6 +294,12 @@ public class DualDatabaseComparePanel extends JPanel {
         });
         tb.add(schemaSourceDbCombo);
 
+        swapSchemaBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
+        swapSchemaBtn.setMargin(new Insets(1, 4, 1, 4));
+        swapSchemaBtn.setToolTipText("Swap Source ↔ Target databases");
+        swapSchemaBtn.addActionListener(e -> swapSchemaSourceAndTarget());
+        tb.add(swapSchemaBtn);
+
         tb.add(new JLabel(" ➔ Target: "));
         schemaTargetDbCombo.setPreferredSize(new Dimension(190, 26));
         schemaTargetDbCombo.setRenderer(new DefaultListCellRenderer() {
@@ -296,7 +308,11 @@ public class DualDatabaseComparePanel extends JPanel {
                 JLabel lbl = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 if (value instanceof DatabaseEntry) {
                     DatabaseEntry d = (DatabaseEntry) value;
-                    lbl.setText(d.getLabel() + (d.getDbManager().isConnected() ? " [🟢]" : " [⚪]"));
+                    if (d.isSnapshot()) {
+                        lbl.setText(d.getLabel() + " [📷 Snapshot]");
+                    } else {
+                        lbl.setText(d.getLabel() + (d.getDbManager().isConnected() ? " [🟢]" : " [⚪]"));
+                    }
                 } else if (value != null) {
                     lbl.setText(value.toString());
                 }
@@ -377,6 +393,19 @@ public class DualDatabaseComparePanel extends JPanel {
         generateAllSyncBtn.setEnabled(false);
         tb.add(generateAllSyncBtn);
 
+        exportReportBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
+        exportReportBtn.setToolTipText("Export comprehensive comparison report (HTML or Markdown)");
+        exportReportBtn.addActionListener(e -> showReportExportMenu(exportReportBtn));
+        exportReportBtn.setEnabled(false);
+        tb.add(exportReportBtn);
+
+        compareTableDataBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
+        compareTableDataBtn.setForeground(ThemeManager.getPrimaryActionColor());
+        compareTableDataBtn.setToolTipText("Open selected table in Data Diff tab to compare live table rows");
+        compareTableDataBtn.addActionListener(e -> openSelectedTableInDataDiff(getSelectedSchemaTable()));
+        compareTableDataBtn.setEnabled(false);
+        tb.add(compareTableDataBtn);
+
         panel.add(tb, BorderLayout.NORTH);
 
         // Center SplitPane (Tables Table + Column Level Detail Inspector)
@@ -392,6 +421,36 @@ public class DualDatabaseComparePanel extends JPanel {
                 inspectSelectedTableColumns();
             }
         });
+
+        // Double click to jump into Live Data Diff
+        schemaTablesTable.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
+                    openSelectedTableInDataDiff(getSelectedSchemaTable());
+                }
+            }
+        });
+
+        // Right click menu for quick actions
+        JPopupMenu schemaTableMenu = new JPopupMenu();
+        JMenuItem mOpenDataDiff = new JMenuItem("📊 Compare Rows in Data Diff");
+        mOpenDataDiff.addActionListener(e -> openSelectedTableInDataDiff(getSelectedSchemaTable()));
+        schemaTableMenu.add(mOpenDataDiff);
+        JMenuItem mCopyName = new JMenuItem("📋 Copy Table Name");
+        mCopyName.addActionListener(e -> {
+            String tbl = getSelectedSchemaTable();
+            if (tbl != null) {
+                Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(tbl), null);
+            }
+        });
+        schemaTableMenu.add(mCopyName);
+        schemaTableMenu.addSeparator();
+        JMenuItem mInspectDdl = new JMenuItem("⚡ Inspect Sync DDL");
+        mInspectDdl.addActionListener(e -> inspectSelectedTableColumns());
+        schemaTableMenu.add(mInspectDdl);
+        schemaTablesTable.setComponentPopupMenu(schemaTableMenu);
+
         schemaTablesTable.setDefaultRenderer(Object.class, new DiffTableCellRenderer());
         JScrollPane scrollTables = new JScrollPane(schemaTablesTable);
         com.dbtool.util.TableRowUtilities.addRowNumbers(schemaTablesTable, scrollTables);
@@ -412,15 +471,31 @@ public class DualDatabaseComparePanel extends JPanel {
         JScrollPane scrollCols = new JScrollPane(columnDiffTable);
         com.dbtool.util.TableRowUtilities.addRowNumbers(columnDiffTable, scrollCols);
 
-        // Single Table Sync DDL
+        // Tabbed DDL Container: Single Table Sync DDL + Side-by-Side DDL Comparison
+        JTabbedPane ddlTabs = new JTabbedPane();
+
         tableSyncDdlArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_SQL);
         tableSyncDdlArea.setEditable(false);
         RTextScrollPane ddlScroll = new RTextScrollPane(tableSyncDdlArea);
         ddlScroll.setPreferredSize(new Dimension(300, 150));
-        ddlScroll.setBorder(BorderFactory.createTitledBorder("Generated Table Sync DDL"));
+        ddlTabs.addTab("⚡ Table Sync DDL", ddlScroll);
 
-        JSplitPane detailSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scrollCols, ddlScroll);
-        detailSplit.setResizeWeight(0.65);
+        sourceDdlArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_SQL);
+        sourceDdlArea.setEditable(false);
+        RTextScrollPane srcDdlScroll = new RTextScrollPane(sourceDdlArea);
+        srcDdlScroll.setBorder(BorderFactory.createTitledBorder("Source DB (CREATE TABLE)"));
+
+        targetDdlArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_SQL);
+        targetDdlArea.setEditable(false);
+        RTextScrollPane tgtDdlScroll = new RTextScrollPane(targetDdlArea);
+        tgtDdlScroll.setBorder(BorderFactory.createTitledBorder("Target DB (CREATE TABLE)"));
+
+        JSplitPane sbsSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, srcDdlScroll, tgtDdlScroll);
+        sbsSplit.setResizeWeight(0.5);
+        ddlTabs.addTab("📜 Side-by-Side DDL Comparison", sbsSplit);
+
+        JSplitPane detailSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scrollCols, ddlTabs);
+        detailSplit.setResizeWeight(0.60);
         detailPanel.add(detailSplit, BorderLayout.CENTER);
 
         splitPane.setBottomComponent(detailPanel);
@@ -437,16 +512,16 @@ public class DualDatabaseComparePanel extends JPanel {
         DatabaseEntry srcEntry = (DatabaseEntry) schemaSourceDbCombo.getSelectedItem();
         Object tgtObj = schemaTargetDbCombo.getSelectedItem();
 
-        if (srcEntry == null || !srcEntry.getDbManager().isConnected()) {
-            JOptionPane.showMessageDialog(this, "Source database is not connected.", "Missing Connection", JOptionPane.WARNING_MESSAGE);
+        if (srcEntry == null || !srcEntry.isConnected()) {
+            JOptionPane.showMessageDialog(this, "Source database or snapshot is not loaded/connected.", "Missing Connection", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
         boolean isMatrix = "🌐 All Connected Databases (Matrix)".equals(tgtObj);
         DatabaseEntry tgtEntry = (!isMatrix && tgtObj instanceof DatabaseEntry) ? (DatabaseEntry) tgtObj : null;
 
-        if (!isMatrix && (tgtEntry == null || !tgtEntry.getDbManager().isConnected())) {
-            JOptionPane.showMessageDialog(this, "Target database is not connected.", "Missing Connection", JOptionPane.WARNING_MESSAGE);
+        if (!isMatrix && (tgtEntry == null || !tgtEntry.isConnected())) {
+            JOptionPane.showMessageDialog(this, "Target database or snapshot is not loaded/connected.", "Missing Connection", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -463,31 +538,39 @@ public class DualDatabaseComparePanel extends JPanel {
                 boolean isSingle = "Single Table".equals(schemaScopeCombo.getSelectedItem());
                 String singleTbl = (String) schemaSingleTableCombo.getSelectedItem();
 
-                DatabaseManager dmA = srcEntry.getDbManager();
-                List<String> listA = dmA.getTableNames();
-                if (isSingle && singleTbl != null && !singleTbl.isEmpty()) {
-                    listA = listA.contains(singleTbl) ? Collections.singletonList(singleTbl) : Collections.emptyList();
-                }
-
                 List<TableMetadata> tablesA = new ArrayList<>();
-                for (String tName : listA) {
-                    try { tablesA.add(inspector.inspectTable(dmA.connection, null, null, tName)); } catch (Exception ignored) {}
+                if (srcEntry.isSnapshot()) {
+                    tablesA = filterSnapshotTables(srcEntry.getSnapshotTables(), isSingle, singleTbl);
+                } else {
+                    DatabaseManager dmA = srcEntry.getDbManager();
+                    List<String> listA = dmA.getTableNames();
+                    if (isSingle && singleTbl != null && !singleTbl.isEmpty()) {
+                        listA = listA.contains(singleTbl) ? Collections.singletonList(singleTbl) : Collections.emptyList();
+                    }
+                    for (String tName : listA) {
+                        try { tablesA.add(inspector.inspectTable(dmA.connection, null, null, tName)); } catch (Exception ignored) {}
+                    }
                 }
 
                 if (!isMatrix) {
                     // Pairwise Comparison
-                    DatabaseManager dmB = tgtEntry.getDbManager();
-                    List<String> listB = dmB.getTableNames();
-                    if (isSingle && singleTbl != null && !singleTbl.isEmpty()) {
-                        listB = listB.contains(singleTbl) ? Collections.singletonList(singleTbl) : Collections.emptyList();
-                    }
-
                     List<TableMetadata> tablesB = new ArrayList<>();
-                    for (String tName : listB) {
-                        try { tablesB.add(inspector.inspectTable(dmB.connection, null, null, tName)); } catch (Exception ignored) {}
+                    if (tgtEntry.isSnapshot()) {
+                        tablesB = filterSnapshotTables(tgtEntry.getSnapshotTables(), isSingle, singleTbl);
+                    } else {
+                        DatabaseManager dmB = tgtEntry.getDbManager();
+                        List<String> listB = dmB.getTableNames();
+                        if (isSingle && singleTbl != null && !singleTbl.isEmpty()) {
+                            listB = listB.contains(singleTbl) ? Collections.singletonList(singleTbl) : Collections.emptyList();
+                        }
+                        for (String tName : listB) {
+                            try { tablesB.add(inspector.inspectTable(dmB.connection, null, null, tName)); } catch (Exception ignored) {}
+                        }
                     }
 
-                    SchemaComparator comparator = new SchemaComparator();
+                    DiffOptions options = new DiffOptions();
+                    options.setSmartTypeEquivalence(true);
+                    SchemaComparator comparator = new SchemaComparator(options);
                     SchemaDiffResult diffResult = comparator.compareSchemas(tablesA, tablesB);
                     lastSchemaDiffResult = diffResult;
 
@@ -503,14 +586,18 @@ public class DualDatabaseComparePanel extends JPanel {
                     dbMetaMap.put(srcEntry, tablesA);
 
                     for (DatabaseEntry d : databaseEntries) {
-                        if (d != srcEntry && d.getDbManager().isConnected()) {
-                            List<String> tbls = d.getDbManager().getTableNames();
-                            if (isSingle && singleTbl != null && !singleTbl.isEmpty()) {
-                                tbls = tbls.contains(singleTbl) ? Collections.singletonList(singleTbl) : Collections.emptyList();
-                            }
+                        if (d != srcEntry && d.isConnected()) {
                             List<TableMetadata> tList = new ArrayList<>();
-                            for (String tn : tbls) {
-                                try { tList.add(inspector.inspectTable(d.getDbManager().connection, null, null, tn)); } catch (Exception ignored) {}
+                            if (d.isSnapshot()) {
+                                tList = filterSnapshotTables(d.getSnapshotTables(), isSingle, singleTbl);
+                            } else {
+                                List<String> tbls = d.getDbManager().getTableNames();
+                                if (isSingle && singleTbl != null && !singleTbl.isEmpty()) {
+                                    tbls = tbls.contains(singleTbl) ? Collections.singletonList(singleTbl) : Collections.emptyList();
+                                }
+                                for (String tn : tbls) {
+                                    try { tList.add(inspector.inspectTable(d.getDbManager().connection, null, null, tn)); } catch (Exception ignored) {}
+                                }
                             }
                             dbMetaMap.put(d, tList);
                         }
@@ -590,6 +677,17 @@ public class DualDatabaseComparePanel extends JPanel {
         schemaTablesSorter = new TableRowSorter<>(schemaTablesModel);
         schemaTablesTable.setModel(schemaTablesModel);
         schemaTablesTable.setRowSorter(schemaTablesSorter);
+
+        int totalTables = result.getTableDiffs().size();
+        int totalDiffs = countMod + countOnlyA + countOnlyB;
+        btnAllSchema.setText("All (" + totalTables + ")");
+        btnDiffOnlySchema.setText("Differences (" + totalDiffs + ")");
+        btnOnlyASchema.setText("In " + labelA + " (" + countOnlyA + ")");
+        btnOnlyBSchema.setText("In " + labelB + " (" + countOnlyB + ")");
+        btnModSchema.setText("Modified (" + countMod + ")");
+        btnIdentSchema.setText("Identical (" + countIdent + ")");
+        exportReportBtn.setEnabled(true);
+        compareTableDataBtn.setEnabled(true);
 
         schemaStatusLabel.setText(String.format("Compared %d tables in %d ms:  🟢 %d Identical | 🟨 %d Modified | 🟥 %d Only in %s | 🟩 %d Only in %s",
                 result.getTableDiffs().size(), durationMs, countIdent, countMod, countOnlyA, labelA, countOnlyB, labelB));
@@ -800,6 +898,18 @@ public class DualDatabaseComparePanel extends JPanel {
             ddl.append("-- Table structures are identical. No synchronization needed.");
         }
         tableSyncDdlArea.setText(ddl.toString());
+
+        DatabaseEntry srcEntry = (DatabaseEntry) schemaSourceDbCombo.getSelectedItem();
+        if (tmA != null) {
+            sourceDdlArea.setText(DiffScriptGenerator.generateCreateTableDdl(tmA));
+        } else {
+            sourceDdlArea.setText("-- Table does not exist in " + (srcEntry != null ? srcEntry.getLabel() : "Source DB"));
+        }
+        if (tmB != null) {
+            targetDdlArea.setText(DiffScriptGenerator.generateCreateTableDdl(tmB));
+        } else {
+            targetDdlArea.setText("-- Table does not exist in Target DB");
+        }
     }
 
     private void openMigrationDdlDialog() {
@@ -1037,9 +1147,54 @@ public class DualDatabaseComparePanel extends JPanel {
         public boolean isRemovable() { return removable; }
         public JPanel getCardPanel() { return cardPanel; }
 
+        private List<TableMetadata> snapshotTables = null;
+        private String snapshotFileName = null;
+
+        public boolean isSnapshot() {
+            return snapshotTables != null && !snapshotTables.isEmpty();
+        }
+
+        public List<TableMetadata> getSnapshotTables() {
+            return snapshotTables;
+        }
+
+        public String getSnapshotFileName() {
+            return snapshotFileName;
+        }
+
+        public boolean isConnected() {
+            return isSnapshot() || (dbManager != null && dbManager.isConnected());
+        }
+
+        public void loadSnapshot() {
+            JFileChooser fc = new JFileChooser();
+            fc.setDialogTitle("Load Schema Snapshot (.json) for " + label);
+            fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Schema Snapshot (*.schema.json, *.json)", "json"));
+            File defDir = new File(System.getProperty("user.home"), ".schemasync/snapshots");
+            if (defDir.exists()) fc.setCurrentDirectory(defDir);
+
+            if (fc.showOpenDialog(DualDatabaseComparePanel.this) == JFileChooser.APPROVE_OPTION) {
+                File file = fc.getSelectedFile();
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    SchemaDriftDialog.SchemaSnapshot snapshot = mapper.readValue(file, SchemaDriftDialog.SchemaSnapshot.class);
+                    this.snapshotTables = convertSnapshotToMetadata(snapshot);
+                    this.snapshotFileName = file.getName();
+                    updateStatusLabel();
+                    refreshDatabaseSelectors();
+                    JOptionPane.showMessageDialog(DualDatabaseComparePanel.this,
+                            "Loaded snapshot '" + file.getName() + "' with " + snapshotTables.size() + " tables for " + label + "!",
+                            "Snapshot Loaded", JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(DualDatabaseComparePanel.this,
+                            "Failed to parse snapshot: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }
+
         private JPanel buildCard() {
             JPanel card = new JPanel(new BorderLayout(4, 2));
-            card.setPreferredSize(new Dimension(300, 78));
+            card.setPreferredSize(new Dimension(320, 78));
             card.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), label, TitledBorder.LEFT, TitledBorder.TOP, ThemeManager.getUiFont(Font.BOLD, 11)));
 
             statusLabel.setFont(ThemeManager.getUiFont(Font.PLAIN, 11));
@@ -1062,6 +1217,12 @@ public class DualDatabaseComparePanel extends JPanel {
             connectPgBtn.setMargin(new Insets(1, 4, 1, 4));
             connectPgBtn.addActionListener(e -> connectPostgres());
             actions.add(connectPgBtn);
+
+            JButton snapshotBtn = new JButton("Snapshot...");
+            snapshotBtn.setMargin(new Insets(1, 4, 1, 4));
+            snapshotBtn.setToolTipText("Load a saved .schema.json snapshot to compare against offline baseline");
+            snapshotBtn.addActionListener(e -> loadSnapshot());
+            actions.add(snapshotBtn);
 
             JButton disconnectBtn = new JButton("Disconnect");
             disconnectBtn.setMargin(new Insets(1, 4, 1, 4));
@@ -1089,6 +1250,8 @@ public class DualDatabaseComparePanel extends JPanel {
                 return;
             }
             try {
+                snapshotTables = null;
+                snapshotFileName = null;
                 dbManager.useExistingConnection(primaryDbManager);
                 updateStatusLabel();
                 refreshDatabaseSelectors();
@@ -1100,6 +1263,8 @@ public class DualDatabaseComparePanel extends JPanel {
         public void connectSandbox() {
             new Thread(() -> {
                 try {
+                    snapshotTables = null;
+                    snapshotFileName = null;
                     dbManager.connectSandbox("dual_db_sandbox_" + id.toLowerCase());
                     SwingUtilities.invokeLater(() -> {
                         updateStatusLabel();
@@ -1117,6 +1282,8 @@ public class DualDatabaseComparePanel extends JPanel {
             if (dialog.isApproved()) {
                 new Thread(() -> {
                     try {
+                        snapshotTables = null;
+                        snapshotFileName = null;
                         dbManager.connectExistingPostgres(dialog.getHost(), dialog.getPort(), dialog.getDbName(), dialog.getUser(), dialog.getPass());
                         SwingUtilities.invokeLater(() -> {
                             updateStatusLabel();
@@ -1130,7 +1297,9 @@ public class DualDatabaseComparePanel extends JPanel {
         }
 
         public void disconnect() {
-            if (dbManager.connection != null) {
+            snapshotTables = null;
+            snapshotFileName = null;
+            if (dbManager != null && dbManager.connection != null) {
                 try { dbManager.connection.close(); } catch (Exception ignored) {}
                 dbManager.connection = null;
                 dbManager.clearCache();
@@ -1140,7 +1309,10 @@ public class DualDatabaseComparePanel extends JPanel {
         }
 
         public void updateStatusLabel() {
-            if (dbManager.isConnected()) {
+            if (isSnapshot()) {
+                statusLabel.setText("📷 Snapshot: " + snapshotFileName + " (" + snapshotTables.size() + " tables)");
+                statusLabel.setForeground(ThemeManager.getPrimaryActionColor());
+            } else if (dbManager != null && dbManager.isConnected()) {
                 statusLabel.setText("● Connected: " + dbManager.getLastDbName() + (dbManager.getLastHost() != null ? " (" + dbManager.getLastHost() + ")" : ""));
                 statusLabel.setForeground(ThemeManager.getSuccessColor());
             } else {
@@ -1151,6 +1323,9 @@ public class DualDatabaseComparePanel extends JPanel {
 
         @Override
         public String toString() {
+            if (isSnapshot()) {
+                return label + " [📷 " + (snapshotFileName != null ? snapshotFileName : "Snapshot") + "]";
+            }
             return label;
         }
     }
@@ -1161,9 +1336,152 @@ public class DualDatabaseComparePanel extends JPanel {
             JLabel lbl = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
             if (value instanceof DatabaseEntry) {
                 DatabaseEntry d = (DatabaseEntry) value;
-                lbl.setText(d.getLabel() + (d.getDbManager().isConnected() ? " [Connected]" : " [Disconnected]"));
+                if (d.isSnapshot()) {
+                    lbl.setText(d.getLabel() + " [📷 Snapshot: " + d.getSnapshotFileName() + "]");
+                } else {
+                    lbl.setText(d.getLabel() + (d.getDbManager().isConnected() ? " [🟢 Connected]" : " [⚪ Disconnected]"));
+                }
             }
             return lbl;
         }
+    }
+
+    private void swapSchemaSourceAndTarget() {
+        Object src = schemaSourceDbCombo.getSelectedItem();
+        Object tgt = schemaTargetDbCombo.getSelectedItem();
+        if (src instanceof DatabaseEntry && tgt instanceof DatabaseEntry) {
+            DatabaseEntry srcEntry = (DatabaseEntry) src;
+            DatabaseEntry tgtEntry = (DatabaseEntry) tgt;
+            schemaSourceDbCombo.setSelectedItem(tgtEntry);
+            updateSchemaTargetDbCombo(srcEntry);
+            schemaTargetDbCombo.setSelectedItem(srcEntry);
+            refreshSchemaTableDropdowns();
+            if (lastSchemaDiffResult != null) {
+                runSchemaComparison();
+            }
+        }
+    }
+
+    public void openSelectedTableInDataDiff(String tableName) {
+        if (tableName == null || tableName.trim().isEmpty()) return;
+        DatabaseEntry src = (DatabaseEntry) schemaSourceDbCombo.getSelectedItem();
+        Object tgt = schemaTargetDbCombo.getSelectedItem();
+        DatabaseEntry tgtEntry = (tgt instanceof DatabaseEntry) ? (DatabaseEntry) tgt : null;
+
+        subTabbedPane.setSelectedIndex(1); // Switch to Data Diff sub-tab
+
+        DataCompareTabPanel tab = null;
+        int activeIdx = dataCompareTabbedPane.getSelectedIndex();
+        if (activeIdx >= 0 && activeIdx < dataCompareTabs.size()) {
+            tab = dataCompareTabs.get(activeIdx);
+        } else {
+            tab = addDataCompareTab("Data Diff - " + tableName);
+        }
+
+        if (tab != null) {
+            tab.configureForTable(src, tgtEntry, tableName);
+            tab.runDataComparison();
+        }
+    }
+
+    private String getSelectedSchemaTable() {
+        int row = schemaTablesTable.getSelectedRow();
+        if (row < 0) return null;
+        int modelRow = schemaTablesTable.convertRowIndexToModel(row);
+        Object val = schemaTablesModel.getValueAt(modelRow, 1);
+        return val != null ? val.toString() : null;
+    }
+
+    private void showReportExportMenu(Component invoker) {
+        if (lastSchemaDiffResult == null) {
+            JOptionPane.showMessageDialog(this, "Run a schema comparison first before exporting a report.", "No Comparison", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        JPopupMenu menu = new JPopupMenu();
+        JMenuItem mHtml = new JMenuItem("🌐 Export Interactive HTML Report...");
+        mHtml.addActionListener(e -> exportComparisonReport(true));
+        JMenuItem mMd = new JMenuItem("📄 Export Markdown (.md) Report...");
+        mMd.addActionListener(e -> exportComparisonReport(false));
+        menu.add(mHtml);
+        menu.add(mMd);
+        menu.show(invoker, 0, invoker.getHeight());
+    }
+
+    private void exportComparisonReport(boolean isHtml) {
+        if (lastSchemaDiffResult == null) return;
+        DatabaseEntry src = (DatabaseEntry) schemaSourceDbCombo.getSelectedItem();
+        Object tgt = schemaTargetDbCombo.getSelectedItem();
+        String srcName = src != null ? src.getLabel() : "Source DB";
+        String tgtName = (tgt instanceof DatabaseEntry) ? ((DatabaseEntry) tgt).getLabel() : (tgt != null ? tgt.toString() : "Target DB");
+
+        String dataSummary = null;
+        int activeIdx = dataCompareTabbedPane.getSelectedIndex();
+        if (activeIdx >= 0 && activeIdx < dataCompareTabs.size()) {
+            dataSummary = dataCompareTabs.get(activeIdx).getDataStatusSummary();
+        }
+
+        JFileChooser fc = new JFileChooser();
+        String ext = isHtml ? ".html" : ".md";
+        String defName = "SchemaSync-Diff-" + srcName.replaceAll("\\W+", "_") + "-vs-" + tgtName.replaceAll("\\W+", "_") + ext;
+        fc.setSelectedFile(new File(defName));
+        fc.setDialogTitle("Save " + (isHtml ? "HTML" : "Markdown") + " Comparison Report");
+
+        if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File file = fc.getSelectedFile();
+            if (!file.getName().toLowerCase().endsWith(ext)) {
+                file = new File(file.getParentFile(), file.getName() + ext);
+            }
+            try {
+                if (isHtml) {
+                    com.dbtool.util.DualDbReportExporter.exportHtmlReport(file, lastSchemaDiffResult, srcName, tgtName, dataSummary);
+                } else {
+                    com.dbtool.util.DualDbReportExporter.exportMarkdownReport(file, lastSchemaDiffResult, srcName, tgtName, dataSummary);
+                }
+                int choice = JOptionPane.showConfirmDialog(this,
+                        "Report exported successfully to:\n" + file.getAbsolutePath() + "\n\nWould you like to open it now?",
+                        "Report Exported", JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
+                if (choice == JOptionPane.YES_OPTION && Desktop.isDesktopSupported()) {
+                    Desktop.getDesktop().open(file);
+                }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Failed to export report: " + ex.getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private List<TableMetadata> filterSnapshotTables(List<TableMetadata> original, boolean isSingle, String singleTable) {
+        if (original == null) return Collections.emptyList();
+        if (!isSingle || singleTable == null || singleTable.isEmpty()) return new ArrayList<>(original);
+        List<TableMetadata> filtered = new ArrayList<>();
+        for (TableMetadata tm : original) {
+            if (tm.getTableName().equalsIgnoreCase(singleTable)) {
+                filtered.add(tm);
+            }
+        }
+        return filtered;
+    }
+
+    public static List<TableMetadata> convertSnapshotToMetadata(SchemaDriftDialog.SchemaSnapshot snapshot) {
+        List<TableMetadata> list = new ArrayList<>();
+        if (snapshot == null || snapshot.tables == null) return list;
+        for (SchemaDriftDialog.TableSnapshot ts : snapshot.tables) {
+            if (ts == null || ts.tableName == null) continue;
+            TableMetadata tm = new TableMetadata(null, ts.tableName);
+            if (ts.columns != null) {
+                for (SchemaDriftDialog.ColumnSnapshot cs : ts.columns) {
+                    if (cs == null || cs.name == null) continue;
+                    ColumnMetadata cm = new ColumnMetadata();
+                    cm.setColumnName(cs.name);
+                    cm.setTypeName(cs.type != null ? cs.type : "VARCHAR");
+                    cm.setColumnSize(cs.size);
+                    cm.setNullable(cs.nullable);
+                    cm.setDefaultValue(cs.defaultValue);
+                    cm.setPrimaryKey(cs.primaryKey);
+                    tm.addColumn(cm);
+                }
+            }
+            list.add(tm);
+        }
+        return list;
     }
 }

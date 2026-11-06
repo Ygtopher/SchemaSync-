@@ -8,6 +8,7 @@ public class DiffOptions implements Serializable {
     private boolean caseSensitive = false;
     private boolean ignoreDefaultValues = false;
     private boolean ignoreIndices = false;
+    private boolean smartTypeEquivalence = true;
 
     public boolean isCaseSensitive() { return caseSensitive; }
     public void setCaseSensitive(boolean caseSensitive) { this.caseSensitive = caseSensitive; }
@@ -17,4 +18,7 @@ public class DiffOptions implements Serializable {
 
     public boolean isIgnoreIndices() { return ignoreIndices; }
     public void setIgnoreIndices(boolean ignoreIndices) { this.ignoreIndices = ignoreIndices; }
+
+    public boolean isSmartTypeEquivalence() { return smartTypeEquivalence; }
+    public void setSmartTypeEquivalence(boolean smartTypeEquivalence) { this.smartTypeEquivalence = smartTypeEquivalence; }
 }

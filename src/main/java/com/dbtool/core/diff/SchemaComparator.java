@@ -2,9 +2,11 @@ package com.dbtool.core.diff;
 
 import com.dbtool.core.model.ColumnMetadata;
 import com.dbtool.core.model.TableMetadata;
+
 import java.util.Objects;
 
 public class SchemaComparator {
+
     private final DiffOptions options;
 
     public SchemaComparator() {
@@ -52,7 +54,9 @@ public class SchemaComparator {
                 String sType = sCol.getTypeName() != null ? sCol.getTypeName() : "";
                 String tType = tCol.getTypeName() != null ? tCol.getTypeName() : "";
                 if (!sType.equalsIgnoreCase(tType)) {
-                    tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.MODIFIED, sCol, tCol, "Type mismatch: " + sType + " vs " + tType));
+                    if (!options.isSmartTypeEquivalence() || !areTypesEquivalent(sType, tType)) {
+                        tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.MODIFIED, sCol, tCol, "Type mismatch: " + sType + " vs " + tType));
+                    }
                 }
                 if (sCol.isNullable() != tCol.isNullable()) {
                     tableDiff.addColumnDiff(new ColumnDiff(sCol.getColumnName(), DifferenceType.MODIFIED, sCol, tCol, "Nullability changed: " + sCol.isNullable() + " -> " + tCol.isNullable()));
@@ -72,6 +76,90 @@ public class SchemaComparator {
             }
         }
         return tableDiff;
+    }
+
+    public static boolean areTypesEquivalent(String typeA, String typeB) {
+        if (typeA == null || typeB == null) return false;
+        if (typeA.equalsIgnoreCase(typeB)) return true;
+        String normA = normalizeType(typeA);
+        String normB = normalizeType(typeB);
+        return normA.equalsIgnoreCase(normB);
+    }
+
+    public static String normalizeType(String type) {
+        if (type == null) return "";
+        String t = type.trim().toUpperCase().replaceAll("\\s+", " ");
+        String base = t.contains("(") ? t.substring(0, t.indexOf('(')).trim() : t;
+        switch (base) {
+            case "INT":
+            case "INTEGER":
+            case "INT4":
+            case "MEDIUMINT":
+                return "INTEGER";
+            case "BIGINT":
+            case "INT8":
+                return "BIGINT";
+            case "SMALLINT":
+            case "INT2":
+                return "SMALLINT";
+            case "TINYINT":
+            case "BOOL":
+            case "BOOLEAN":
+            case "BIT":
+                return "BOOLEAN";
+            case "VARCHAR":
+            case "VARCHAR2":
+            case "CHARACTER VARYING":
+            case "CHAR VARYING":
+            case "TEXT":
+            case "STRING":
+            case "LONGVARCHAR":
+            case "CLOB":
+                return "TEXT";
+            case "CHAR":
+            case "CHARACTER":
+            case "BPCHAR":
+                return "CHAR";
+            case "FLOAT":
+            case "FLOAT4":
+            case "REAL":
+                return "FLOAT";
+            case "DOUBLE":
+            case "DOUBLE PRECISION":
+            case "FLOAT8":
+                return "DOUBLE";
+            case "NUMERIC":
+            case "DECIMAL":
+            case "DEC":
+            case "MONEY":
+                return "NUMERIC";
+            case "TIMESTAMP":
+            case "TIMESTAMPTZ":
+            case "TIMESTAMP WITH TIME ZONE":
+            case "TIMESTAMP WITHOUT TIME ZONE":
+            case "DATETIME":
+                return "TIMESTAMP";
+            case "DATE":
+                return "DATE";
+            case "TIME":
+            case "TIMETZ":
+            case "TIME WITH TIME ZONE":
+            case "TIME WITHOUT TIME ZONE":
+                return "TIME";
+            case "BLOB":
+            case "BYTEA":
+            case "VARBINARY":
+            case "BINARY":
+            case "RAW":
+                return "BINARY";
+            case "JSON":
+            case "JSONB":
+                return "JSON";
+            case "UUID":
+                return "UUID";
+            default:
+                return base;
+        }
     }
 
     public SchemaDiffResult compareSchemas(java.util.List<TableMetadata> sourceTables, java.util.List<TableMetadata> targetTables) {

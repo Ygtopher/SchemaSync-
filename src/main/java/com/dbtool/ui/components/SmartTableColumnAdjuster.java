@@ -147,29 +147,41 @@ public final class SmartTableColumnAdjuster {
         TableColumn column = table.getColumnModel().getColumn(colIndex);
         int maxW = minWidth;
 
-        // 1. Calculate Header Width
+        // 1. Calculate Header Width with Direct FontMetrics guarantee
         JTableHeader header = table.getTableHeader();
         Object headerValue = column.getHeaderValue();
         if (headerValue != null) {
+            String hdrStr = headerValue.toString();
+            Font hdrFont = header != null && header.getFont() != null ? header.getFont() : table.getFont();
+            if (hdrFont != null) {
+                FontMetrics fm = table.getFontMetrics(hdrFont.deriveFont(Font.BOLD));
+                // Account for potential PK/FK icons ("🔑 ", "🔗 ") and sort icon
+                int directHw = fm.stringWidth("🔑 " + hdrStr) + HEADER_SORT_PADDING + 8;
+                if (directHw > maxW) maxW = directHw;
+            }
+
             TableCellRenderer headerRenderer = column.getHeaderRenderer();
             if (headerRenderer == null && header != null) {
                 headerRenderer = header.getDefaultRenderer();
             }
             if (headerRenderer != null) {
-                Component comp = headerRenderer.getTableCellRendererComponent(
-                        table, headerValue, false, false, -1, colIndex);
-                int hw = comp.getPreferredSize().width + HEADER_SORT_PADDING;
-                if (hw > maxW) maxW = hw;
-            } else if (header != null) {
-                FontMetrics fm = header.getFontMetrics(header.getFont());
-                int hw = fm.stringWidth(headerValue.toString()) + HEADER_SORT_PADDING;
-                if (hw > maxW) maxW = hw;
+                try {
+                    Component comp = headerRenderer.getTableCellRendererComponent(
+                            table, headerValue, false, false, -1, colIndex);
+                    int hw = comp.getPreferredSize().width + HEADER_SORT_PADDING;
+                    if (hw > maxW) maxW = hw;
+                } catch (Exception ignored) {}
             }
         }
 
-        // 2. Scan Data Rows (check first 50 rows + sample across dataset up to MAX_SAMPLE_ROWS)
+        // 2. Scan Data Rows with Direct FontMetrics + Renderer Measurement
         int rowCount = table.getRowCount();
         if (rowCount > 0) {
+            Font dataFont = table.getFont();
+            FontMetrics dataFm = dataFont != null ? table.getFontMetrics(dataFont) : null;
+            Font monoFont = dataFont != null ? new Font(Font.MONOSPACED, Font.PLAIN, dataFont.getSize()) : null;
+            FontMetrics monoFm = monoFont != null ? table.getFontMetrics(monoFont) : null;
+
             TableCellRenderer defaultRenderer = table.getCellRenderer(0, colIndex);
             java.util.LinkedHashSet<Integer> rowsToScan = new java.util.LinkedHashSet<>();
             int initialScan = Math.min(50, rowCount);
@@ -186,25 +198,36 @@ public final class SmartTableColumnAdjuster {
             for (int r : rowsToScan) {
                 Object val = table.getValueAt(r, colIndex);
                 if (val == null || "NULL".equals(val) || "<null>".equalsIgnoreCase(String.valueOf(val))) {
-                    int nullWidth = 54 + CELL_PADDING;
+                    int nullWidth = 56 + CELL_PADDING;
                     if (nullWidth > maxW) maxW = nullWidth;
                     continue;
+                }
+
+                String sVal = String.valueOf(val);
+                // Direct font measurement for rock-solid width calculation
+                boolean isNum = SmartTableCellRenderer.isNumericValue(val);
+                FontMetrics fmToUse = (isNum && monoFm != null) ? monoFm : dataFm;
+                if (fmToUse != null) {
+                    int dw = fmToUse.stringWidth(sVal) + CELL_PADDING + 8;
+                    if (dw > maxW) maxW = dw;
                 }
 
                 TableCellRenderer renderer = table.getCellRenderer(r, colIndex);
                 if (renderer == null) renderer = defaultRenderer;
 
                 if (renderer != null) {
-                    Component c = renderer.getTableCellRendererComponent(table, val, false, false, r, colIndex);
-                    int pw = c.getPreferredSize().width + CELL_PADDING;
-                    if (pw > maxW) {
-                        maxW = pw;
-                        // If we've already exceeded the maximum allowed column width, cap and exit early
-                        if (maxW >= maxWidth) {
-                            maxW = maxWidth;
-                            break;
+                    try {
+                        Component c = renderer.getTableCellRendererComponent(table, val, false, false, r, colIndex);
+                        int pw = c.getPreferredSize().width + CELL_PADDING;
+                        if (pw > maxW) {
+                            maxW = pw;
                         }
-                    }
+                    } catch (Exception ignored) {}
+                }
+
+                if (maxW >= maxWidth) {
+                    maxW = maxWidth;
+                    break;
                 }
             }
         }

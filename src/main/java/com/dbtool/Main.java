@@ -29,7 +29,7 @@ import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "1.8.1";
+    public static final String APP_VERSION = "1.8.2";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -4467,6 +4467,21 @@ public class Main extends JFrame {
                     if (isQueryLogMinimized) {
                         int targetDiv = Math.max(0, totalH - divSize - headerH);
                         centerSplit.setDividerLocation(targetDiv);
+                        SwingUtilities.invokeLater(() -> {
+                            if (isQueryLogMinimized && centerSplit != null) {
+                                int tH = centerSplit.getHeight();
+                                if (tH > 0) {
+                                    int dS = centerSplit.getDividerSize();
+                                    int hH = queryLogPanel.getHeaderPreferredHeight();
+                                    isAdjustingQueryLogSplit = true;
+                                    try {
+                                        centerSplit.setDividerLocation(Math.max(0, tH - dS - hH));
+                                    } finally {
+                                        isAdjustingQueryLogSplit = false;
+                                    }
+                                }
+                            }
+                        });
                     } else {
                         int targetDiv = Math.max(100, totalH - divSize - queryLogExpandedHeight);
                         centerSplit.setDividerLocation(targetDiv);
@@ -4480,6 +4495,25 @@ public class Main extends JFrame {
         // Track user dragging divider to remember preferred expanded height or detect minimize
         centerSplit.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, evt -> {
             if (isAdjustingQueryLogSplit) return;
+            // When minimized, preserve minimized state across window resizes
+            if (isQueryLogMinimized) {
+                int totalH = centerSplit.getHeight();
+                if (totalH > 0) {
+                    int divSize = centerSplit.getDividerSize();
+                    int headerH = queryLogPanel.getHeaderPreferredHeight();
+                    int targetDiv = Math.max(0, totalH - divSize - headerH);
+                    if (centerSplit.getDividerLocation() != targetDiv) {
+                        isAdjustingQueryLogSplit = true;
+                        try {
+                            centerSplit.setDividerLocation(targetDiv);
+                        } finally {
+                            isAdjustingQueryLogSplit = false;
+                        }
+                    }
+                }
+                return;
+            }
+
             int totalH = centerSplit.getHeight();
             if (totalH <= 0) return;
             int divLoc = centerSplit.getDividerLocation();
@@ -4488,15 +4522,9 @@ public class Main extends JFrame {
             int currentLogHeight = totalH - divLoc - divSize;
 
             if (currentLogHeight <= headerH + 12) {
-                if (!isQueryLogMinimized) {
-                    isQueryLogMinimized = true;
-                    queryLogPanel.setMinimizedUI(true);
-                }
+                isQueryLogMinimized = true;
+                queryLogPanel.setMinimizedUI(true);
             } else {
-                if (isQueryLogMinimized) {
-                    isQueryLogMinimized = false;
-                    queryLogPanel.setMinimizedUI(false);
-                }
                 queryLogExpandedHeight = Math.max(headerH + 50, currentLogHeight);
             }
         });

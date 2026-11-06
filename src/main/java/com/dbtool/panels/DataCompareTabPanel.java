@@ -119,6 +119,14 @@ public class DataCompareTabPanel extends JPanel {
     private final JToggleButton btnOnlyAData = new JToggleButton("In Source Only");
     private final JToggleButton btnOnlyBData = new JToggleButton("In Target Only");
 
+    // Reconciliation & Synchronization Actions
+    private final JButton btnSwapDbs = new JButton("⇄");
+    private final JButton btnSyncSelected = new JButton("🔄 Sync Selected ➔ Target");
+    private final JButton btnSyncAll = new JButton("⚡ Sync All Diff ➔ Target");
+    private final JButton btnReverseSync = new JButton("🔁 Reverse Sync");
+    private final JTable cellDiffTable = new JTable();
+    private DefaultTableModel cellDiffModel;
+
     public DataCompareTabPanel(DualDatabaseComparePanel parentPanel) {
         this.parentPanel = parentPanel;
         setLayout(new BorderLayout());
@@ -185,6 +193,12 @@ public class DataCompareTabPanel extends JPanel {
             updateTabTitle();
         });
         rowDbAndTable.add(comboTableA);
+
+        btnSwapDbs.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
+        btnSwapDbs.setMargin(new Insets(1, 6, 1, 6));
+        btnSwapDbs.setToolTipText("Swap Source (DB A) ↔ Target (DB B) and Tables");
+        btnSwapDbs.addActionListener(e -> swapSourceAndTarget());
+        rowDbAndTable.add(btnSwapDbs);
 
         rowDbAndTable.add(new JLabel(" ➔ Target DB: "));
         comboDbB.setPreferredSize(new Dimension(150, 26));
@@ -411,6 +425,26 @@ public class DataCompareTabPanel extends JPanel {
             public void changedUpdate(javax.swing.event.DocumentEvent e) { applyDataFilter(); }
         });
         tbData.add(dataSearchField);
+        tbData.addSeparator();
+
+        btnSyncSelected.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
+        btnSyncSelected.setToolTipText("Synchronize only the selected rows from Source to Target database in a safe transaction");
+        btnSyncSelected.addActionListener(e -> syncRows(true, true));
+        btnSyncSelected.setEnabled(false);
+        tbData.add(btnSyncSelected);
+
+        btnSyncAll.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
+        btnSyncAll.setForeground(ThemeManager.getSuccessColor());
+        btnSyncAll.setToolTipText("Synchronize ALL diff rows from Source to Target database in a safe transaction");
+        btnSyncAll.addActionListener(e -> syncRows(false, true));
+        btnSyncAll.setEnabled(false);
+        tbData.add(btnSyncAll);
+
+        btnReverseSync.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
+        btnReverseSync.setToolTipText("Reverse sync from Target to Source database");
+        btnReverseSync.addActionListener(e -> syncRows(true, false));
+        btnReverseSync.setEnabled(false);
+        tbData.add(btnReverseSync);
 
         JButton exportCsvBtn = new JButton("📥 Export CSV");
         exportCsvBtn.addActionListener(e -> {
@@ -443,7 +477,7 @@ public class DataCompareTabPanel extends JPanel {
         configScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         configScroll.getVerticalScrollBar().setUnitIncrement(16);
 
-        // 5. Result Views (Unified Diff vs Side-by-Side vs Execution Results)
+        // 5. Result Views (Unified Diff with Cell-Level Inspector vs Side-by-Side vs Execution Results)
         dataViewsTabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
         dataViewsTabbedPane.putClientProperty("JTabbedPane.scrollButtonsPolicy", "asNeeded");
         unifiedDiffTable.setDefaultRenderer(Object.class, new DiffTableCellRenderer());
@@ -451,7 +485,57 @@ public class DataCompareTabPanel extends JPanel {
         com.dbtool.ui.components.SmartTableColumnAdjuster.install(unifiedDiffTable);
         JScrollPane unifiedScroll = new JScrollPane(unifiedDiffTable);
         com.dbtool.util.TableRowUtilities.addRowNumbers(unifiedDiffTable, unifiedScroll);
-        dataViewsTabbedPane.addTab("Unified Diff View", unifiedScroll);
+
+        // Cell-Level Inline Diff Inspector for Modified Rows
+        cellDiffModel = new DefaultTableModel(new String[]{"Column Name", "Source Value (DB A)", "Target Value (DB B)", "Status"}, 0) {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
+        };
+        cellDiffTable.setModel(cellDiffModel);
+        cellDiffTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        com.dbtool.ui.components.SmartTableColumnAdjuster.install(cellDiffTable);
+        cellDiffTable.setDefaultRenderer(Object.class, new DiffTableCellRenderer());
+        JScrollPane cellDiffScroll = new JScrollPane(cellDiffTable);
+        com.dbtool.util.TableRowUtilities.addRowNumbers(cellDiffTable, cellDiffScroll);
+
+        JPanel cellDiffContainer = new JPanel(new BorderLayout());
+        cellDiffContainer.setBorder(BorderFactory.createTitledBorder("Cell-Level Value Diff Inspector (Selected Row)"));
+        cellDiffContainer.add(cellDiffScroll, BorderLayout.CENTER);
+
+        JSplitPane unifiedSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, unifiedScroll, cellDiffContainer);
+        unifiedSplit.setResizeWeight(0.70);
+        dataViewsTabbedPane.addTab("Unified Diff View", unifiedSplit);
+
+        // Row selection listener on unifiedDiffTable
+        unifiedDiffTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                inspectSelectedDiffRow();
+            }
+        });
+
+        // Context menu for row sync & copy
+        JPopupMenu unifiedMenu = new JPopupMenu();
+        JMenuItem mSyncThis = new JMenuItem("🔄 Sync Selected Row(s) ➔ Target");
+        mSyncThis.addActionListener(e -> syncRows(true, true));
+        unifiedMenu.add(mSyncThis);
+
+        JMenuItem mRevSyncThis = new JMenuItem("🔁 Reverse Sync Selected Row(s) (Target ➔ Source)");
+        mRevSyncThis.addActionListener(e -> syncRows(true, false));
+        unifiedMenu.add(mRevSyncThis);
+
+        JMenuItem mSyncAll = new JMenuItem("⚡ Sync All Differences ➔ Target");
+        mSyncAll.addActionListener(e -> syncRows(false, true));
+        unifiedMenu.add(mSyncAll);
+
+        unifiedMenu.addSeparator();
+        JMenuItem mCopyInsert = new JMenuItem("📋 Copy Selected Row(s) as SQL INSERT");
+        mCopyInsert.addActionListener(e -> copyRowsAsSql(true));
+        unifiedMenu.add(mCopyInsert);
+
+        JMenuItem mCopyUpdate = new JMenuItem("📋 Copy Selected Row(s) as SQL UPDATE");
+        mCopyUpdate.addActionListener(e -> copyRowsAsSql(false));
+        unifiedMenu.add(mCopyUpdate);
+
+        unifiedDiffTable.setComponentPopupMenu(unifiedMenu);
 
         sideTableA.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         sideTableB.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
@@ -1764,7 +1848,7 @@ public class DataCompareTabPanel extends JPanel {
         dlg.setVisible(true);
     }
 
-    private void runDataComparison() {
+    public void runDataComparison() {
         if (radioUnifiedSql.isSelected()) {
             runUnifiedSqlExecution();
             return;
@@ -1946,8 +2030,339 @@ public class DataCompareTabPanel extends JPanel {
         unifiedDiffTable.setRowSorter(unifiedDiffSorter);
         com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(unifiedDiffTable);
 
+        int totalRows = unifiedDiffModel.getRowCount();
+        int totalDiffRows = countMod + countOnlyA + countOnlyB;
+        btnAllData.setText("All Rows (" + totalRows + ")");
+        btnDiffOnlyData.setText("Differences Only (" + totalDiffRows + ")");
+        btnModData.setText("Modified (" + countMod + ")");
+        btnOnlyAData.setText("In " + labelA + " (" + countOnlyA + ")");
+        btnOnlyBData.setText("In " + labelB + " (" + countOnlyB + ")");
+        btnSyncSelected.setEnabled(totalDiffRows > 0);
+        btnSyncAll.setEnabled(totalDiffRows > 0);
+        btnReverseSync.setEnabled(totalDiffRows > 0);
+
         dataStatusLabel.setText(String.format("Compared in %d ms:  🟢 %d Identical | 🟨 %d Modified | 🟥 %d Only in %s | 🟩 %d Only in %s",
                 durationMs, countIdent, countMod, countOnlyA, labelA, countOnlyB, labelB));
+
+        if (unifiedDiffTable.getRowCount() > 0) {
+            unifiedDiffTable.setRowSelectionInterval(0, 0);
+            inspectSelectedDiffRow();
+        }
+    }
+
+    private void inspectSelectedDiffRow() {
+        int viewRow = unifiedDiffTable.getSelectedRow();
+        if (viewRow < 0 || unifiedDiffModel == null) {
+            if (cellDiffModel != null) cellDiffModel.setRowCount(0);
+            return;
+        }
+        int modelRow = unifiedDiffTable.convertRowIndexToModel(viewRow);
+        if (cellDiffModel != null) cellDiffModel.setRowCount(0);
+
+        String status = String.valueOf(unifiedDiffModel.getValueAt(modelRow, 0));
+        DatabaseEntry dbA = getSelectedDatabaseA();
+        DatabaseEntry dbB = getSelectedDatabaseB();
+        String lblA = dbA != null ? dbA.getLabel() : "Source DB";
+        String lblB = dbB != null ? dbB.getLabel() : "Target DB";
+
+        for (int c = 2; c < unifiedDiffModel.getColumnCount(); c++) {
+            String colName = unifiedDiffModel.getColumnName(c);
+            Object cellVal = unifiedDiffModel.getValueAt(modelRow, c);
+            String valStr = cellVal != null ? String.valueOf(cellVal) : "NULL";
+
+            String valA = "-";
+            String valB = "-";
+            String diffStatus = "🟢 Identical";
+
+            if (status.contains("MODIFIED")) {
+                if (valStr.contains(" ➔ ")) {
+                    String[] parts = valStr.split(" ➔ ", 2);
+                    valA = parts[0];
+                    valB = parts[1];
+                    diffStatus = "🟨 Value Changed";
+                } else {
+                    valA = valStr;
+                    valB = valStr;
+                    diffStatus = "🟢 Identical";
+                }
+            } else if (status.contains("ONLY")) {
+                if (status.startsWith("🟥")) {
+                    valA = valStr;
+                    valB = "(Missing in target)";
+                    diffStatus = "🟥 Only in " + lblA;
+                } else {
+                    valA = "(Missing in source)";
+                    valB = valStr;
+                    diffStatus = "🟩 Only in " + lblB;
+                }
+            } else {
+                valA = valStr;
+                valB = valStr;
+                diffStatus = "🟢 Identical";
+            }
+
+            if (cellDiffModel != null) {
+                cellDiffModel.addRow(new Object[]{colName, valA, valB, diffStatus});
+            }
+        }
+        com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(cellDiffTable);
+    }
+
+    public void syncRows(boolean selectedOnly, boolean toTarget) {
+        if (unifiedDiffModel == null || unifiedDiffModel.getRowCount() == 0) return;
+        DatabaseEntry srcEntry = getSelectedDatabaseA();
+        DatabaseEntry tgtEntry = getSelectedDatabaseB();
+        if (srcEntry == null || tgtEntry == null) return;
+        DatabaseEntry writeEntry = toTarget ? tgtEntry : srcEntry;
+        DatabaseEntry readEntry = toTarget ? srcEntry : tgtEntry;
+
+        String tableName = toTarget ? (String) comboTableB.getSelectedItem() : (String) comboTableA.getSelectedItem();
+        if (tableName == null || tableName.trim().isEmpty()) {
+            tableName = (String) comboTableA.getSelectedItem();
+        }
+        String keyCol = (String) comboKeyCol.getSelectedItem();
+        if (keyCol == null || keyCol.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please select a Primary / Unique Key column for row synchronization.", "Missing Key Column", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int[] rows;
+        if (selectedOnly) {
+            int[] selViewRows = unifiedDiffTable.getSelectedRows();
+            if (selViewRows.length == 0) {
+                JOptionPane.showMessageDialog(this, "No rows selected. Please select one or more rows to synchronize.", "No Selection", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            rows = new int[selViewRows.length];
+            for (int i = 0; i < selViewRows.length; i++) {
+                rows[i] = unifiedDiffTable.convertRowIndexToModel(selViewRows[i]);
+            }
+        } else {
+            rows = new int[unifiedDiffModel.getRowCount()];
+            for (int i = 0; i < rows.length; i++) rows[i] = i;
+        }
+
+        List<String> sqlStatements = new ArrayList<>();
+        int insertCount = 0;
+        int updateCount = 0;
+        int deleteCount = 0;
+        DatabaseManager dm = writeEntry.getDbManager();
+        String quotedTbl = dm.quoteTableName(tableName);
+        String quotedKey = dm.quoteColumnName(keyCol);
+
+        for (int row : rows) {
+            String status = String.valueOf(unifiedDiffModel.getValueAt(row, 0));
+            Object pkVal = unifiedDiffModel.getValueAt(row, 1);
+            if (status.contains("IDENTICAL")) continue;
+
+            if (toTarget) {
+                // Syncing Source ➔ Target
+                if (status.startsWith("🟥")) {
+                    // Row exists in Source, missing in Target ➔ INSERT into Target
+                    StringBuilder sql = new StringBuilder("INSERT INTO ").append(quotedTbl).append(" (");
+                    StringBuilder vals = new StringBuilder(") VALUES (");
+                    boolean first = true;
+                    for (int c = 2; c < unifiedDiffModel.getColumnCount(); c++) {
+                        String col = unifiedDiffModel.getColumnName(c);
+                        Object v = unifiedDiffModel.getValueAt(row, c);
+                        if (!first) { sql.append(", "); vals.append(", "); }
+                        sql.append(dm.quoteColumnName(col));
+                        vals.append(formatSqlLiteral(v));
+                        first = false;
+                    }
+                    sql.append(vals).append(")");
+                    sqlStatements.add(sql.toString());
+                    insertCount++;
+                } else if (status.startsWith("🟨")) {
+                    // Row modified ➔ UPDATE Target to match Source
+                    StringBuilder sql = new StringBuilder("UPDATE ").append(quotedTbl).append(" SET ");
+                    boolean first = true;
+                    int colUpdates = 0;
+                    for (int c = 2; c < unifiedDiffModel.getColumnCount(); c++) {
+                        String col = unifiedDiffModel.getColumnName(c);
+                        Object cellVal = unifiedDiffModel.getValueAt(row, c);
+                        String sVal = cellVal != null ? String.valueOf(cellVal) : "";
+                        if (sVal.contains(" ➔ ")) {
+                            String[] parts = sVal.split(" ➔ ", 2);
+                            String sourceVal = parts[0];
+                            if (!first) sql.append(", ");
+                            sql.append(dm.quoteColumnName(col)).append(" = ").append(formatSqlLiteral(sourceVal));
+                            first = false;
+                            colUpdates++;
+                        }
+                    }
+                    if (colUpdates > 0) {
+                        sql.append(" WHERE ").append(quotedKey).append(" = ").append(formatSqlLiteral(pkVal));
+                        sqlStatements.add(sql.toString());
+                        updateCount++;
+                    }
+                } else if (status.startsWith("🟩")) {
+                    // Row in Target only ➔ DELETE from Target
+                    String sql = "DELETE FROM " + quotedTbl + " WHERE " + quotedKey + " = " + formatSqlLiteral(pkVal);
+                    sqlStatements.add(sql);
+                    deleteCount++;
+                }
+            } else {
+                // Reverse Sync (Target ➔ Source)
+                if (status.startsWith("🟩")) {
+                    // Row exists in Target, missing in Source ➔ INSERT into Source
+                    StringBuilder sql = new StringBuilder("INSERT INTO ").append(quotedTbl).append(" (");
+                    StringBuilder vals = new StringBuilder(") VALUES (");
+                    boolean first = true;
+                    for (int c = 2; c < unifiedDiffModel.getColumnCount(); c++) {
+                        String col = unifiedDiffModel.getColumnName(c);
+                        Object v = unifiedDiffModel.getValueAt(row, c);
+                        if (!first) { sql.append(", "); vals.append(", "); }
+                        sql.append(dm.quoteColumnName(col));
+                        vals.append(formatSqlLiteral(v));
+                        first = false;
+                    }
+                    sql.append(vals).append(")");
+                    sqlStatements.add(sql.toString());
+                    insertCount++;
+                } else if (status.startsWith("🟨")) {
+                    // Row modified ➔ UPDATE Source to match Target
+                    StringBuilder sql = new StringBuilder("UPDATE ").append(quotedTbl).append(" SET ");
+                    boolean first = true;
+                    int colUpdates = 0;
+                    for (int c = 2; c < unifiedDiffModel.getColumnCount(); c++) {
+                        String col = unifiedDiffModel.getColumnName(c);
+                        Object cellVal = unifiedDiffModel.getValueAt(row, c);
+                        String sVal = cellVal != null ? String.valueOf(cellVal) : "";
+                        if (sVal.contains(" ➔ ")) {
+                            String[] parts = sVal.split(" ➔ ", 2);
+                            String targetVal = parts[1];
+                            if (!first) sql.append(", ");
+                            sql.append(dm.quoteColumnName(col)).append(" = ").append(formatSqlLiteral(targetVal));
+                            first = false;
+                            colUpdates++;
+                        }
+                    }
+                    if (colUpdates > 0) {
+                        sql.append(" WHERE ").append(quotedKey).append(" = ").append(formatSqlLiteral(pkVal));
+                        sqlStatements.add(sql.toString());
+                        updateCount++;
+                    }
+                } else if (status.startsWith("🟥")) {
+                    // Row in Source only ➔ DELETE from Source
+                    String sql = "DELETE FROM " + quotedTbl + " WHERE " + quotedKey + " = " + formatSqlLiteral(pkVal);
+                    sqlStatements.add(sql);
+                    deleteCount++;
+                }
+            }
+        }
+
+        if (sqlStatements.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No reconciling changes required. All selected rows are already identical.", "Reconciliation", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        DataReconciliationDialog dialog = new DataReconciliationDialog(
+                (Frame) SwingUtilities.getWindowAncestor(this),
+                writeEntry.getDbManager(),
+                writeEntry.getLabel(),
+                tableName,
+                sqlStatements,
+                insertCount,
+                updateCount,
+                deleteCount,
+                this::runDataComparison
+        );
+        dialog.setVisible(true);
+    }
+
+    private String formatSqlLiteral(Object val) {
+        if (val == null || "NULL".equalsIgnoreCase(String.valueOf(val))) {
+            return "NULL";
+        }
+        String s = String.valueOf(val);
+        if (val instanceof Number || val instanceof Boolean) {
+            return s;
+        }
+        return "'" + s.replace("'", "''") + "'";
+    }
+
+    private void copyRowsAsSql(boolean isInsert) {
+        int[] selRows = unifiedDiffTable.getSelectedRows();
+        if (selRows.length == 0 || unifiedDiffModel == null) return;
+        DatabaseEntry writeEntry = getSelectedDatabaseB();
+        String tbl = (String) comboTableB.getSelectedItem();
+        if (tbl == null || tbl.isEmpty()) tbl = (String) comboTableA.getSelectedItem();
+        if (tbl == null) tbl = "reconciled_table";
+        String keyCol = (String) comboKeyCol.getSelectedItem();
+        if (keyCol == null) keyCol = "id";
+
+        StringBuilder sb = new StringBuilder();
+        for (int r : selRows) {
+            int mr = unifiedDiffTable.convertRowIndexToModel(r);
+            Object pk = unifiedDiffModel.getValueAt(mr, 1);
+            if (isInsert) {
+                sb.append("INSERT INTO ").append(tbl).append(" (");
+                for (int c = 2; c < unifiedDiffModel.getColumnCount(); c++) {
+                    sb.append(unifiedDiffModel.getColumnName(c)).append(c < unifiedDiffModel.getColumnCount() - 1 ? ", " : "");
+                }
+                sb.append(") VALUES (");
+                for (int c = 2; c < unifiedDiffModel.getColumnCount(); c++) {
+                    Object val = unifiedDiffModel.getValueAt(mr, c);
+                    String sVal = val != null ? String.valueOf(val) : "NULL";
+                    if (sVal.contains(" ➔ ")) sVal = sVal.split(" ➔ ", 2)[0];
+                    if ("NULL".equalsIgnoreCase(sVal)) sb.append("NULL");
+                    else sb.append("'").append(sVal.replace("'", "''")).append("'");
+                    sb.append(c < unifiedDiffModel.getColumnCount() - 1 ? ", " : "");
+                }
+                sb.append(");\n");
+            } else {
+                sb.append("UPDATE ").append(tbl).append(" SET ");
+                boolean first = true;
+                for (int c = 2; c < unifiedDiffModel.getColumnCount(); c++) {
+                    Object val = unifiedDiffModel.getValueAt(mr, c);
+                    String sVal = val != null ? String.valueOf(val) : "";
+                    if (sVal.contains(" ➔ ")) {
+                        String newVal = sVal.split(" ➔ ", 2)[0];
+                        if (!first) sb.append(", ");
+                        sb.append(unifiedDiffModel.getColumnName(c)).append(" = ");
+                        if ("NULL".equalsIgnoreCase(newVal)) sb.append("NULL");
+                        else sb.append("'").append(newVal.replace("'", "''")).append("'");
+                        first = false;
+                    }
+                }
+                sb.append(" WHERE ").append(keyCol).append(" = '").append(pk).append("';\n");
+            }
+        }
+        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(sb.toString()), null);
+        JOptionPane.showMessageDialog(this, (isInsert ? "INSERT" : "UPDATE") + " statements copied to clipboard!");
+    }
+
+    public void swapSourceAndTarget() {
+        Object dbA = comboDbA.getSelectedItem();
+        Object dbB = comboDbB.getSelectedItem();
+        Object tblA = comboTableA.getSelectedItem();
+        Object tblB = comboTableB.getSelectedItem();
+
+        comboDbA.setSelectedItem(dbB);
+        comboDbB.setSelectedItem(dbA);
+        comboTableA.setSelectedItem(tblB);
+        comboTableB.setSelectedItem(tblA);
+        updateKeyColDropdown();
+        updateTabTitle();
+        if (unifiedDiffModel != null && unifiedDiffModel.getRowCount() > 0) {
+            runDataComparison();
+        }
+    }
+
+    public void configureForTable(DatabaseEntry src, DatabaseEntry tgt, String tableName) {
+        if (src != null) comboDbA.setSelectedItem(src);
+        if (tgt != null) comboDbB.setSelectedItem(tgt);
+        setCompareMode(CompareMode.QUICK_TABLE);
+        comboTableA.setSelectedItem(tableName);
+        comboTableB.setSelectedItem(tableName);
+        updateKeyColDropdown();
+        updateTabTitle();
+    }
+
+
+    public String getDataStatusSummary() {
+        return dataStatusLabel != null ? dataStatusLabel.getText() : null;
     }
 
     private void applyDataFilter() {

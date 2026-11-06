@@ -1,8 +1,26 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.8.1  
+**Current Version:** 1.8.2  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v1.8.2] - 2026-11-06
+### Added & Improved
+* **Dual Database Compare Advanced Feature Suite (`DualDatabaseComparePanel`, `DataCompareTabPanel`, `DataReconciliationDialog`, `DualDbReportExporter`):**
+  * **⇄ Quick Swap Source ↔ Target:** Added 1-click bidirectional swapping of Source and Target database connections and selected tables in both Schema Diff and Live Data Diff tabs.
+  * **Dynamic Live Counter Badges:** Added live quantitative counters to filter buttons (`All (N)`, `Differences (N)`, `Modified (N)`, `Identical (N)`) in both Schema and Data diff views.
+  * **Direct Schema-to-Data Diff Jump:** Added double-click listener and right-click context menu on schema diff table rows to instantly switch to the Data Diff tab and configure the selected table for comparison.
+  * **Safe Transactional Data Reconciliation Dialog (`DataReconciliationDialog`):** Interactive modal dialog previewing SQL dry-run statements (`INSERT`, `UPDATE`, `DELETE`) with syntax highlighting, file export, and atomic execution inside an isolated transaction (`setAutoCommit(false)` with automated rollback on error).
+  * **Side-by-Side Visual DDL Split Viewer:** Added tabbed DDL inspector displaying both the Target Migration DDL script and side-by-side source vs target `CREATE TABLE` DDL definitions.
+  * **Cross-Engine Smart Type Normalization (`SchemaComparator`):** Intelligent type equivalence matching across database engines (`INT4` ↔ `INTEGER`, `BIGINT` ↔ `INT8`, `VARCHAR(255)` ↔ `TEXT`, `BOOLEAN` ↔ `TINYINT(1)`, `TIMESTAMPTZ` ↔ `TIMESTAMP WITH TIME ZONE`, `DOUBLE PRECISION` ↔ `FLOAT8`).
+  * **Interactive HTML & Markdown Audit Report Exporter (`DualDbReportExporter`):** Generates self-contained, publication-ready executive comparison audit reports with summary metric cards, colored status badges, column drift tables, and target migration scripts.
+  * **Offline Schema Snapshot Support in Dual DB Compare:** Added `Load Snapshot (.json)...` option to compare live databases directly against saved offline schema snapshots without requiring an active database server.
+* **Persistent Minimized Query Log State (`Main`):**
+  * Fixed window resize and maximize listeners to strictly preserve the minimized state of the Global Query Log without un-minimizing during app layout adjustments.
+* **Smart Content-Based Column Auto-Sizing & Theme Grid Lines:**
+  * Auto-adjusts column widths based on exact content and header length (with icon padding and monospace metric calculation) to eliminate column clipping and prevent squished columns in Visual Join Builder and Browse & Search tables.
 
 ---
 
