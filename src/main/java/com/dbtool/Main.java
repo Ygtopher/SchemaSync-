@@ -3218,9 +3218,24 @@ public class Main extends JFrame {
             
             public JoinConditionPanel(String operator, boolean isFirst, JoinPanel parent) {
                 this.operator = operator;
-                setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 2, 0));
-                add(new JLabel(" " + operator + " "));
+                com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+                add(com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+                    isFirst
+                        ? com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.ON
+                        : com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.AND_ON
+                ));
                 
+                com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                    leftTableDropdown, com.dbtool.ui.components.ClauseBadgeFactory.TABLE_WIDTH
+                );
+                com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                    leftColDropdown, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+                );
+                com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                    rightColDropdown, com.dbtool.ui.components.ClauseBadgeFactory.VALUE_WIDTH
+                );
+                rightTableLabel.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 11));
+
                 leftTableDropdown.addActionListener(e -> {
                     String t = (String) leftTableDropdown.getSelectedItem();
                     if (t != null) {
@@ -3236,18 +3251,22 @@ public class Main extends JFrame {
                 });
     
                 add(leftTableDropdown);
-                add(new JLabel(" . "));
+                add(com.dbtool.ui.components.ClauseBadgeFactory.createDotSeparator());
                 add(leftColDropdown);
-                add(new JLabel(" = "));
+                add(com.dbtool.ui.components.ClauseBadgeFactory.createFixedOperatorLabel("="));
                 add(rightTableLabel);
                 add(rightColDropdown);
                 
                 if (isFirst) {
                     JButton addConditionBtn = new JButton("+ AND");
+                    addConditionBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 11));
+                    addConditionBtn.setPreferredSize(new Dimension(64, com.dbtool.ui.components.ClauseBadgeFactory.ROW_HEIGHT));
+                    addConditionBtn.setMargin(new Insets(1, 6, 1, 6));
+                    addConditionBtn.setToolTipText("Add another AND condition to this JOIN ON clause");
                     addConditionBtn.addActionListener(e -> parent.addNewCondition("AND"));
                     add(addConditionBtn);
                 } else {
-                    JButton removeConditionBtn = new JButton("- Remove AND");
+                    JButton removeConditionBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove AND join condition");
                     removeConditionBtn.addActionListener(e -> parent.removeCondition(this));
                     add(removeConditionBtn);
                 }
@@ -3273,14 +3292,22 @@ public class Main extends JFrame {
             });
             SearchableComboBox joinTableDropdown = new SearchableComboBox();
             
-            JPanel headerPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
+            JPanel headerPanel = new JPanel();
             JPanel conditionsContainer = new JPanel();
             java.util.List<JoinConditionPanel> conditionPanels = new ArrayList<>();
     
             public JoinPanel() {
                 setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+                com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(headerPanel);
                 conditionsContainer.setLayout(new BoxLayout(conditionsContainer, BoxLayout.Y_AXIS));
                 
+                com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                    joinTypeDropdown, com.dbtool.ui.components.ClauseBadgeFactory.TABLE_WIDTH
+                );
+                com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                    joinTableDropdown, com.dbtool.ui.components.ClauseBadgeFactory.COLUMN_WIDTH
+                );
+
                 joinTableDropdown.setAllItems(loadedTables);
                 joinTableDropdown.addActionListener(e -> {
                     joinSelectedColumns.clear();
@@ -3288,10 +3315,16 @@ public class Main extends JFrame {
                     updateJoinDropdowns();
                 });
     
+                headerPanel.add(com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+                    com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.JOIN
+                ));
                 headerPanel.add(joinTypeDropdown);
+                JLabel arrowSep = com.dbtool.ui.components.ClauseBadgeFactory.createDotSeparator();
+                arrowSep.setText("➔");
+                headerPanel.add(arrowSep);
                 headerPanel.add(joinTableDropdown);
                 
-                JButton removeBtn = new JButton("X Remove Join");
+                JButton removeBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove JOIN clause");
                 removeBtn.addActionListener(e -> {
                     joinPanels.remove(this);
                     joinsContainer.remove(this);
@@ -3418,11 +3451,15 @@ public class Main extends JFrame {
             SearchableComboBox tableDropdown = new SearchableComboBox();
 
             public ImplicitTablePanel() {
-                setLayout(new FlowLayout(FlowLayout.LEFT));
-                add(new JLabel("And Table: "));
+                com.dbtool.ui.components.ClauseBadgeFactory.styleClauseRow(this);
+                add(com.dbtool.ui.components.ClauseBadgeFactory.createBadge(
+                    com.dbtool.ui.components.ClauseBadgeFactory.ClauseType.TABLE
+                ));
                 
                 tableDropdown.setAllItems(loadedTables);
-                tableDropdown.setPreferredSize(new Dimension(200, 26));
+                com.dbtool.ui.components.ClauseBadgeFactory.setFixedColumnWidth(
+                    tableDropdown, com.dbtool.ui.components.ClauseBadgeFactory.TABLE_WIDTH
+                );
                 tableDropdown.addActionListener(e -> {
                     joinSelectedColumns.clear();
                     joinSelectColsButton.setText("Columns (All)");
@@ -3430,7 +3467,7 @@ public class Main extends JFrame {
                 });
                 add(tableDropdown);
                 
-                JButton removeBtn = new JButton("X");
+                JButton removeBtn = com.dbtool.ui.components.ClauseBadgeFactory.createRemoveButton("Remove implicit table");
                 removeBtn.addActionListener(e -> {
                     implicitTablePanels.remove(this);
                     implicitTablesContainer.remove(this);
