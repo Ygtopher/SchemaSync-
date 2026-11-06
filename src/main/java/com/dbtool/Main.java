@@ -129,6 +129,11 @@ public class Main extends JFrame {
             inspectorToggleBtn.setToolTipText("Toggle side-by-side TablePlus-style Row Inspector & Quick Editor drawer");
             tbSelect.add(inspectorToggleBtn);
 
+            JButton autoFitBrowseBtn = new JButton("⚡ Auto-Fit");
+            autoFitBrowseBtn.setToolTipText("Automatically adjust all column widths to match the length of data contents and headers");
+            autoFitBrowseBtn.addActionListener(e -> com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(browseTable));
+            tbSelect.add(autoFitBrowseBtn);
+
             JLabel activeClausesBadge = new JLabel("");
             activeClausesBadge.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
             activeClausesBadge.setFont(activeClausesBadge.getFont().deriveFont(Font.BOLD, 11.5f));
@@ -1930,6 +1935,11 @@ public class Main extends JFrame {
             compactJoinBuilderBtn.setToolTipText("Collapse join builder clauses and toolbars to maximize result table space");
             tbBase.add(compactJoinBuilderBtn);
 
+            JButton autoFitJoinBtn = new JButton("⚡ Auto-Fit");
+            autoFitJoinBtn.setToolTipText("Automatically adjust all column widths to match the length of data contents and headers");
+            autoFitJoinBtn.addActionListener(e -> com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(joinResultTable));
+            tbBase.add(autoFitJoinBtn);
+
             JLabel joinClauseBadge = new JLabel("");
             joinClauseBadge.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
             joinClauseBadge.setFont(joinClauseBadge.getFont().deriveFont(Font.BOLD, 11.5f));
@@ -2146,7 +2156,13 @@ public class Main extends JFrame {
             configScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
             configScroll.getVerticalScrollBar().setUnitIncrement(16);
 
-            JSplitPane joinSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, configScroll, new JScrollPane(joinResultTable));
+            joinResultTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+            joinResultTable.setAutoCreateRowSorter(true);
+            com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(joinResultTable);
+            JScrollPane joinResultScroll = new JScrollPane(joinResultTable);
+            com.dbtool.util.TableRowUtilities.addRowNumbers(joinResultTable, joinResultScroll);
+
+            JSplitPane joinSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, configScroll, joinResultScroll);
             joinSplit.setResizeWeight(0.32);
             joinSplit.setDividerSize(6);
             joinSplit.setBorder(BorderFactory.createEmptyBorder());
@@ -3558,7 +3574,14 @@ public class Main extends JFrame {
         public UpdatableTable(java.util.function.Supplier<String> tableNameSupplier) {
             super();
             this.tableNameSupplier = tableNameSupplier;
+            this.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
             this.setShowGrid(true);
+            this.setShowHorizontalLines(true);
+            this.setShowVerticalLines(true);
+            this.setIntercellSpacing(new Dimension(1, 1));
+            this.setGridColor(new javax.swing.plaf.ColorUIResource(com.dbtool.util.ThemeManager.getTableGridColor()));
+            this.setBackground(new javax.swing.plaf.ColorUIResource(com.dbtool.util.ThemeManager.getTableBackgroundColor()));
+            this.setForeground(new javax.swing.plaf.ColorUIResource(com.dbtool.util.ThemeManager.isDarkMode() ? new Color(241, 245, 249) : new Color(15, 23, 42)));
             com.dbtool.ui.components.SmartTableCellRenderer.install(
                 this,
                 col -> {
@@ -3572,6 +3595,12 @@ public class Main extends JFrame {
             );
             
             JPopupMenu popupMenu = new JPopupMenu();
+            JMenuItem autoFitItem = new JMenuItem("⚡ Auto-Fit All Columns to Content");
+            autoFitItem.setToolTipText("Automatically adjust all column widths to match data contents and headers");
+            autoFitItem.addActionListener(e -> com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(this));
+            popupMenu.add(autoFitItem);
+            popupMenu.addSeparator();
+
             JMenuItem editItem = new JMenuItem("Edit Cell");
             editItem.addActionListener(e -> {
                 int row = this.getSelectedRow();
@@ -3747,6 +3776,12 @@ public class Main extends JFrame {
                     }
                 }
             });
+        }
+
+        @Override
+        public void setModel(javax.swing.table.TableModel dataModel) {
+            super.setModel(dataModel);
+            com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(this);
         }
 
         @Override
