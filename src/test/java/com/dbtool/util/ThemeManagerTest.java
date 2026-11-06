@@ -44,4 +44,23 @@ public class ThemeManagerTest {
         ThemeManager.setUiScaleFactor(1.0f, dummyBtn);
         assertEquals(1.0f, ThemeManager.getUiScaleFactor(), 0.01f);
     }
+
+    @Test
+    void testCompositeFontPreservesEmojiAndSymbolFallbacks() {
+        JButton dummyBtn = new JButton("▶ Run Query 🔍 🏠 📐 🎨 ▾ ☰");
+        ThemeManager.setPreset(ThemeManager.ThemePreset.MIDNIGHT_BLUE, dummyBtn);
+
+        java.awt.Font buttonFont = UIManager.getFont("Button.font");
+        assertNotNull(buttonFont);
+        assertTrue(buttonFont.canDisplay('▶'), "Button.font must render play symbol ▶");
+        assertTrue(buttonFont.canDisplay('▾'), "Button.font must render dropdown symbol ▾");
+        assertTrue(buttonFont.canDisplay('☰'), "Button.font must render menu symbol ☰");
+        assertTrue(buttonFont.canDisplay(0x1F50D), "Button.font must render magnifier emoji 🔍");
+        assertTrue(buttonFont.canDisplay(0x1F3E0), "Button.font must render home emoji 🏠");
+
+        java.awt.Font customUiFont = ThemeManager.getUiFont(java.awt.Font.BOLD, 12);
+        assertNotNull(customUiFont);
+        assertTrue(customUiFont.canDisplay('▶'), "ThemeManager.getUiFont must render play symbol ▶");
+        assertTrue(customUiFont.canDisplay(0x1F50D), "ThemeManager.getUiFont must render magnifier emoji 🔍");
+    }
 }
