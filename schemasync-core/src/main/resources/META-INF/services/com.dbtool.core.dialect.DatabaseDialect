@@ -1,0 +1,6 @@
+com.dbtool.core.dialect.GenericSqlDialect
+com.dbtool.core.dialect.PostgreSqlDialect
+com.dbtool.core.dialect.MySqlDialect
+com.dbtool.core.dialect.SqliteDialect
+com.dbtool.core.dialect.H2Dialect
+com.dbtool.core.dialect.AccessDialect

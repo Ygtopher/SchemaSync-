@@ -1,0 +1,57 @@
+package com.dbtool.core.diff;
+
+import com.dbtool.core.query.QueryResult;
+import com.dbtool.core.query.RowData;
+import java.util.*;
+
+public class DataComparator {
+    public DataDiffResult compare(String tableName, QueryResult source, QueryResult target, int pkIndex) {
+        long start = System.currentTimeMillis();
+        DataDiffResult result = new DataDiffResult(tableName);
+        result.setColumnNames(source.getColumnNames());
+
+        Map<CompositeKey, RowData> targetMap = new LinkedHashMap<>();
+        for (RowData r : target.getRows()) {
+            Object pk = r.getValue(pkIndex);
+            if (pk != null) targetMap.put(new CompositeKey(pk), r);
+        }
+
+        for (RowData sRow : source.getRows()) {
+            Object pk = sRow.getValue(pkIndex);
+            CompositeKey ck = new CompositeKey(pk);
+            RowData tRow = targetMap.remove(ck);
+            if (tRow == null) {
+                result.addRowDiff(new RowDiff(pk, DifferenceType.REMOVED, sRow, null));
+            } else {
+                RowDiff diff = compareRows(pk, sRow, tRow, source.getColumnNames());
+                if (diff.getType() != DifferenceType.IDENTICAL) {
+                    result.addRowDiff(diff);
+                }
+            }
+        }
+
+        for (Map.Entry<CompositeKey, RowData> entry : targetMap.entrySet()) {
+            result.addRowDiff(new RowDiff(entry.getKey().toDisplayValue(), DifferenceType.ADDED, null, entry.getValue()));
+        }
+
+        result.setDurationMs(System.currentTimeMillis() - start);
+        return result;
+    }
+
+    private RowDiff compareRows(Object pk, RowData sRow, RowData tRow, List<String> colNames) {
+        RowDiff diff = new RowDiff(pk, DifferenceType.IDENTICAL, sRow, tRow);
+        for (int i = 0; i < sRow.size() && i < tRow.size(); i++) {
+            Object sVal = sRow.getValue(i);
+            Object tVal = tRow.getValue(i);
+            if (!CanonicalValueNormalizer.areValuesEquivalent(sVal, tVal)) {
+                diff.addCellDiff(new CellDiff(colNames.get(i), sVal, tVal));
+            }
+        }
+        if (!diff.getCellDiffs().isEmpty()) {
+            RowDiff modified = new RowDiff(pk, DifferenceType.MODIFIED, sRow, tRow);
+            for (CellDiff cd : diff.getCellDiffs()) modified.addCellDiff(cd);
+            return modified;
+        }
+        return diff;
+    }
+}

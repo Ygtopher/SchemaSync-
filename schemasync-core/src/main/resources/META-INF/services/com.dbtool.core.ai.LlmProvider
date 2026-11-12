@@ -1,0 +1,5 @@
+com.dbtool.core.ai.OpenRouterLlmProvider
+com.dbtool.core.ai.OpenAiLlmProvider
+com.dbtool.core.ai.GeminiLlmProvider
+com.dbtool.core.ai.AnthropicLlmProvider
+com.dbtool.core.ai.OllamaLlmProvider
