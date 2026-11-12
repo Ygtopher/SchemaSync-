@@ -1,0 +1,72 @@
+name: Release Pipeline (Java 21 + jpackage)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            jpackage-type: deb
+          - os: windows-latest
+            platform: windows
+            jpackage-type: app-image
+          - os: macos-latest
+            platform: macos
+            jpackage-type: dmg
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Install Linux Xvfb and jpackage tools
+      if: runner.os == 'Linux'
+      run: sudo apt-get update && sudo apt-get install -y xvfb fakeroot binutils dpkg-dev rpm
+
+    - name: Build, Test, and Package JARs (Linux)
+      if: runner.os == 'Linux'
+      run: xvfb-run -a mvn -B clean package -Pjpackage
+
+    - name: Build, Test, and Package JARs (Windows/macOS)
+      if: runner.os != 'Linux'
+      run: mvn -B clean package -Pjpackage
+
+    - name: Archive Windows App Image
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: Compress-Archive -Path release/jpackage/SchemaSync -DestinationPath release/SchemaSync-windows-x64.zip -Force
+
+    - name: Generate SHA-256 Checksums
+      shell: bash
+      run: |
+        mkdir -p release/dist
+        cp release/SchemaSync.jar release/dist/ || true
+        cp release/schemasync-cli.jar release/dist/ || true
+        cp release/SchemaSync.exe release/dist/ || true
+        cp release/SchemaSync-windows-x64.zip release/dist/ || true
+        (cd release/dist && sha256sum * > SHA256SUMS.txt)
+
+    - name: Upload GitHub Release Assets
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          release/dist/*
+          release/jpackage/*
+        generate_release_notes: true
