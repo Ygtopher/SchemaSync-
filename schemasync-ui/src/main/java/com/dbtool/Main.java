@@ -32,7 +32,7 @@ import com.dbtool.session.SessionManager;
 import com.dbtool.ui.components.SessionTabBar;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "2.2.0";
+    public static final String APP_VERSION = "2.3.0";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;

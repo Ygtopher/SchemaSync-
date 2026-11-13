@@ -237,7 +237,7 @@ public class DashboardPanel extends JPanel {
         ));
         titleRow.add(connStatusPill);
 
-        JLabel versionBadge = new JLabel("v2.2.0");
+        JLabel versionBadge = new JLabel("v" + com.dbtool.Main.APP_VERSION);
         versionBadge.setFont(ThemeManager.getUiFont(Font.PLAIN, 10));
         versionBadge.setForeground(ThemeManager.getMutedTextColor());
         versionBadge.setBorder(BorderFactory.createCompoundBorder(

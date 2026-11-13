@@ -1,6 +1,6 @@
 # Troubleshooting & FAQ Guide
 
-**Version:** 2.2.0  
+**Version:** 2.3.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -58,7 +58,7 @@ java.lang.UnsupportedClassVersionError: com/dbtool/Main has been compiled by a m
 ```
 
 #### Root Cause
-Your machine has an outdated Java runtime set as the default Java. SchemaSync v2.2.0 is built with Java 21 LTS features (Records, Virtual Threads).
+Your machine has an outdated Java runtime set as the default Java. SchemaSync v2.3.0 is built with Java 21 LTS features (Records, Virtual Threads).
 
 #### Solution
 1. Download and install **Java 21 (LTS)** from [Adoptium Temurin](https://adoptium.net).
@@ -73,7 +73,7 @@ Your machine has an outdated Java runtime set as the default Java. SchemaSync v2
 SchemaSync launches and operates normally, but the dock/taskbar displays a generic grey icon instead of the SchemaSync 3D crystal cube.
 
 #### Solution
-1. Ensure the package was installed via `sudo dnf install ./schemasync-2.2.0-1.fc44.noarch.rpm`.
+1. Ensure the package was installed via `sudo dnf install ./schemasync-2.3.0-1.fc44.noarch.rpm`.
 2. Verify that `/usr/share/applications/schemasync.desktop` contains:
    ```ini
    StartupWMClass=schemasync
@@ -92,10 +92,10 @@ SchemaSync launches and operates normally, but the dock/taskbar displays a gener
 Clicking **Update & Restart** fails to replace files in `/usr/lib/schemasync/`.
 
 #### Solution
-System directories under `/usr/lib/` are owned by `root`. SchemaSync v2.2.0 automatically manages updates in user-space (`~/.local/share/schemasync/`) so that updates succeed without prompting for `sudo` passwords. If running from the system directory, install new releases via:
+System directories under `/usr/lib/` are owned by `root`. SchemaSync v2.3.0 automatically manages updates in user-space (`~/.local/share/schemasync/`) so that updates succeed without prompting for `sudo` passwords. If running from the system directory, install new releases via:
 ```bash
-sudo apt install ./schemasync_2.2.0_all.deb     # Ubuntu
-sudo dnf install ./schemasync-2.2.0-1.fc44.noarch.rpm # Fedora
+sudo apt install ./schemasync_2.3.0_all.deb     # Ubuntu
+sudo dnf install ./schemasync-2.3.0-1.fc44.noarch.rpm # Fedora
 ```
 
 ---

@@ -1,8 +1,32 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 2.2.0  
+**Current Version:** 2.3.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v2.3.0] - 2026-11-13
+### Multi-Connection Database Workspaces & Detachable Floating Windows
+* **Multi-Connection Database Session Management (`SessionManager`, `DatabaseSession`):**
+  * Concurrent multi-database architecture: manage multiple active database connections concurrently within a single application instance without needing to launch separate OS processes.
+  * Full session isolation: each session maintains an independent `DatabaseManager`, HikariCP connection pool, schema metadata cache, and transaction state.
+  * Thread-safe session lifecycle: unified event model with `SessionListener` for session additions, activations, detachments, re-attachments, and removals.
+* **Modern Workspace Session Tab Bar (`SessionTabBar`):**
+  * Chrome/DataGrip-inspired horizontal session tab strip situated directly beneath the header bar.
+  * Engine-specific vector badge and live status indicator dot (`🟢 Connected`, `⚪ Disconnected`).
+  * Per-session action buttons: 1-click `↗ Detach` into an independent floating window and `✕ Close` session with connection cleanup.
+  * Global `+ Connect` action button to open new database connections into new concurrent workspace tabs.
+* **Detachable Floating Database Workspaces (`Main`):**
+  * Tear off any database tab into an independent top-level floating window for true multi-monitor workflows.
+  * Full standalone workbench: each detached window provides complete access to all 13 workspace tabs (`Dashboard`, `SQL Editor`, `Schema Browser`, `Data Operations`, `ER Diagram`, etc.) scoped exclusively to that database.
+  * Detached identity badge: header displays a prominent `[ ↗ Detached ]` badge and active connection coordinates.
+  * 1-Click Re-attach (`[ ↙ Re-attach to Main ]`): instantly merges the detached workspace back into the main coordinator window.
+  * Safe window lifecycle: closing a detached window cleanly returns the session to the main window with zero data or state loss.
+* **Vector Icons & UI Enhancements:**
+  * Added procedural vector icons `DETACH` (`↗`) and `ATTACH` (`↙`) to `UiIconFactory`.
+  * Dynamic panel binding: `SchemaPanel`, `SqlEditorPanel`, `DashboardPanel`, `TableComparePanel`, `DualDatabaseComparePanel`, `ScriptBuilderPanel`, and `DataOpsPanel` updated to seamlessly switch active `DatabaseManager` instances.
+  * Automated testing suite: comprehensive unit and visual integration tests (`DatabaseSessionTest`, `SessionManagerTest`, `SessionTabBarTest`, `MultiConnectionWindowRenderTest`).
 
 ---
 

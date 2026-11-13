@@ -1,6 +1,6 @@
 # SchemaSync — Codebase, Feature & Technology Architecture Map
 
-**Version:** 2.2.0  
+**Version:** 2.3.0  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -68,8 +68,8 @@ D:\projects\DBTOOL\
 ├── README.md                                 # Official product documentation & features
 ├── CODEBASE_MAP.md                           # This architecture and feature mapping document
 ├── release\                                  # Build output folder
-│   ├── schemasync_2.2.0_all.deb              # Ubuntu Desktop DEB Package (Pure Java / Commons Compress)
-│   ├── schemasync-2.2.0-1.fc44.noarch.rpm    # Fedora 44 Linux RPM Package (Redline RPM)
+│   ├── schemasync_2.3.0_all.deb              # Ubuntu Desktop DEB Package (Pure Java / Commons Compress)
+│   ├── schemasync-2.3.0-1.fc44.noarch.rpm    # Fedora 44 Linux RPM Package (Redline RPM)
 │   ├── SchemaSync-Setup.exe                  # Windows Setup Installer (Inno Setup)
 │   ├── SchemaSync.exe                        # Windows Standalone Native Executable (Launch4j)
 │   └── SchemaSync.jar                        # Shaded Cross-Platform Fat JAR

@@ -1,8 +1,28 @@
 # SchemaSync Comprehensive Feature Guide
 
-**Version:** 2.2.0  
+**Version:** 2.3.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## 0. Multi-Connection Database Workspaces & Detachable Floating Windows (`SessionManager`, `SessionTabBar`, `Main`)
+The premier multi-session workflow system enabling concurrent database administration across isolated environments:
+* **Concurrent Database Sessions (`SessionManager`, `DatabaseSession`):**
+  * Connect to multiple databases (PostgreSQL, MySQL, SQLite, MS Access, H2) simultaneously in a single application process.
+  * Complete state isolation: each session encapsulates an independent `DatabaseManager`, HikariCP connection pool, catalog metadata cache, and query history.
+  * Instant session switching: seamlessly switch between databases via the session tab bar with zero delay or connection drops.
+* **Modern Horizontal Session Tab Bar (`SessionTabBar`):**
+  * Positioned directly below the top header for instant visibility and workspace access.
+  * Engine-specific brand logos and real-time status dots (`🟢 Connected`, `⚪ Disconnected`).
+  * Per-tab actions: 1-click `↗ Detach` into an independent window, and `✕ Close` session with graceful connection teardown.
+  * Primary `+ Connect` action button to establish new concurrent database connections.
+* **Detachable Floating Database Workspaces (`Main`):**
+  * Tear off any active database session into a standalone top-level window for multi-monitor desktop environments.
+  * Dual-mode architecture: detached frames operate as full-featured IDE workbenches with independent tabs, menus, and query scopes.
+  * Prominent `[ ↗ Detached ]` status badge and active connection coordinates displayed in the header.
+  * 1-Click Re-attach: `[ ↙ Re-attach to Main ]` returns the workspace tab to the primary coordinator window seamlessly.
+  * Full lifecycle safety: closing a detached window cleanly returns the session to the main window or disconnects without data loss.
 
 ---
 
