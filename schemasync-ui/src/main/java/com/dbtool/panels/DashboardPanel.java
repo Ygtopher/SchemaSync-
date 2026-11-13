@@ -50,7 +50,16 @@ public class DashboardPanel extends JPanel {
         }
     }
 
-    private final DatabaseManager dbManager;
+    private DatabaseManager dbManager;
+
+    public void setDbManager(DatabaseManager dbManager) {
+        this.dbManager = dbManager;
+        refresh();
+    }
+
+    public DatabaseManager getDbManager() {
+        return dbManager;
+    }
     private final Consumer<String> onNavigateToTable;
     private final Runnable onOpenIndexAdvisor;
     private final Runnable onOpenErDiagram;

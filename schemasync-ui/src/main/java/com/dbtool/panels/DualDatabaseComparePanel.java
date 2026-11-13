@@ -32,7 +32,15 @@ import java.util.List;
  */
 public class DualDatabaseComparePanel extends JPanel {
 
-    private final DatabaseManager primaryDbManager;
+    private DatabaseManager primaryDbManager;
+
+    public void setPrimaryDbManager(DatabaseManager dbManager) {
+        this.primaryDbManager = dbManager;
+    }
+
+    public DatabaseManager getPrimaryDbManager() {
+        return primaryDbManager;
+    }
 
     // Database Pool (A, B, C, D...)
     private final List<DatabaseEntry> databaseEntries = new ArrayList<>();

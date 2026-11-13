@@ -27,6 +27,9 @@ import com.dbtool.model.VisualJoinState;
 import com.dbtool.util.VisualJoinProjectManager;
 import com.dbtool.util.SqlSnippetsLibrary;
 import com.dbtool.panels.SqlMasteryReferenceDialog;
+import com.dbtool.session.DatabaseSession;
+import com.dbtool.session.SessionManager;
+import com.dbtool.ui.components.SessionTabBar;
 
 public class Main extends JFrame {
     public static final String APP_VERSION = "2.2.0";
@@ -562,6 +565,11 @@ public class Main extends JFrame {
     }
 
     private DatabaseManager dbManager = new DatabaseManager();
+    private boolean isDetachedWindow = false;
+    private DatabaseSession attachedSession = null;
+    private Main parentMainWindow = null;
+    private DatabaseSession activeSession = null;
+    private SessionTabBar sessionTabBar;
     private JLabel statusLabel = new JLabel("No database loaded.");
     
     // Browse Tab Components
@@ -650,6 +658,93 @@ public class Main extends JFrame {
             connectionPill.revalidate();
             connectionPill.repaint();
         }
+        if (sessionTabBar != null) {
+            sessionTabBar.rebuildTabs();
+        }
+    }
+
+    public void activateSession(DatabaseSession session) {
+        if (session == null) return;
+        this.activeSession = session;
+        this.dbManager = session.getDbManager();
+        SessionManager.getInstance().setActiveSession(session);
+
+        if (schemaPanel != null) schemaPanel.setDbManager(this.dbManager);
+        if (sqlEditorPanel != null) sqlEditorPanel.setDbManager(this.dbManager);
+        if (dashboardPanel != null) dashboardPanel.setDbManager(this.dbManager);
+        if (tableComparePanel != null) tableComparePanel.setDbManager(this.dbManager);
+        if (dualDbComparePanel != null) dualDbComparePanel.setPrimaryDbManager(this.dbManager);
+        if (scriptBuilderPanel != null) scriptBuilderPanel.setDbManager(this.dbManager);
+        if (dataOpsPanel != null) dataOpsPanel.setDbManager(this.dbManager);
+
+        populateTablesUI();
+        updateConnectionPill();
+        if (sessionTabBar != null) {
+            sessionTabBar.rebuildTabs();
+        }
+    }
+
+    public void detachSession(DatabaseSession session) {
+        SessionManager.getInstance().detachSession(session, this);
+        if (sessionTabBar != null) {
+            sessionTabBar.rebuildTabs();
+        }
+    }
+
+    public void closeSession(DatabaseSession session) {
+        SessionManager.getInstance().closeSession(session);
+        if (SessionManager.getInstance().getAllSessions().isEmpty()) {
+            disconnectDatabase();
+        } else {
+            DatabaseSession next = SessionManager.getInstance().getActiveSession();
+            if (next != null) {
+                activateSession(next);
+            }
+        }
+    }
+
+    public void reattachToMain() {
+        if (isDetachedWindow && attachedSession != null) {
+            SessionManager.getInstance().reattachSession(attachedSession);
+        }
+    }
+
+    public void handleDetachedWindowClosing() {
+        if (attachedSession == null) {
+            dispose();
+            return;
+        }
+        int choice = JOptionPane.showOptionDialog(
+            this,
+            "Detached Database Workspace: " + attachedSession.getName() + "\n\nWhat would you like to do with this database session?",
+            "Close Detached Workspace",
+            JOptionPane.YES_NO_CANCEL_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            new String[] {"↙ Re-attach to Main", "✕ Disconnect & Close", "Cancel"},
+            "↙ Re-attach to Main"
+        );
+        if (choice == 0) {
+            reattachToMain();
+        } else if (choice == 1) {
+            SessionManager.getInstance().closeSession(attachedSession);
+        }
+    }
+
+    public void connectNewDatabaseSession() {
+        connectExistingDatabase();
+    }
+
+    public SessionTabBar getSessionTabBar() {
+        return sessionTabBar;
+    }
+
+    public DatabaseSession getActiveSession() {
+        return activeSession;
+    }
+
+    public boolean isDetachedWindow() {
+        return isDetachedWindow;
     }
 
     private void loadAppIcons() {
@@ -714,10 +809,26 @@ public class Main extends JFrame {
     }
 
     public Main() {
-        setTitle("SchemaSync - by NSENGIYUMVA Christophe");
+        this(null, null);
+    }
+
+    public Main(DatabaseSession initialSession, Main parentMainWindow) {
+        this.attachedSession = initialSession;
+        this.parentMainWindow = parentMainWindow;
+        this.isDetachedWindow = (initialSession != null);
+        if (initialSession != null) {
+            this.dbManager = initialSession.getDbManager();
+            this.activeSession = initialSession;
+            setTitle("SchemaSync - [" + initialSession.getName() + "] (Detached Workspace) - by NSENGIYUMVA Christophe");
+            setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        } else {
+            SessionManager.getInstance().setPrimaryMainWindow(this);
+            setTitle("SchemaSync - by NSENGIYUMVA Christophe");
+            setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        }
+
         setSize(1280, 800);
         setMinimumSize(new Dimension(850, 600));
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         loadAppIcons();
 
@@ -906,7 +1017,48 @@ public class Main extends JFrame {
         disconnectPillBtn.addActionListener(e -> disconnectDatabase());
         connectionPill.add(disconnectPillBtn);
 
-        headerWest.add(connectionPill);
+        if (isDetachedWindow) {
+            JPanel detachedPill = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0)) {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    try {
+                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                        boolean dark = com.dbtool.util.ThemeManager.isDarkMode();
+                        g2.setColor(dark ? new Color(30, 48, 77) : new Color(224, 238, 255));
+                        g2.fill(new java.awt.geom.RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 16, 16));
+                        g2.setColor(com.dbtool.util.ThemeManager.getPrimaryActionColor());
+                        g2.setStroke(new BasicStroke(1.2f));
+                        g2.draw(new java.awt.geom.RoundRectangle2D.Float(0.5f, 0.5f, getWidth() - 1, getHeight() - 1, 16, 16));
+                    } finally {
+                        g2.dispose();
+                    }
+                }
+            };
+            detachedPill.setOpaque(false);
+            detachedPill.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+
+            JLabel detIcon = new JLabel(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.DETACH, 12, com.dbtool.util.ThemeManager.getPrimaryActionColor()));
+            detachedPill.add(detIcon);
+
+            JLabel detText = new JLabel("Detached: " + (attachedSession != null ? attachedSession.getName() : "Workspace"));
+            detText.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 11.5f));
+            detachedPill.add(detText);
+
+            headerWest.add(detachedPill);
+
+            JButton reattachBtn = new JButton("↙ Re-attach to Main");
+            reattachBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 11f));
+            reattachBtn.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
+            reattachBtn.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.ATTACH, 13));
+            reattachBtn.setToolTipText("Re-attach this database session back into the main SchemaSync window");
+            reattachBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            reattachBtn.addActionListener(e -> reattachToMain());
+            headerWest.add(reattachBtn);
+        } else {
+            sessionTabBar = new com.dbtool.ui.components.SessionTabBar(this);
+            headerWest.add(sessionTabBar);
+        }
         headerBar.add(headerWest, BorderLayout.WEST);
 
         // Center Section: Command Palette / Quick Search Pill
@@ -931,7 +1083,7 @@ public class Main extends JFrame {
             }
         };
         searchPill.setOpaque(false);
-        searchPill.setPreferredSize(new Dimension(320, 26));
+        searchPill.setPreferredSize(new Dimension(220, 26));
         searchPill.setBorder(BorderFactory.createEmptyBorder(2, 10, 2, 10));
         searchPill.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         searchPill.setToolTipText("Quick Jump / Command Palette (Ctrl+K or Ctrl+P)");
@@ -939,7 +1091,7 @@ public class Main extends JFrame {
         JLabel searchIcon = new JLabel(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.SEARCH, 13));
         searchPill.add(searchIcon, BorderLayout.WEST);
 
-        JLabel searchPrompt = new JLabel("Quick Jump to table, tab, command... ");
+        JLabel searchPrompt = new JLabel("Quick Jump... ");
         searchPrompt.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 11f));
         searchPrompt.setForeground(com.dbtool.util.ThemeManager.getMutedTextColor());
         searchPill.add(searchPrompt, BorderLayout.CENTER);
@@ -956,8 +1108,10 @@ public class Main extends JFrame {
             }
         });
 
-        headerCenter.add(searchPill);
-        headerBar.add(headerCenter, BorderLayout.CENTER);
+        if (!isDetachedWindow) {
+            headerCenter.add(searchPill);
+            headerBar.add(headerCenter, BorderLayout.CENTER);
+        }
 
         // East Section: Action Cluster
         JPanel headerEast = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
@@ -980,7 +1134,10 @@ public class Main extends JFrame {
         sandboxBtn.setToolTipText("Load built-in in-memory Sandbox DB (Employees, Departments, Orders, Sales)");
         sandboxBtn.addActionListener(e -> {
             try {
-                dbManager.connectSandbox();
+                DatabaseManager targetMgr = (activeSession != null && activeSession.isAlive()) ? new DatabaseManager() : this.dbManager;
+                targetMgr.connectSandbox();
+                DatabaseSession session = SessionManager.getInstance().registerSession("Sandbox (In-Memory)", "SANDBOX", targetMgr);
+                activateSession(session);
                 statusLabel.setText("Database: Sandbox (In-Memory)");
                 statusLabel.setForeground(com.dbtool.util.ThemeManager.getSuccessColor());
                 populateTablesUI();
@@ -990,6 +1147,12 @@ public class Main extends JFrame {
             }
         });
         headerEast.add(sandboxBtn);
+
+        if (isDetachedWindow) {
+            loadDbButton.setVisible(false);
+            connectExistingBtn.setVisible(false);
+            sandboxBtn.setVisible(false);
+        }
 
         seedSampleBtn.setToolTipText("Seed sample tables into currently connected database");
         seedSampleBtn.addActionListener(e -> {
@@ -1522,41 +1685,52 @@ public class Main extends JFrame {
         });
         updateConnectionPill();
 
-        // Crash Recovery Check on Startup
-        if (com.dbtool.util.SessionRecoveryManager.hasCrashedSession()) {
-            SwingUtilities.invokeLater(() -> {
-                com.dbtool.model.SessionSnapshot snapshot = com.dbtool.util.SessionRecoveryManager.loadAutosavedSession();
-                if (snapshot != null) {
-                    com.dbtool.panels.RecoveryDialog dlg = new com.dbtool.panels.RecoveryDialog(this, snapshot);
-                    dlg.setVisible(true);
-                    if (dlg.getChoice() == com.dbtool.panels.RecoveryDialog.RecoveryChoice.RESTORE) {
-                        restoreSessionSnapshot(snapshot);
-                        JOptionPane.showMessageDialog(this, "Workspace session restored successfully!", "Session Restored", JOptionPane.INFORMATION_MESSAGE);
+        if (!isDetachedWindow) {
+            // Crash Recovery Check on Startup
+            if (com.dbtool.util.SessionRecoveryManager.hasCrashedSession()) {
+                SwingUtilities.invokeLater(() -> {
+                    com.dbtool.model.SessionSnapshot snapshot = com.dbtool.util.SessionRecoveryManager.loadAutosavedSession();
+                    if (snapshot != null) {
+                        com.dbtool.panels.RecoveryDialog dlg = new com.dbtool.panels.RecoveryDialog(this, snapshot);
+                        dlg.setVisible(true);
+                        if (dlg.getChoice() == com.dbtool.panels.RecoveryDialog.RecoveryChoice.RESTORE) {
+                            restoreSessionSnapshot(snapshot);
+                            JOptionPane.showMessageDialog(this, "Workspace session restored successfully!", "Session Restored", JOptionPane.INFORMATION_MESSAGE);
+                        }
                     }
+                });
+            }
+
+            // Record application launch and refresh dashboard usage stats
+            com.dbtool.util.AppUsageTracker.recordSessionStart();
+            if (dashboardPanel != null) {
+                dashboardPanel.refreshUsageStatistics();
+            }
+
+            // Start background auto-save daemon and register shutdown hook
+            com.dbtool.util.SessionRecoveryManager.startAutoSaveDaemon(this::captureCurrentSessionSnapshot, this::onAutoSaved, 15);
+            com.dbtool.util.SessionRecoveryManager.registerShutdownHook(this::captureCurrentSessionSnapshot);
+
+            addWindowListener(new java.awt.event.WindowAdapter() {
+                @Override
+                public void windowClosing(java.awt.event.WindowEvent e) {
+                    com.dbtool.util.AppUsageTracker.flushSessionUptime();
+                    if (sqlEditorPanel != null) {
+                        sqlEditorPanel.saveEditorDraft();
+                    }
+                    com.dbtool.util.SessionRecoveryManager.markCleanExit();
+                    SessionManager.getInstance().closeAllSessions();
+                }
+            });
+        } else {
+            SwingUtilities.invokeLater(this::populateTablesUI);
+            addWindowListener(new java.awt.event.WindowAdapter() {
+                @Override
+                public void windowClosing(java.awt.event.WindowEvent e) {
+                    handleDetachedWindowClosing();
                 }
             });
         }
-
-        // Record application launch and refresh dashboard usage stats
-        com.dbtool.util.AppUsageTracker.recordSessionStart();
-        if (dashboardPanel != null) {
-            dashboardPanel.refreshUsageStatistics();
-        }
-
-        // Start background auto-save daemon and register shutdown hook
-        com.dbtool.util.SessionRecoveryManager.startAutoSaveDaemon(this::captureCurrentSessionSnapshot, this::onAutoSaved, 15);
-        com.dbtool.util.SessionRecoveryManager.registerShutdownHook(this::captureCurrentSessionSnapshot);
-
-        addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override
-            public void windowClosing(java.awt.event.WindowEvent e) {
-                com.dbtool.util.AppUsageTracker.flushSessionUptime();
-                if (sqlEditorPanel != null) {
-                    sqlEditorPanel.saveEditorDraft();
-                }
-                com.dbtool.util.SessionRecoveryManager.markCleanExit();
-            }
-        });
 
         // Background update check after startup (quietly, 3.5 seconds delay)
         javax.swing.Timer startupUpdateTimer = new javax.swing.Timer(3500, e -> {
@@ -2171,19 +2345,22 @@ public class Main extends JFrame {
             statusLabel.setText("Loading " + selectedFile.getName() + "...");
             statusLabel.setForeground(Color.BLUE);
             
+            final DatabaseManager targetDbMgr = (activeSession != null && activeSession.isAlive()) ? new DatabaseManager() : this.dbManager;
+
             new Thread(() -> {
                 try {
-                    dbManager.connectPostgres(selectedFile.getAbsolutePath(), finalHost, finalPort, finalUser, finalPass, finalDbName);
+                    targetDbMgr.connectPostgres(selectedFile.getAbsolutePath(), finalHost, finalPort, finalUser, finalPass, finalDbName);
                     
                     // Pre-fetch caches in bulk (2 queries instead of N*2) so we don't freeze EDT
-                    dbManager.getTableNames();
-                    dbManager.preloadAllColumns();
-                    dbManager.preloadAllForeignKeys();
+                    targetDbMgr.getTableNames();
+                    targetDbMgr.preloadAllColumns();
+                    targetDbMgr.preloadAllForeignKeys();
 
                     SwingUtilities.invokeLater(() -> {
+                        DatabaseSession session = SessionManager.getInstance().registerSession(selectedFile.getName(), "SQLITE", targetDbMgr);
+                        activateSession(session);
                         statusLabel.setText("Loaded: " + selectedFile.getName());
                         statusLabel.setForeground(new Color(0, 150, 0));
-                        populateTablesUI();
                     });
                 } catch (Exception ex) {
                     ex.printStackTrace();
@@ -2306,44 +2483,56 @@ public class Main extends JFrame {
     }
 
     private void disconnectDatabase() {
-        if (dbManager.connection != null) {
+        if (activeSession != null) {
+            SessionManager.getInstance().closeSession(activeSession);
+            activeSession = null;
+        } else if (dbManager.connection != null) {
             try { dbManager.connection.close(); } catch (Exception e) {}
             dbManager.connection = null;
             dbManager.clearCache();
         }
-        loadedTables.clear();
         
-        if (browseTabContainer != null) {
-            for (BrowseTab tab : browseTabContainer.getTabs()) {
-                tab.refreshTables();
+        List<DatabaseSession> remaining = SessionManager.getInstance().getAllSessions();
+        if (remaining.isEmpty()) {
+            loadedTables.clear();
+            
+            if (browseTabContainer != null) {
+                for (BrowseTab tab : browseTabContainer.getTabs()) {
+                    tab.refreshTables();
+                }
+            }
+            if (joinTabContainer != null) {
+                for (VisualJoinTab tab : joinTabContainer.getTabs()) {
+                    tab.refreshTables();
+                    tab.clearJoins();
+                }
+            }
+            
+            schemaPanel.refresh();
+            if (erDiagramPanel != null) erDiagramPanel.refresh(null, null);
+            if (dashboardPanel != null) dashboardPanel.refresh();
+            tableComparePanel.refreshTables();
+            if (dataOpsPanel != null) dataOpsPanel.refreshTables();
+            
+            statusLabel.setText("Disconnected");
+            statusLabel.setForeground(java.awt.Color.BLACK);
+            
+            loadDbButton.setEnabled(true);
+            loadDbButton.setVisible(true);
+            connectExistingBtn.setEnabled(true);
+            connectExistingBtn.setVisible(true);
+            sandboxBtn.setEnabled(true);
+            sandboxBtn.setVisible(true);
+            seedSampleBtn.setVisible(false);
+            disconnectDbButton.setVisible(false);
+            exportDbBtn.setVisible(false);
+            updateConnectionPill();
+        } else {
+            DatabaseSession next = SessionManager.getInstance().getActiveSession();
+            if (next != null) {
+                activateSession(next);
             }
         }
-        if (joinTabContainer != null) {
-            for (VisualJoinTab tab : joinTabContainer.getTabs()) {
-                tab.refreshTables();
-                tab.clearJoins();
-            }
-        }
-        
-        schemaPanel.refresh();
-        if (erDiagramPanel != null) erDiagramPanel.refresh(null, null);
-        if (dashboardPanel != null) dashboardPanel.refresh();
-        tableComparePanel.refreshTables();
-        if (dataOpsPanel != null) dataOpsPanel.refreshTables();
-        
-        statusLabel.setText("Disconnected");
-        statusLabel.setForeground(java.awt.Color.BLACK);
-        
-        loadDbButton.setEnabled(true);
-        loadDbButton.setVisible(true);
-        connectExistingBtn.setEnabled(true);
-        connectExistingBtn.setVisible(true);
-        sandboxBtn.setEnabled(true);
-        sandboxBtn.setVisible(true);
-        seedSampleBtn.setVisible(false);
-        disconnectDbButton.setVisible(false);
-        exportDbBtn.setVisible(false);
-        updateConnectionPill();
     }
 
 
@@ -2351,7 +2540,7 @@ public class Main extends JFrame {
 
     private void populateTablesUI() {
         loadDbButton.setEnabled(true);
-        loadDbButton.setVisible(true);
+        loadDbButton.setVisible(dbManager.connection == null);
         connectExistingBtn.setEnabled(true);
         connectExistingBtn.setVisible(true);
         sandboxBtn.setEnabled(true);
@@ -2378,7 +2567,7 @@ public class Main extends JFrame {
         }
     }
 
-    private void connectExistingDatabase() {
+    public void connectExistingDatabase() {
         com.dbtool.panels.ConnectionManagerDialog dialog = new com.dbtool.panels.ConnectionManagerDialog(this, dbManager);
         dialog.setVisible(true);
         if (!dialog.isApproved()) {
@@ -2396,29 +2585,32 @@ public class Main extends JFrame {
         statusLabel.setText("Connecting to " + finalDbName + " (" + finalType + ")...");
         statusLabel.setForeground(java.awt.Color.BLUE);
         
+        final DatabaseManager targetDbMgr = (activeSession != null && activeSession.isAlive()) ? new DatabaseManager() : this.dbManager;
+
         new Thread(() -> {
             try {
                 if ("MySQL".equalsIgnoreCase(finalType)) {
-                    dbManager.connectMySQL(finalHost, finalPort, finalDbName, finalUser, finalPass, finalSslMode);
+                    targetDbMgr.connectMySQL(finalHost, finalPort, finalDbName, finalUser, finalPass, finalSslMode);
                 } else if ("SQLite".equalsIgnoreCase(finalType)) {
-                    dbManager.connectSQLite(finalDbName);
+                    targetDbMgr.connectSQLite(finalDbName);
                 } else {
-                    dbManager.connectExistingPostgres(finalHost, finalPort, finalDbName, finalUser, finalPass, finalSslMode);
+                    targetDbMgr.connectExistingPostgres(finalHost, finalPort, finalDbName, finalUser, finalPass, finalSslMode);
                 }
                 
                 // Pre-fetch caches in bulk (2 queries instead of N*2) so we don't freeze EDT
-                dbManager.getTableNames();
-                dbManager.preloadAllColumns();
-                dbManager.preloadAllForeignKeys();
+                targetDbMgr.getTableNames();
+                targetDbMgr.preloadAllColumns();
+                targetDbMgr.preloadAllForeignKeys();
 
                 javax.swing.SwingUtilities.invokeLater(() -> {
                     try {
+                        DatabaseSession session = SessionManager.getInstance().registerSession(finalDbName, finalType, targetDbMgr);
+                        activateSession(session);
                         statusLabel.setText("Connected: " + finalDbName);
                         statusLabel.setForeground(new java.awt.Color(0, 150, 0));
-                        populateTablesUI();
                         
-                        connectExistingBtn.setVisible(false);
-                        loadDbButton.setVisible(false);
+                        connectExistingBtn.setVisible(true);
+                        loadDbButton.setVisible(true);
                         disconnectDbButton.setVisible(true);
                         exportDbBtn.setVisible(true);
                     } catch (Exception ex) {

@@ -37,8 +37,20 @@ public class SqlEditorPanel extends JPanel {
     private static File customDraftFile = null;
     private final javax.swing.Timer draftSaveTimer = new javax.swing.Timer(600, e -> saveEditorDraft());
 
-    private final DatabaseManager dbManager;
+    private DatabaseManager dbManager;
     private final RSyntaxTextArea editor;
+
+    public void setDbManager(DatabaseManager dbManager) {
+        if (this.pinnedConnection != null) {
+            try { this.pinnedConnection.close(); } catch (Exception ignored) {}
+            this.pinnedConnection = null;
+        }
+        this.dbManager = dbManager;
+    }
+
+    public DatabaseManager getDbManager() {
+        return dbManager;
+    }
     private final JTabbedPane resultTabs = new JTabbedPane();
     private final DefaultListModel<String> historyModel = new DefaultListModel<>();
     private final JList<String> historyList = new JList<>(historyModel);

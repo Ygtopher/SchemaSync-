@@ -18,7 +18,16 @@ import java.util.List;
  */
 public class DataOpsPanel extends JPanel {
 
-    private final DatabaseManager dbManager;
+    private DatabaseManager dbManager;
+
+    public void setDbManager(DatabaseManager dbManager) {
+        this.dbManager = dbManager;
+        refreshTables();
+    }
+
+    public DatabaseManager getDbManager() {
+        return dbManager;
+    }
 
     // ── Operation / table selectors ───────────────────────────────────
     private final JComboBox<String> operationCb = new JComboBox<>(new String[]{

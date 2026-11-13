@@ -13,7 +13,7 @@ import java.util.function.Consumer;
 
 public class SchemaPanel extends JPanel {
 
-    private final DatabaseManager dbManager;
+    private DatabaseManager dbManager;
     private final DefaultTreeModel treeModel;
     private final DefaultMutableTreeNode root = new DefaultMutableTreeNode("Database");
     private final JTree tree;
@@ -22,6 +22,15 @@ public class SchemaPanel extends JPanel {
     private final JTextArea statsArea = new JTextArea(6, 30);
     private Consumer<String> onTableSelected;
     private DefaultMutableTreeNode masterRoot = null;
+
+    public void setDbManager(DatabaseManager dbManager) {
+        this.dbManager = dbManager;
+        refresh();
+    }
+
+    public DatabaseManager getDbManager() {
+        return dbManager;
+    }
 
     public SchemaPanel(DatabaseManager dbManager) {
         this.dbManager = dbManager;

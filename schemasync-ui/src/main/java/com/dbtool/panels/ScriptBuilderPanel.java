@@ -12,7 +12,15 @@ import java.util.List;
 
 public class ScriptBuilderPanel extends JPanel {
 
-    private final DatabaseManager dbManager;
+    private DatabaseManager dbManager;
+
+    public void setDbManager(DatabaseManager dbManager) {
+        this.dbManager = dbManager;
+    }
+
+    public DatabaseManager getDbManager() {
+        return dbManager;
+    }
     private final DefaultListModel<String> stepModel = new DefaultListModel<>();
     private final JList<String> stepList = new JList<>(stepModel);
     private final JTextArea scriptPreview = new JTextArea();

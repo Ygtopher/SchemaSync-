@@ -44,7 +44,9 @@ public class UiIconFactory {
         CHART,
         EXPORT,
         KEY,
-        LINK
+        LINK,
+        DETACH,
+        ATTACH
     }
 
     private static final Map<String, Icon> ICON_CACHE = new ConcurrentHashMap<>();
@@ -355,6 +357,20 @@ public class UiIconFactory {
                 case LINK -> {
                     g2.draw(new RoundRectangle2D.Float(2f, 6f, 7f, 4f, 3, 3));
                     g2.draw(new RoundRectangle2D.Float(7f, 6f, 7f, 4f, 3, 3));
+                }
+                case DETACH -> {
+                    // Window frame with arrow escaping to top-right
+                    g2.draw(new RoundRectangle2D.Float(1.5f, 4.5f, 9.5f, 9.5f, 2, 2));
+                    g2.drawLine(8, 8, 14, 2);
+                    g2.drawLine(10, 2, 14, 2);
+                    g2.drawLine(14, 2, 14, 6);
+                }
+                case ATTACH -> {
+                    // Window frame with arrow docking back to bottom-left
+                    g2.draw(new RoundRectangle2D.Float(1.5f, 4.5f, 9.5f, 9.5f, 2, 2));
+                    g2.drawLine(14, 2, 8, 8);
+                    g2.drawLine(12, 8, 8, 8);
+                    g2.drawLine(8, 4, 8, 8);
                 }
             }
         }

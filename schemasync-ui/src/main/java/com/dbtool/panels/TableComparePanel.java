@@ -14,7 +14,16 @@ import java.util.*;
 
 public class TableComparePanel extends JPanel {
 
-    private final DatabaseManager dbManager;
+    private DatabaseManager dbManager;
+
+    public void setDbManager(DatabaseManager dbManager) {
+        this.dbManager = dbManager;
+        refreshTables();
+    }
+
+    public DatabaseManager getDbManager() {
+        return dbManager;
+    }
     private final RSyntaxTextArea queryAArea = new RSyntaxTextArea(6, 40);
     private final RSyntaxTextArea queryBArea = new RSyntaxTextArea(6, 40);
     private final JComboBox<String> keyColDropdown = new JComboBox<>();
