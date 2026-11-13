@@ -1,6 +1,6 @@
 # SchemaSync Codebase, Module & Function Map
 
-**Version:** 2.0.0  
+**Version:** 2.1.0  
 **Creator & Lead Architect:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -8,7 +8,7 @@
 
 ## 1. Architectural Map & Component Topology
 
-SchemaSync v2.0.0 is organized across 3 decoupled Maven modules (`schemasync-core`, `schemasync-cli`, `schemasync-ui`) enforcing clean separation between headless logic, command-line automation, and presentation:
+SchemaSync v2.1.0 is organized across 3 decoupled Maven modules (`schemasync-core`, `schemasync-cli`, `schemasync-ui`) enforcing clean separation between headless logic, command-line automation, and presentation:
 
 ```mermaid
 graph TD

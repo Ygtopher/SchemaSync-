@@ -1,6 +1,6 @@
 # Command-Line Interface (CLI) & Configuration Guide
 
-**Version:** 2.0.0  
+**Version:** 2.1.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -8,7 +8,7 @@
 
 ## 1. Dedicated Headless CLI (`schemasync-cli.jar`)
 
-SchemaSync v2.0.0 includes a dedicated, headless CLI tool built with Picocli 4.7.6 for automated CI/CD workflows and terminal operations:
+SchemaSync v2.1.0 includes a dedicated, headless CLI tool built with Picocli 4.7.6 for automated CI/CD workflows and terminal operations:
 
 ```bash
 java -jar release/schemasync-cli.jar [COMMAND] [OPTIONS]

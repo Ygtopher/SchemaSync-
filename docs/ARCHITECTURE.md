@@ -1,6 +1,6 @@
 # SchemaSync System Architecture & Design
 
-**Version:** 2.0.0  
+**Version:** 2.1.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -8,7 +8,7 @@
 
 ## Architectural Overview
 
-SchemaSync v2.0.0 is structured as a modular, 3-module Maven reactor engineered for high-throughput database exploration, schema engineering, and CI/CD automation without external web runtime overhead:
+SchemaSync v2.1.0 is structured as a modular, 3-module Maven reactor engineered for high-throughput database exploration, schema engineering, and CI/CD automation without external web runtime overhead:
 
 1. **`schemasync-core` (Headless Core Engine):** 100% headless library (zero `javax.swing.*` or `java.awt.*` imports). Encapsulates connection management, HikariCP pooling, cryptographic vaults, SQL parsing, AST analysis, schema reflection, keyset pagination, and the 2-phase chunked diff engine.
 2. **`schemasync-cli` (Automated CI/CD Utility):** Standalone headless CLI packaged as `schemasync-cli.jar` using Picocli 4.7.6. Executes schema diffs, drift checks, and exports in non-interactive pipelines.

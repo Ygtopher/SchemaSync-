@@ -36,7 +36,7 @@ import java.util.concurrent.Callable;
 @Command(
         name = "schemasync",
         mixinStandardHelpOptions = true,
-        version = "SchemaSync CLI 2.0.0",
+        version = "SchemaSync CLI 2.1.0",
         description = "Headless CLI for SchemaSync schema diff, CI drift detection, and SQL export.",
         subcommands = {
                 SchemaSyncCli.DiffCommand.class,

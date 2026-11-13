@@ -1,8 +1,33 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 2.0.0  
+**Current Version:** 2.1.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v2.1.0] - 2026-11-13
+### Visual Design Overhaul ("Best Look Ever") & Modern Developer Experience
+* **Procedural High-DPI Vector Icon Suite (`UiIconFactory`):**
+  * Built a 100% pure Java 2D vector procedural icon rendering engine producing razor-sharp, anti-aliased icons at any screen resolution or UI scale factor.
+  * Vector icons for all 13 workspace tabs (`Dashboard`, `Browse & Search`, `Visual Join Builder`, `Data Operations`, `SQL Editor`, `Activity Monitor`, `Schema Dependencies`, `ER Diagram`, `Script Builder`, `Compare Queries`, `Dual DB Compare`, `SSH / Server`, `AI Assistant`), plus actions (`RUN`, `STOP`, `CONNECT`, `DISCONNECT`, `DATABASE`, `TABLE`, `REFRESH`, `LOCK`, `CHIP_RAM`, `CHART`, etc.).
+* **Unified App Header Bar (`Main`):**
+  * Replaced legacy top button wraps with a clean 3-section header bar:
+    * **West:** Sidebar toggle (`☰`, `Ctrl+B`), high-res app emblem, bold `SchemaSync` brand title, `v2.1.0` badge, and interactive **Connection Status Pill** (`🟢 Engine / Database` with 1-click disconnect `✕`).
+    * **Center:** Spotlight Command Search bar (`[ Ctrl K ]`) for rapid table and workbench navigation.
+    * **East:** Primary CTA button (`+ Connect`), `Profiles ▾`, `⚡ Sandbox`, `🧰 Studios ▾`, `🎨 Theme ▾`, and `⋮ More ▾` dropdowns.
+* **DataGrip / VS Code-Grade Interactive Status Bar (`StatusBar`):**
+  * **Left:** Live Engine pill (`🟢 PostgreSQL 17 / my_db` or `⚪ Offline`), Ping latency badge (`⚡ 12 ms` colored green/amber/red), Schema indicator, and Auto-Commit toggle pill (`Auto-Commit: ON` / `MANUAL`).
+  * **Center:** Real-time task progress bar and status message label.
+  * **Right:** Auto-Save status button (`💾 Auto-Saved`), JVM Heap RAM monitor (`RAM: 142/512 MB` with 1-click Garbage Collection optimization), UI scale zoom indicator (`🔍 100%`), and Query Log drawer toggle (`📜 Log: 0`).
+* **New Tokyo Night & Dracula Studio Themes (`ThemeManager`):**
+  * Added **`TOKYO_NIGHT`** ("🌃 Tokyo Night") and **`DRACULA`** ("🧛 Dracula Studio") dark themes.
+  * Global UI curve styling (`Component.arc=8`, `Button.arc=8`, `TextComponent.arc=8`) and custom window decorations (`JFrame.setDefaultLookAndFeelDecorated(true)`).
+* **Glassmorphic Notification Toasts (`NotificationToast`):**
+  * Non-intrusive floating toasts docking smoothly at the bottom-right for connection status, clipboard operations, and memory optimizations, replacing disruptive modal dialog popups.
+* **Refined Query & Table Toolbars:**
+  * Replaced plain text pipe separators (`" | "`) with subtle vertical dividers (`ThemeManager.createToolbarSeparator()`).
+  * Styled run and execute buttons with procedural vector play icons and theme-adaptive success green across `BrowseTabPanel`, `VisualJoinTabPanel`, `SqlEditorPanel`, `TableComparePanel`, and `DashboardPanel`.
 
 ---
 

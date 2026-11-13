@@ -1,6 +1,6 @@
 # Supported Databases & Dialect Matrix
 
-**Version:** 2.0.0  
+**Version:** 2.1.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -8,7 +8,7 @@
 
 ## Engine Support Matrix
 
-SchemaSync v2.0.0 provides first-class support for the following relational databases, plus an extensible `DatabaseDialect` SPI and dynamic JDBC driver loading for arbitrary engines:
+SchemaSync v2.1.0 provides first-class support for the following relational databases, plus an extensible `DatabaseDialect` SPI and dynamic JDBC driver loading for arbitrary engines:
 
 | Database Engine | Driver Class | Default Port | Storage Type | Minimum Engine Version |
 | :--- | :--- | :--- | :--- | :--- |

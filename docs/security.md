@@ -1,6 +1,6 @@
 # SchemaSync Security & Cryptography Guide
 
-**Version:** 2.0.0  
+**Version:** 2.1.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -8,7 +8,7 @@
 
 ## 1. Enterprise Credential Vault Architecture (Vault V2)
 
-SchemaSync v2.0.0 provides a dual-layer zero-knowledge credential vault designed to safeguard sensitive database connection strings, usernames, and passwords:
+SchemaSync v2.1.0 provides a dual-layer zero-knowledge credential vault designed to safeguard sensitive database connection strings, usernames, and passwords:
 
 1. **OS Keyring Integration (`SecretStore.java`):**
    - **Windows:** Native DPAPI (Data Protection API) hardware/user-bound encryption via JNA (`CryptProtectData` / `CryptUnprotectData`).
@@ -112,7 +112,7 @@ When analyzing production databases, dumping data for testing, or sharing query 
 
 ## 6. Cryptographically Verified Updates (`ReleaseVerifier.java`)
 
-To prevent supply-chain attacks and man-in-the-middle tampering during in-app auto-updates, SchemaSync v2.0.0 enforces dual-tier verification:
+To prevent supply-chain attacks and man-in-the-middle tampering during in-app auto-updates, SchemaSync v2.1.0 enforces dual-tier verification:
 
 1. **SHA-256 Checksum Validation:** Every downloaded asset is matched against the authoritative SHA-256 hash manifest published with the GitHub release.
 2. **ECDSA Digital Signatures:** Update packages are cryptographically signed with an Elliptic Curve Digital Signature Algorithm (ECDSA P-256) private key. `ReleaseVerifier` validates signatures using an embedded public key before initiating execution or restarting the application. Any signature mismatch or hash discrepancy halts the update and warns the user.
