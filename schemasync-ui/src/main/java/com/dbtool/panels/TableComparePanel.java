@@ -71,7 +71,7 @@ public class TableComparePanel extends JPanel {
         exportBtn.addActionListener(e -> ExportUtil.exportCsv(diffTable, this));
         JButton exportPdfBtn = new JButton("📥 Export Diff PDF");
         exportPdfBtn.addActionListener(e -> ExportUtil.exportPdf(diffTable, this));
-        tbRun.add(new JLabel(" | "));
+        tbRun.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
         tbRun.add(exportBtn);
         tbRun.add(exportPdfBtn);
 

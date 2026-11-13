@@ -275,7 +275,7 @@ public class DataCompareTabPanel extends JPanel {
         btnAddOrderBy.addActionListener(e -> addOrderByRow());
         tbClauses.add(btnAddOrderBy);
 
-        tbClauses.add(new JLabel(" | "));
+        tbClauses.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
         comboSample.setToolTipText("TABLESAMPLE sampling clause");
         tbClauses.add(comboSample);
         comboLock.setToolTipText("Row-level locking clause (FOR UPDATE, SKIP LOCKED)");

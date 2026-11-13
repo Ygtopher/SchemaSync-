@@ -447,20 +447,36 @@ public class DashboardPanel extends JPanel {
     }
 
     private JPanel createMetricCard(String title, JLabel[] items, Color accentColor) {
-        JPanel card = new JPanel(new BorderLayout(2, 2));
+        JPanel card = new JPanel(new BorderLayout(2, 2)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                try {
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(accentColor);
+                    g2.fillRoundRect(0, 0, getWidth(), 3, 2, 2);
+                } finally {
+                    g2.dispose();
+                }
+            }
+        };
+        boolean dark = ThemeManager.isDarkMode();
         card.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(ThemeManager.isDarkMode() ? new Color(60, 60, 60) : new Color(210, 210, 210), 1, true),
-                new EmptyBorder(5, 9, 5, 9)
+                new LineBorder(dark ? new Color(45, 55, 72) : new Color(220, 228, 238), 1, true),
+                new EmptyBorder(7, 10, 6, 10)
         ));
 
         JPanel titlePanel = new JPanel(new BorderLayout());
+        titlePanel.setOpaque(false);
         JLabel titleLbl = new JLabel(title);
-        titleLbl.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
+        titleLbl.setFont(ThemeManager.getUiFont(Font.BOLD, 11.5f));
         titleLbl.setForeground(accentColor);
         titlePanel.add(titleLbl, BorderLayout.WEST);
         card.add(titlePanel, BorderLayout.NORTH);
 
         JPanel itemsPanel = new JPanel();
+        itemsPanel.setOpaque(false);
         itemsPanel.setLayout(new BoxLayout(itemsPanel, BoxLayout.Y_AXIS));
         for (JLabel lbl : items) {
             lbl.setFont(ThemeManager.getUiFont(Font.PLAIN, 10));
@@ -473,9 +489,10 @@ public class DashboardPanel extends JPanel {
 
     private JPanel createActionTile(String title, String description, Runnable action) {
         JPanel tile = new JPanel(new BorderLayout(8, 2));
+        boolean dark = ThemeManager.isDarkMode();
         tile.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(ThemeManager.isDarkMode() ? new Color(50, 50, 50) : new Color(225, 225, 225), 1, true),
-                new EmptyBorder(5, 10, 5, 10)
+                new LineBorder(dark ? new Color(45, 55, 72) : new Color(220, 228, 238), 1, true),
+                new EmptyBorder(6, 11, 6, 11)
         ));
 
         JPanel textPanel = new JPanel();

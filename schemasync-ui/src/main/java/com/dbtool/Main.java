@@ -583,13 +583,74 @@ public class Main extends JFrame {
     // Cache for currently loaded tables
     private List<String> loadedTables = new ArrayList<>();
 
-    private JButton loadDbButton = new JButton("Open DB File (.sqlite, .db, .accdb, .sql)");
-    private JButton connectExistingBtn = new JButton("Connect to Existing DB");
-    private JButton sandboxBtn = new JButton("⚡ Sample Sandbox DB");
+    private JButton loadDbButton = new JButton("+ Connect");
+    private JButton connectExistingBtn = new JButton("Profiles ▾");
+    private JButton sandboxBtn = new JButton("⚡ Sandbox");
     private JButton seedSampleBtn = new JButton("🌱 Seed Sample Tables");
     private JButton disconnectDbButton = new JButton("Disconnect DB");
     private JButton exportDbBtn = new JButton("Export DB");
     private JButton autoSaveIndicatorBtn = new JButton("💾 Auto-Saved");
+    private JButton toggleSidebarBtn;
+    private com.dbtool.panels.NetworkScannerPanel networkScannerPanel = new com.dbtool.panels.NetworkScannerPanel();
+
+    private com.dbtool.ui.components.StatusBar statusBar = new com.dbtool.ui.components.StatusBar();
+    private JPanel connectionPill;
+    private JLabel connectionStatusDot;
+    private JLabel connectionStatusText;
+    private JButton disconnectPillBtn;
+
+    public void updateConnectionPill() {
+        if (dbManager.connection == null) {
+            if (connectionStatusDot != null) {
+                connectionStatusDot.setText("○");
+                connectionStatusDot.setForeground(new Color(148, 163, 184));
+            }
+            if (connectionStatusText != null) {
+                connectionStatusText.setText("No Database Connected");
+            }
+            if (disconnectPillBtn != null) {
+                disconnectPillBtn.setVisible(false);
+            }
+            if (statusBar != null) {
+                statusBar.setDatabaseInfo(null, null, null);
+            }
+        } else {
+            String engine = "Database";
+            String host = "local";
+            String dbName = "";
+            try {
+                engine = dbManager.connection.getMetaData().getDatabaseProductName();
+                String url = dbManager.connection.getMetaData().getURL();
+                dbName = dbManager.connection.getCatalog();
+                if (dbName == null || dbName.isBlank()) {
+                    dbName = dbManager.connection.getSchema();
+                }
+                host = url;
+            } catch (Exception ignored) {}
+
+            if (connectionStatusDot != null) {
+                connectionStatusDot.setText("●");
+                connectionStatusDot.setForeground(com.dbtool.util.ThemeManager.getSuccessColor());
+            }
+            String display = engine + (dbName != null && !dbName.isBlank() ? " / " + dbName : "");
+            if (connectionStatusText != null) {
+                connectionStatusText.setText(display);
+            }
+            if (disconnectPillBtn != null) {
+                disconnectPillBtn.setVisible(true);
+            }
+            if (statusBar != null) {
+                statusBar.setDatabaseInfo(engine, host, dbName);
+                try {
+                    statusBar.setAutoCommit(dbManager.connection.getAutoCommit());
+                } catch (Exception ignored) {}
+            }
+        }
+        if (connectionPill != null) {
+            connectionPill.revalidate();
+            connectionPill.repaint();
+        }
+    }
 
     private void loadAppIcons() {
         try {
@@ -739,32 +800,201 @@ public class Main extends JFrame {
             }
         });
 
-        // Top Panel
-        JPanel topPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 6, 3));
-        loadDbButton.addActionListener(e -> loadDatabase());
-        topPanel.add(loadDbButton);
-        
-        connectExistingBtn.addActionListener(e -> connectExistingDatabase());
-        topPanel.add(connectExistingBtn);
+        // Modern Application Header Bar
+        JPanel headerBar = new JPanel(new BorderLayout(14, 0)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                try {
+                    boolean dark = com.dbtool.util.ThemeManager.isDarkMode();
+                    g2.setColor(dark ? new Color(18, 22, 31) : new Color(245, 248, 252));
+                    g2.fillRect(0, 0, getWidth(), getHeight());
+                    g2.setColor(dark ? new Color(38, 48, 64) : new Color(220, 228, 238));
+                    g2.drawLine(0, getHeight() - 1, getWidth(), getHeight() - 1);
+                } finally {
+                    g2.dispose();
+                }
+            }
+        };
+        headerBar.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
 
-        sandboxBtn.setToolTipText("Load built-in in-memory Sandbox DB (Employees, Departments, Orders, and Sales)");
+        // West Section: App Logo, Brand, Version Pill, Connection Badge
+        JPanel headerWest = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        headerWest.setOpaque(false);
+
+        toggleSidebarBtn = new JButton("☰");
+        toggleSidebarBtn.setFont(new Font("Segoe UI Symbol", Font.BOLD, 14));
+        toggleSidebarBtn.setToolTipText("Toggle Schema Sidebar (Ctrl+B)");
+        toggleSidebarBtn.putClientProperty("JButton.buttonType", "toolBarButton");
+        toggleSidebarBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        toggleSidebarBtn.setMargin(new Insets(2, 6, 2, 6));
+        toggleSidebarBtn.setFocusPainted(false);
+        headerWest.add(toggleSidebarBtn);
+
+        JLabel appLogoLbl = new JLabel();
+        java.net.URL logoUrl = getClass().getResource("/icons/app-icon-32.png");
+        if (logoUrl != null) {
+            Image scaledLogo = new ImageIcon(logoUrl).getImage().getScaledInstance(22, 22, Image.SCALE_SMOOTH);
+            appLogoLbl.setIcon(new ImageIcon(scaledLogo));
+        } else {
+            appLogoLbl.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.DATABASE, 20));
+        }
+        headerWest.add(appLogoLbl);
+
+        JLabel brandTitle = new JLabel("SchemaSync");
+        brandTitle.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 15));
+        headerWest.add(brandTitle);
+
+        JLabel verBadge = new JLabel(" v" + APP_VERSION + " ");
+        verBadge.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 10.5f));
+        verBadge.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
+        headerWest.add(verBadge);
+
+        JSeparator brandSep = new JSeparator(JSeparator.VERTICAL);
+        brandSep.setPreferredSize(new Dimension(1, 18));
+        brandSep.setForeground(new Color(100, 116, 139, 100));
+        headerWest.add(brandSep);
+
+        // Connection Pill Badge
+        connectionPill = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                try {
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    boolean dark = com.dbtool.util.ThemeManager.isDarkMode();
+                    g2.setColor(dark ? new Color(28, 35, 48) : new Color(236, 242, 249));
+                    g2.fill(new java.awt.geom.RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 16, 16));
+                    g2.setColor(dark ? new Color(48, 60, 82) : new Color(203, 213, 225));
+                    g2.setStroke(new BasicStroke(1f));
+                    g2.draw(new java.awt.geom.RoundRectangle2D.Float(0.5f, 0.5f, getWidth() - 1, getHeight() - 1, 16, 16));
+                } finally {
+                    g2.dispose();
+                }
+            }
+        };
+        connectionPill.setOpaque(false);
+        connectionPill.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+        connectionPill.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        connectionPill.setToolTipText("Active Database Connection (Click to manage profiles or connect)");
+        connectionPill.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                connectExistingDatabase();
+            }
+        });
+
+        connectionStatusDot = new JLabel("○");
+        connectionStatusDot.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        connectionStatusDot.setForeground(new Color(148, 163, 184));
+        connectionPill.add(connectionStatusDot);
+
+        connectionStatusText = new JLabel("No Database Connected");
+        connectionStatusText.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 11.5f));
+        connectionPill.add(connectionStatusText);
+
+        disconnectPillBtn = new JButton("✕");
+        disconnectPillBtn.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 10));
+        disconnectPillBtn.setForeground(new Color(239, 68, 68));
+        disconnectPillBtn.setContentAreaFilled(false);
+        disconnectPillBtn.setBorderPainted(false);
+        disconnectPillBtn.setFocusPainted(false);
+        disconnectPillBtn.setMargin(new Insets(0, 2, 0, 2));
+        disconnectPillBtn.setToolTipText("Disconnect from database");
+        disconnectPillBtn.setVisible(false);
+        disconnectPillBtn.addActionListener(e -> disconnectDatabase());
+        connectionPill.add(disconnectPillBtn);
+
+        headerWest.add(connectionPill);
+        headerBar.add(headerWest, BorderLayout.WEST);
+
+        // Center Section: Command Palette / Quick Search Pill
+        JPanel headerCenter = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        headerCenter.setOpaque(false);
+
+        JPanel searchPill = new JPanel(new BorderLayout(8, 0)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                try {
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    boolean dark = com.dbtool.util.ThemeManager.isDarkMode();
+                    g2.setColor(dark ? new Color(24, 30, 42) : new Color(241, 245, 249));
+                    g2.fill(new java.awt.geom.RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 16, 16));
+                    g2.setColor(dark ? new Color(48, 60, 84) : new Color(203, 213, 225));
+                    g2.setStroke(new BasicStroke(1f));
+                    g2.draw(new java.awt.geom.RoundRectangle2D.Float(0.5f, 0.5f, getWidth() - 1, getHeight() - 1, 16, 16));
+                } finally {
+                    g2.dispose();
+                }
+            }
+        };
+        searchPill.setOpaque(false);
+        searchPill.setPreferredSize(new Dimension(320, 26));
+        searchPill.setBorder(BorderFactory.createEmptyBorder(2, 10, 2, 10));
+        searchPill.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        searchPill.setToolTipText("Quick Jump / Command Palette (Ctrl+K or Ctrl+P)");
+
+        JLabel searchIcon = new JLabel(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.SEARCH, 13));
+        searchPill.add(searchIcon, BorderLayout.WEST);
+
+        JLabel searchPrompt = new JLabel("Quick Jump to table, tab, command... ");
+        searchPrompt.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 11f));
+        searchPrompt.setForeground(com.dbtool.util.ThemeManager.getMutedTextColor());
+        searchPill.add(searchPrompt, BorderLayout.CENTER);
+
+        JLabel shortcutBadge = new JLabel(" Ctrl K ");
+        shortcutBadge.setFont(new Font(Font.MONOSPACED, Font.BOLD, 10));
+        shortcutBadge.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
+        searchPill.add(shortcutBadge, BorderLayout.EAST);
+
+        searchPill.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                openCommandPaletteDialog();
+            }
+        });
+
+        headerCenter.add(searchPill);
+        headerBar.add(headerCenter, BorderLayout.CENTER);
+
+        // East Section: Action Cluster
+        JPanel headerEast = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        headerEast.setOpaque(false);
+
+        loadDbButton.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 11.5f));
+        loadDbButton.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.CONNECT, 13, com.dbtool.util.ThemeManager.getPrimaryActionColor()));
+        loadDbButton.setToolTipText("Open Database File (.sqlite, .db, .accdb, .sql)");
+        loadDbButton.addActionListener(e -> loadDatabase());
+        headerEast.add(loadDbButton);
+
+        connectExistingBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 11.5f));
+        connectExistingBtn.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.DATABASE, 13));
+        connectExistingBtn.setToolTipText("Connect to Saved Connection Profiles");
+        connectExistingBtn.addActionListener(e -> connectExistingDatabase());
+        headerEast.add(connectExistingBtn);
+
+        sandboxBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 11.5f));
+        sandboxBtn.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.LIGHTNING, 13, new Color(245, 158, 11)));
+        sandboxBtn.setToolTipText("Load built-in in-memory Sandbox DB (Employees, Departments, Orders, Sales)");
         sandboxBtn.addActionListener(e -> {
             try {
                 dbManager.connectSandbox();
                 statusLabel.setText("Database: Sandbox (In-Memory)");
-                statusLabel.setForeground(new java.awt.Color(0, 150, 0));
+                statusLabel.setForeground(com.dbtool.util.ThemeManager.getSuccessColor());
                 populateTablesUI();
-                JOptionPane.showMessageDialog(this, "Sample Sandbox DB loaded!\n\nPre-loaded tables ready to query:\n• employees\n• departments\n• contractors\n• new_hires\n• projects\n• accounts\n• orders\n• sales\n• audit_log", "Sandbox Ready", JOptionPane.INFORMATION_MESSAGE);
+                com.dbtool.ui.components.NotificationToast.showSuccess(this, "Sample Sandbox DB loaded! Ready to query.");
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this, "Failed to load Sandbox: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
-        topPanel.add(sandboxBtn);
+        headerEast.add(sandboxBtn);
 
         seedSampleBtn.setToolTipText("Seed sample tables into currently connected database");
         seedSampleBtn.addActionListener(e -> {
             if (dbManager.connection == null) {
-                JOptionPane.showMessageDialog(this, "No database connected. Please connect first or click '⚡ Sample Sandbox DB'.", "Notice", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "No database connected. Please connect first or click '⚡ Sandbox'.", "Notice", JOptionPane.WARNING_MESSAGE);
                 return;
             }
             try {
@@ -774,24 +1004,20 @@ public class Main extends JFrame {
                 if (browseTabContainer != null) for (BrowseTab tab : browseTabContainer.getTabs()) tab.refreshTables();
                 if (joinTabContainer != null) for (VisualJoinTab tab : joinTabContainer.getTabs()) tab.refreshTables();
                 if (erDiagramPanel != null) erDiagramPanel.markNeedsRefresh(dbManager);
-                JOptionPane.showMessageDialog(this, "Sample tables (employees, departments, contractors, orders, sales, accounts) created and populated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                com.dbtool.ui.components.NotificationToast.showSuccess(this, "Sample tables created and populated successfully!");
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this, "Failed to seed sample tables: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
         seedSampleBtn.setVisible(false);
-        topPanel.add(seedSampleBtn);
 
         disconnectDbButton.addActionListener(e -> disconnectDatabase());
         disconnectDbButton.setVisible(false);
-        topPanel.add(disconnectDbButton);
 
         exportDbBtn.addActionListener(e -> showExportDatabaseDialog());
         exportDbBtn.setVisible(false);
-        topPanel.add(exportDbBtn);
 
         JButton auditDbBtn = new JButton("🛡 Health Audit");
-        auditDbBtn.setToolTipText("Run 1-Click Database Health & Performance Audit");
         auditDbBtn.addActionListener(e -> {
             if (dbManager.connection == null) {
                 JOptionPane.showMessageDialog(this, "Please connect to a database first to run health diagnostics.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
@@ -800,10 +1026,8 @@ public class Main extends JFrame {
             com.dbtool.util.AppUsageTracker.recordFeatureUse("🛡 Health Audit");
             new com.dbtool.panels.DatabaseAuditorDialog(this, dbManager).setVisible(true);
         });
-        topPanel.add(auditDbBtn);
 
         JButton indexAdvisorBtn = new JButton("⚡ Index Advisor");
-        indexAdvisorBtn.setToolTipText("Database Performance & Index Optimization Advisor (Unindexed FKs, Redundant Indexes, Search Candidates)");
         indexAdvisorBtn.addActionListener(e -> {
             if (dbManager.connection == null) {
                 JOptionPane.showMessageDialog(this, "Please connect to a database first to analyze indexes.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
@@ -812,10 +1036,8 @@ public class Main extends JFrame {
             com.dbtool.util.AppUsageTracker.recordFeatureUse("⚡ Index Advisor");
             new com.dbtool.panels.IndexAdvisorDialog(this, dbManager).setVisible(true);
         });
-        topPanel.add(indexAdvisorBtn);
 
         JButton schemaDriftBtn = new JButton("📐 Schema Drift");
-        schemaDriftBtn.setToolTipText("Schema Snapshot, Drift Detector & Migration Studio");
         schemaDriftBtn.addActionListener(e -> {
             if (dbManager.connection == null) {
                 JOptionPane.showMessageDialog(this, "Please connect to a database first to inspect schema drift.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
@@ -824,30 +1046,9 @@ public class Main extends JFrame {
             com.dbtool.util.AppUsageTracker.recordFeatureUse("📐 Schema Drift");
             new com.dbtool.panels.SchemaDriftDialog(this, dbManager).setVisible(true);
         });
-        topPanel.add(schemaDriftBtn);
 
-        JButton omniSearchBtn = new JButton("🔍 OmniSearch");
-        omniSearchBtn.setToolTipText("Global Database Search across all tables (Ctrl+Shift+F)");
-        omniSearchBtn.addActionListener(e -> openOmniSearchDialog());
-        topPanel.add(omniSearchBtn);
-
-        JButton commandPaletteBtn = new JButton("⚡ Quick Jump / Commands (Ctrl+K)");
-        commandPaletteBtn.setFont(commandPaletteBtn.getFont().deriveFont(Font.BOLD));
-        commandPaletteBtn.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
-        commandPaletteBtn.setToolTipText("Open Command Palette to jump to any table, tab, studio tool, or theme (Ctrl+K / Ctrl+P)");
-        commandPaletteBtn.addActionListener(e -> openCommandPaletteDialog());
-        topPanel.add(commandPaletteBtn);
-
-        JMenuItem maskMenuItem = new JMenuItem("🔒 Sensitive Data Masking Studio (GDPR/PII)");
-        maskMenuItem.addActionListener(e -> openDataMaskingDialog());
-
-        JMenuItem vaultMenuItem = new JMenuItem("🛡️ AES-256 Credential Vault");
-        vaultMenuItem.addActionListener(e -> openVaultDialog());
-
-        JMenuItem profilerMenuItem = new JMenuItem("⏱️ SQL Query Profiler & Bottleneck Analyzer");
-        profilerMenuItem.addActionListener(e -> openQueryProfilerDialog());
-
-        JButton studiosMenuBtn = new JButton("🧰 Studios & Tools ▾");
+        JButton studiosMenuBtn = new JButton("🧰 Studios ▾");
+        studiosMenuBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 11.5f));
         studiosMenuBtn.setToolTipText("Access Database Studios: Health Audit, Index Advisor, Schema Drift, Data Masking, Vault & Profiler");
         studiosMenuBtn.addActionListener(e -> {
             JPopupMenu studiosMenu = new JPopupMenu();
@@ -864,8 +1065,16 @@ public class Main extends JFrame {
             studiosMenu.add(mDrift);
 
             studiosMenu.addSeparator();
+            JMenuItem maskMenuItem = new JMenuItem("🔒 Sensitive Data Masking Studio (GDPR/PII)");
+            maskMenuItem.addActionListener(ev -> openDataMaskingDialog());
             studiosMenu.add(maskMenuItem);
+
+            JMenuItem vaultMenuItem = new JMenuItem("🛡️ AES-256 Credential Vault");
+            vaultMenuItem.addActionListener(ev -> openVaultDialog());
             studiosMenu.add(vaultMenuItem);
+
+            JMenuItem profilerMenuItem = new JMenuItem("⏱️ SQL Query Profiler & Bottleneck Analyzer");
+            profilerMenuItem.addActionListener(ev -> openQueryProfilerDialog());
             studiosMenu.add(profilerMenuItem);
 
             studiosMenu.addSeparator();
@@ -884,33 +1093,76 @@ public class Main extends JFrame {
 
             studiosMenu.show(studiosMenuBtn, 0, studiosMenuBtn.getHeight());
         });
-        // Keep quick-access studio menu compact instead of 6 separate top-bar buttons
-        auditDbBtn.setVisible(false);
-        indexAdvisorBtn.setVisible(false);
-        schemaDriftBtn.setVisible(false);
-        topPanel.add(studiosMenuBtn);
+        headerEast.add(studiosMenuBtn);
 
         JButton themeBtn = new JButton("🎨 Theme ▾");
-        themeBtn.setToolTipText("Switch Accent Theme Preset (Midnight Blue, Emerald, Obsidian, Cyber Purple, Solar Light) & UI Zoom");
+        themeBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 11.5f));
+        themeBtn.setToolTipText("Switch Accent Theme Preset & UI Zoom");
         themeBtn.addActionListener(e -> com.dbtool.util.ThemeManager.showThemePopupMenu(themeBtn, themeBtn));
-        topPanel.add(themeBtn);
+        headerEast.add(themeBtn);
 
-        JButton aboutBtn = new JButton("ℹ About");
-        aboutBtn.setToolTipText("About SchemaSync & Creator Info");
-        aboutBtn.addActionListener(e -> showAboutDialog());
-        topPanel.add(aboutBtn);
+        JButton moreMenuBtn = new JButton("⋮ More ▾");
+        moreMenuBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 11.5f));
+        moreMenuBtn.addActionListener(e -> {
+            JPopupMenu menu = new JPopupMenu();
+            JMenuItem mOmni = new JMenuItem("🔍 Global OmniSearch (Ctrl+Shift+F)");
+            mOmni.addActionListener(ev -> openOmniSearchDialog());
+            menu.add(mOmni);
 
-        JButton updateBtn = new JButton("🔄 Updates");
-        updateBtn.setToolTipText("Check GitHub for SchemaSync updates & instant delta patches");
-        com.dbtool.util.UpdateChecker.registerToolbarButton(updateBtn);
-        updateBtn.addActionListener(e -> com.dbtool.util.UpdateChecker.checkForUpdates(this, false));
-        topPanel.add(updateBtn);
+            JMenuItem mExport = new JMenuItem("📤 Export Entire Database...");
+            mExport.addActionListener(ev -> showExportDatabaseDialog());
+            mExport.setEnabled(dbManager.connection != null);
+            menu.add(mExport);
 
-        topPanel.add(statusLabel);
-        
+            JMenuItem mSeed = new JMenuItem("🌱 Seed Sample Tables into Current DB");
+            mSeed.addActionListener(ev -> seedSampleBtn.doClick());
+            mSeed.setEnabled(dbManager.connection != null);
+            menu.add(mSeed);
+
+            menu.addSeparator();
+            JMenuItem mAdminScanner = new JMenuItem("🛰️ Network Host Scanner (Admin)...");
+            mAdminScanner.addActionListener(ev -> {
+                if (tabbedPane.indexOfComponent(networkScannerPanel) != -1) {
+                    tabbedPane.remove(networkScannerPanel);
+                    com.dbtool.ui.components.NotificationToast.show(Main.this, "Network Scanner closed.", com.dbtool.ui.components.NotificationToast.Type.INFO);
+                    return;
+                }
+                JPasswordField pf = new JPasswordField();
+                int okCxl = JOptionPane.showConfirmDialog(Main.this, pf, "Enter Admin Password", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+                if (okCxl == JOptionPane.OK_OPTION) {
+                    String password = new String(pf.getPassword());
+                    if ("admin".equals(password)) {
+                        tabbedPane.addTab("Network Scanner", networkScannerPanel);
+                        tabbedPane.setSelectedComponent(networkScannerPanel);
+                        com.dbtool.ui.components.NotificationToast.show(Main.this, "Network Scanner unlocked.", com.dbtool.ui.components.NotificationToast.Type.SUCCESS);
+                    } else {
+                        JOptionPane.showMessageDialog(Main.this, "Incorrect password!", "Access Denied", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            });
+            menu.add(mAdminScanner);
+
+            JMenuItem mDrivers = new JMenuItem("🔌 External JDBC Driver Manager...");
+            mDrivers.addActionListener(ev -> new com.dbtool.panels.DriverManagerDialog(Main.this).setVisible(true));
+            menu.add(mDrivers);
+
+            JMenuItem mUpdates = new JMenuItem("🔄 Check for Updates...");
+            mUpdates.addActionListener(ev -> com.dbtool.util.UpdateChecker.checkForUpdates(Main.this, false));
+            menu.add(mUpdates);
+
+            JMenuItem mAbout = new JMenuItem("ℹ About SchemaSync");
+            mAbout.addActionListener(ev -> showAboutDialog());
+            menu.add(mAbout);
+
+            menu.show(moreMenuBtn, 0, moreMenuBtn.getHeight());
+        });
+        headerEast.add(moreMenuBtn);
+
+        headerBar.add(headerEast, BorderLayout.EAST);
+
         // Init theme
         com.dbtool.util.ThemeManager.init(themeBtn);
-        add(topPanel, BorderLayout.NORTH);
+        add(headerBar, BorderLayout.NORTH);
 
         tabbedPane = new JTabbedPane();
         tabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
@@ -928,34 +1180,34 @@ public class Main extends JFrame {
             this::openDataImportDialog,
             this::openMockDataDialog
         );
-        tabbedPane.addTab("🏠 Dashboard", dashboardPanel);
+        tabbedPane.addTab("Dashboard", com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.DASHBOARD), dashboardPanel);
 
         browseTabContainer = new com.dbtool.panels.MultiTabContainer<>("Browse", () -> {
             BrowseTab tab = new BrowseTab();
             tab.refreshTables();
             return tab;
         });
-        tabbedPane.addTab("Browse & Search", browseTabContainer);
+        tabbedPane.addTab("Browse & Search", com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.BROWSE), browseTabContainer);
         joinTabContainer = new com.dbtool.panels.MultiTabContainer<>("Join", () -> {
             VisualJoinTab tab = new VisualJoinTab();
             tab.refreshTables();
             return tab;
         });
-        tabbedPane.addTab("Visual Join Builder", joinTabContainer);
-        tabbedPane.addTab("Data Operations", dataOpsPanel);
-        tabbedPane.addTab("SQL Editor", sqlEditorPanel);
-        tabbedPane.addTab("Activity Monitor", new com.dbtool.panels.ActivityMonitorPanel(dbManager));
-        tabbedPane.addTab("Schema Dependencies", new com.dbtool.panels.DependencyGraphPanel(dbManager));
-        tabbedPane.addTab("ER Diagram", erDiagramPanel);
-        tabbedPane.addTab("Script Builder", scriptBuilderPanel);
-        tabbedPane.addTab("Compare Queries", tableComparePanel);
-        tabbedPane.addTab("Dual DB Compare", dualDbComparePanel);
+        tabbedPane.addTab("Visual Join Builder", com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.JOIN), joinTabContainer);
+        tabbedPane.addTab("Data Operations", com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.DATA_OPS), dataOpsPanel);
+        tabbedPane.addTab("SQL Editor", com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.SQL_EDITOR), sqlEditorPanel);
+        tabbedPane.addTab("Activity Monitor", com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.ACTIVITY), new com.dbtool.panels.ActivityMonitorPanel(dbManager));
+        tabbedPane.addTab("Schema Dependencies", com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.SCHEMA_GRAPH), new com.dbtool.panels.DependencyGraphPanel(dbManager));
+        tabbedPane.addTab("ER Diagram", com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.ER_DIAGRAM), erDiagramPanel);
+        tabbedPane.addTab("Script Builder", com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.SCRIPT), scriptBuilderPanel);
+        tabbedPane.addTab("Compare Queries", com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.COMPARE), tableComparePanel);
+        tabbedPane.addTab("Dual DB Compare", com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.DUAL_DB), dualDbComparePanel);
         
         com.dbtool.panels.SshTerminalPanel sshTerminalPanel = new com.dbtool.panels.SshTerminalPanel(dbManager);
-        tabbedPane.addTab("SSH / Server", sshTerminalPanel);
+        tabbedPane.addTab("SSH / Server", com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.SSH), sshTerminalPanel);
 
         com.dbtool.panels.AiAssistantTab aiAssistantTab = new com.dbtool.panels.AiAssistantTab(dbManager);
-        tabbedPane.addTab("🤖 AI Assistant", aiAssistantTab);
+        tabbedPane.addTab("AI Assistant", com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.AI), aiAssistantTab);
 
         tabbedPane.addChangeListener(e -> {
             int selectedIndex = tabbedPane.getSelectedIndex();
@@ -964,14 +1216,13 @@ public class Main extends JFrame {
                 com.dbtool.util.AppUsageTracker.recordFeatureUse(title);
                 if ("ER Diagram".equals(title) && erDiagramPanel != null) {
                     erDiagramPanel.checkAndRefresh();
-                } else if ("🏠 Dashboard".equals(title) && dashboardPanel != null) {
+                } else if (("Dashboard".equals(title) || "🏠 Dashboard".equals(title)) && dashboardPanel != null) {
                     dashboardPanel.refresh();
                 }
             }
         });
         
-        com.dbtool.panels.NetworkScannerPanel networkScannerPanel = new com.dbtool.panels.NetworkScannerPanel();
-        // Network Scanner tab is hidden by default
+        // Network Scanner tab is hidden by default (available in More menu)
 
         // Main layout: Schema sidebar left, tabs center
         queryLogPanel = new com.dbtool.panels.QueryLogPanel();
@@ -1105,48 +1356,32 @@ public class Main extends JFrame {
         mainSplit.setResizeWeight(0.0);
         add(mainSplit, BorderLayout.CENTER);
 
-        JButton toggleSidebarBtn = new JButton("\u2630");
-        toggleSidebarBtn.setToolTipText("Toggle Sidebar");
-        toggleSidebarBtn.addActionListener(e -> {
-            if (mainSplit.getDividerLocation() <= 10) {
-                mainSplit.setDividerLocation(230);
-            } else {
-                mainSplit.setDividerLocation(0);
-            }
-        });
-        topPanel.add(toggleSidebarBtn, 0); // Add to extreme left
-
-        toggleQueryLogBtn = new JButton("\u2630");
-        toggleQueryLogBtn.setToolTipText("Toggle Global Query Log (Show / Minimize)");
-        toggleQueryLogBtn.addActionListener(e -> toggleQueryLog());
-        topPanel.add(toggleQueryLogBtn, 1); // Add right next to sidebar toggle
-        
-        JToggleButton adminToolsBtn = new JToggleButton("Admin Tools");
-        adminToolsBtn.setToolTipText("Show/Hide Network Scanner (Requires Password)");
-        adminToolsBtn.addActionListener(e -> {
-            if (adminToolsBtn.isSelected()) {
-                JPasswordField pf = new JPasswordField();
-                int okCxl = JOptionPane.showConfirmDialog(null, pf, "Enter Admin Password", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-                if (okCxl == JOptionPane.OK_OPTION) {
-                    String password = new String(pf.getPassword());
-                    if ("admin".equals(password)) {
-                        tabbedPane.addTab("Network Scanner", networkScannerPanel);
-                        tabbedPane.setSelectedComponent(networkScannerPanel);
-                    } else {
-                        JOptionPane.showMessageDialog(null, "Incorrect password!", "Access Denied", JOptionPane.ERROR_MESSAGE);
-                        adminToolsBtn.setSelected(false);
-                    }
+        // Hook up sidebar toggle from top header and Ctrl+B shortcut
+        if (toggleSidebarBtn != null) {
+            toggleSidebarBtn.addActionListener(e -> {
+                if (mainSplit.getDividerLocation() <= 10) {
+                    mainSplit.setDividerLocation(230);
                 } else {
-                    adminToolsBtn.setSelected(false);
+                    mainSplit.setDividerLocation(0);
                 }
-            } else {
-                tabbedPane.remove(networkScannerPanel);
-            }
-        });
-        topPanel.add(adminToolsBtn);
+            });
+        }
+        getRootPane().registerKeyboardAction(e -> {
+            if (toggleSidebarBtn != null) toggleSidebarBtn.doClick();
+        }, KeyStroke.getKeyStroke(KeyEvent.VK_B, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()), JComponent.WHEN_IN_FOCUSED_WINDOW);
+
+        toggleQueryLogBtn = new JButton("📜 Log");
+        toggleQueryLogBtn.addActionListener(e -> toggleQueryLog());
 
         // Auto-Save Indicator Button
         autoSaveIndicatorBtn.setToolTipText("Auto-Save & Workspace Snapshots (Click for recovery & snapshot options)");
+        autoSaveIndicatorBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 10.5f));
+        autoSaveIndicatorBtn.putClientProperty("JButton.buttonType", "toolBarButton");
+        autoSaveIndicatorBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        autoSaveIndicatorBtn.setFocusPainted(false);
+        autoSaveIndicatorBtn.setContentAreaFilled(false);
+        autoSaveIndicatorBtn.setBorderPainted(false);
+        autoSaveIndicatorBtn.setMargin(new Insets(1, 4, 1, 4));
         autoSaveIndicatorBtn.addActionListener(e -> {
             JPopupMenu menu = new JPopupMenu();
 
@@ -1267,7 +1502,25 @@ public class Main extends JFrame {
 
             menu.show(autoSaveIndicatorBtn, 0, autoSaveIndicatorBtn.getHeight());
         });
-        topPanel.add(autoSaveIndicatorBtn);
+        statusBar.addRightComponent(autoSaveIndicatorBtn);
+
+        // Status Bar
+        add(statusBar, BorderLayout.SOUTH);
+        statusBar.setOnQueryLogToggle(this::toggleQueryLog);
+        statusBar.setOnAutoCommitToggle(ac -> {
+            try {
+                if (dbManager.connection != null && !dbManager.connection.isClosed()) {
+                    dbManager.connection.setAutoCommit(ac);
+                    com.dbtool.ui.components.NotificationToast.show(this, "Auto-Commit: " + (ac ? "ON" : "OFF"), com.dbtool.ui.components.NotificationToast.Type.INFO);
+                }
+            } catch (Exception ex) {
+                com.dbtool.ui.components.NotificationToast.show(this, "Auto-Commit error: " + ex.getMessage(), com.dbtool.ui.components.NotificationToast.Type.ERROR);
+            }
+        });
+        statusBar.setOnZoomChange(() -> {
+            com.dbtool.util.ThemeManager.showThemePopupMenu(statusBar, statusBar);
+        });
+        updateConnectionPill();
 
         // Crash Recovery Check on Startup
         if (com.dbtool.util.SessionRecoveryManager.hasCrashedSession()) {
@@ -2090,20 +2343,23 @@ public class Main extends JFrame {
         seedSampleBtn.setVisible(false);
         disconnectDbButton.setVisible(false);
         exportDbBtn.setVisible(false);
+        updateConnectionPill();
     }
 
 
 
 
     private void populateTablesUI() {
-        loadDbButton.setEnabled(false);
-        loadDbButton.setVisible(false);
-        connectExistingBtn.setEnabled(false);
-        connectExistingBtn.setVisible(false);
-        sandboxBtn.setVisible(false);
+        loadDbButton.setEnabled(true);
+        loadDbButton.setVisible(true);
+        connectExistingBtn.setEnabled(true);
+        connectExistingBtn.setVisible(true);
+        sandboxBtn.setEnabled(true);
+        sandboxBtn.setVisible(true);
         seedSampleBtn.setVisible(true);
         disconnectDbButton.setVisible(true);
         exportDbBtn.setVisible(true);
+        updateConnectionPill();
         loadedTables = dbManager.getTableNames();
         if (browseTabContainer != null) {
             for (BrowseTab tab : browseTabContainer.getTabs()) {
@@ -4004,6 +4260,8 @@ public class Main extends JFrame {
     public static void main(String[] args) {
         setLinuxAppId();
         setWindowsAppUserModelID();
+        JFrame.setDefaultLookAndFeelDecorated(true);
+        JDialog.setDefaultLookAndFeelDecorated(true);
         com.dbtool.util.ThemeManager.init(null);
         SwingUtilities.invokeLater(() -> {
             com.dbtool.ui.SplashScreen splash = new com.dbtool.ui.SplashScreen(() -> {

@@ -26,9 +26,11 @@ public class ActivityMonitorPanel extends JPanel {
         toolbar.setFloatable(false);
         toolbar.setLayout(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
         JButton refreshBtn = new JButton("Refresh Now");
+        refreshBtn.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.REFRESH, 13));
         autoRefreshCheck = new JCheckBox("Auto-Refresh (10s)", false);
         killBtn = new JButton("Kill Selected Process");
-        killBtn.setForeground(Color.RED);
+        killBtn.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.STOP, 13));
+        killBtn.setForeground(com.dbtool.util.ThemeManager.getErrorColor());
         killBtn.setEnabled(false);
         statusLabel = new JLabel(" Ready");
 

@@ -88,20 +88,22 @@ import java.util.List;
 
             JButton runBrowseTopBtn = new JButton("▶ Run Query");
             runBrowseTopBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
-            runBrowseTopBtn.setForeground(new Color(0, 150, 0));
+            runBrowseTopBtn.setForeground(com.dbtool.util.ThemeManager.getSuccessColor());
+            runBrowseTopBtn.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.RUN, 13));
             runBrowseTopBtn.setToolTipText("Execute query for selected table (Ctrl+Enter / F5)");
             runBrowseTopBtn.addActionListener(e -> loadTableData());
             tbSelect.add(runBrowseTopBtn);
             
-            tbSelect.add(new JLabel(" | "));
+            tbSelect.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
             selectColsButton.addActionListener(e -> openColumnSelector());
             tbSelect.add(selectColsButton);
             
-            tbSelect.add(new JLabel(" |  Limit: "));
+            tbSelect.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
+            tbSelect.add(new JLabel(" Limit: "));
             limitField.setPreferredSize(new Dimension(60, 26));
             tbSelect.add(limitField);
 
-            tbSelect.add(new JLabel(" | "));
+            tbSelect.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
             JToggleButton compactBuilderBtn = new JToggleButton("▲ Compact Grid");
             compactBuilderBtn.setToolTipText("Collapse secondary query builder toolbars to maximize data grid space");
             tbSelect.add(compactBuilderBtn);
@@ -124,11 +126,12 @@ import java.util.List;
 
             JButton applyOrderBtn = new JButton("▶ Run Query");
             applyOrderBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
-            applyOrderBtn.setForeground(new java.awt.Color(0, 150, 0));
+            applyOrderBtn.setForeground(com.dbtool.util.ThemeManager.getSuccessColor());
+            applyOrderBtn.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.RUN, 13));
             applyOrderBtn.setToolTipText("Execute query (Ctrl+Enter / F5)");
             applyOrderBtn.addActionListener(e -> loadTableData());
             tbQuery.add(applyOrderBtn);
-            tbQuery.add(new JLabel(" | "));
+            tbQuery.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
 
             JButton addWhereBtn = new JButton("+ Add Where");
             addWhereBtn.addActionListener(e -> addBrowseWhereRow());
@@ -164,9 +167,9 @@ import java.util.List;
             tbAdvanced.add(browseSampleDropdown);
             browseLockDropdown.setToolTipText("Row-level locking clause (FOR UPDATE, SKIP LOCKED)");
             tbAdvanced.add(browseLockDropdown);
-            tbAdvanced.add(new JLabel(" | "));
+            tbAdvanced.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
             tbAdvanced.add(browseDistinctCheckbox);
-            tbAdvanced.add(new JLabel(" | "));
+            tbAdvanced.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
 
             JButton aggregatesBtn = new JButton("📊 Aggregates Dialog");
             aggregatesBtn.setToolTipText("Open full-table aggregate metrics & grouping dialog");
@@ -195,7 +198,7 @@ import java.util.List;
             tbRecordActions.add(updateRowBtn);
             tbRecordActions.add(deleteRowBtn);
             tbRecordActions.add(cascadeDeleteBtn);
-            tbRecordActions.add(new JLabel(" | "));
+            tbRecordActions.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
 
             JButton importDataBtn = new JButton("📥 Import Data");
             JButton mockDataBtn = new JButton("🧪 Mock Data");
@@ -213,7 +216,7 @@ import java.util.List;
             tbRecordActions.add(mockDataBtn);
             tbRecordActions.add(codeGenBtn);
             tbRecordActions.add(indexAdvisorBtn);
-            tbRecordActions.add(new JLabel(" | "));
+            tbRecordActions.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
             
             JCheckBox autoCommitCheck = new JCheckBox("Auto-Commit", true);
             JButton commitBtn = new JButton("Commit");
@@ -316,13 +319,13 @@ import java.util.List;
             tbDataTools.add(exportXlsxBtn);
             tbDataTools.add(exportPdfBtn);
             tbDataTools.add(exportInsertBtn);
-            tbDataTools.add(new JLabel(" | "));
+            tbDataTools.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
             tbDataTools.add(chartBtn);
-            tbDataTools.add(new JLabel(" | "));
+            tbDataTools.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
             tbDataTools.add(copyBtn);
             tbDataTools.add(copySqlBtn);
             tbDataTools.add(openInSqlBtn);
-            tbDataTools.add(new JLabel(" | "));
+            tbDataTools.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
 
             JButton templatesBtn = new JButton("📝 SQL Templates ▾");
             templatesBtn.setToolTipText("Browse advanced SQL snippets & templates (LATERAL, Window frames, Recursive CTEs, Advisory locks, Indexes...)");
@@ -366,7 +369,7 @@ import java.util.List;
 
             tbDataTools.add(templatesBtn);
             tbDataTools.add(cheatSheetBtn);
-            tbDataTools.add(new JLabel(" | "));
+            tbDataTools.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
             tbDataTools.add(maskDataBtn);
             tbDataTools.add(profilerBtn);
     

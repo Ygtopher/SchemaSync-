@@ -151,9 +151,16 @@ public class SqlEditorPanel extends JPanel {
 
         // Toolbar
         JPanel toolbar = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
-        JButton runBtn = new JButton("▶ Run");
+        JButton runBtn = new JButton("Run");
+        runBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
+        runBtn.setForeground(com.dbtool.util.ThemeManager.getSuccessColor());
+        runBtn.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.RUN, 13));
         runBtn.setToolTipText("Run current statement or selection (Ctrl+Enter / F5)");
-        JButton runAllBtn = new JButton("▶▶ Run All");
+
+        JButton runAllBtn = new JButton("Run All");
+        runAllBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
+        runAllBtn.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
+        runAllBtn.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.RUN, 13));
         runAllBtn.setToolTipText("Run all statements in the editor (Ctrl+Shift+Enter)");
         JButton explainBtn = new JButton("⚡ Explain");
         JButton dryRunBtn = new JButton("🛡️ Dry-Run");
@@ -270,27 +277,30 @@ public class SqlEditorPanel extends JPanel {
 
         toolbar.add(runBtn);
         toolbar.add(runAllBtn);
+        toolbar.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
         toolbar.add(explainBtn);
         toolbar.add(dryRunBtn);
         toolbar.add(lintBtn);
+        toolbar.add(profilerBtn);
+        toolbar.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
         toolbar.add(formatBtn);
         toolbar.add(expandStarBtn);
-        toolbar.add(profilerBtn);
         toolbar.add(toJoinBtn);
         toolbar.add(snippetsBtn);
+        toolbar.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
         toolbar.add(sandboxBtn);
         toolbar.add(seedBtn);
         toolbar.add(clearBtn);
-        toolbar.add(new JSeparator(SwingConstants.VERTICAL));
+        toolbar.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
         toolbar.add(autoCommitCheck);
         toolbar.add(commitBtn);
         toolbar.add(rollbackBtn);
-        toolbar.add(new JSeparator(SwingConstants.VERTICAL));
+        toolbar.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
         toolbar.add(saveQueryBtn);
         toolbar.add(savedQueriesDropdown);
         toolbar.add(loadQueryBtn);
         toolbar.add(loadSqlFileBtn);
-        toolbar.add(new JSeparator(SwingConstants.VERTICAL));
+        toolbar.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
         toolbar.add(exportCsvBtn);
         toolbar.add(exportPdfBtn);
         toolbar.add(exportXlsxBtn);

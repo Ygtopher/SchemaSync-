@@ -23,6 +23,8 @@ public class ThemeManager {
 
     public enum ThemePreset {
         MIDNIGHT_BLUE("🌌 Midnight Blue (Dark)", true, new Color(56, 189, 248), new Color(18, 22, 31), new Color(24, 30, 42), new Color(38, 48, 64)),
+        TOKYO_NIGHT("🌃 Tokyo Night (Dark)", true, new Color(122, 162, 247), new Color(26, 27, 38), new Color(36, 40, 59), new Color(47, 53, 76)),
+        DRACULA("🧛 Dracula Studio (Dark)", true, new Color(189, 147, 249), new Color(40, 42, 54), new Color(52, 55, 70), new Color(68, 71, 90)),
         EMERALD_DARK("🌲 Emerald Studio (Dark)", true, new Color(52, 211, 153), new Color(17, 24, 21), new Color(23, 33, 29), new Color(30, 44, 38)),
         OBSIDIAN_SLATE("🌑 Obsidian Slate (Dark)", true, new Color(129, 140, 248), new Color(20, 20, 24), new Color(28, 28, 34), new Color(40, 40, 50)),
         CYBER_PURPLE("🔮 Cyber Amethyst (Dark)", true, new Color(192, 132, 252), new Color(22, 18, 30), new Color(30, 25, 42), new Color(45, 36, 60)),
@@ -124,6 +126,10 @@ public class ThemeManager {
         return isDarkMode ? new Color(248, 113, 113) : new Color(220, 38, 38);
     }
 
+    public static Color getErrorColor() {
+        return getDangerColor();
+    }
+
     public static Color getMutedTextColor() {
         return isDarkMode ? new Color(156, 163, 175) : new Color(107, 114, 128);
     }
@@ -155,7 +161,7 @@ public class ThemeManager {
         return isDarkMode ? new Color(45, 58, 78) : new Color(226, 238, 255);
     }
 
-    public static void toggleTheme(JButton toggleButton) {
+    public static void toggleTheme(Component toggleButton) {
         if (isDarkMode) {
             setPreset(ThemePreset.SOLAR_LIGHT, toggleButton);
         } else {
@@ -163,19 +169,19 @@ public class ThemeManager {
         }
     }
 
-    public static void setPreset(ThemePreset preset, JButton toggleButton) {
+    public static void setPreset(ThemePreset preset, Component toggleButton) {
         if (preset == null) return;
         currentPreset = preset;
         isDarkMode = preset.isDark();
         applyTheme(toggleButton);
     }
 
-    public static void setUiScaleFactor(float scaleFactor, JButton toggleButton) {
+    public static void setUiScaleFactor(float scaleFactor, Component toggleButton) {
         uiScaleFactor = Math.max(0.85f, Math.min(1.35f, scaleFactor));
         applyTheme(toggleButton);
     }
 
-    public static void showThemePopupMenu(Component invoker, JButton toggleButton) {
+    public static void showThemePopupMenu(Component invoker, Component toggleButton) {
         JPopupMenu menu = new JPopupMenu();
         JMenuItem header = new JMenuItem("🎨 Appearance & Accent Theme");
         header.setEnabled(false);
@@ -208,11 +214,11 @@ public class ThemeManager {
         menu.show(invoker, 0, invoker.getHeight());
     }
 
-    public static void init(JButton toggleButton) {
+    public static void init(Component toggleButton) {
         applyTheme(toggleButton);
     }
 
-    private static void applyTheme(JButton toggleButton) {
+    private static void applyTheme(Component toggleButton) {
         try {
             if (isDarkMode) {
                 UIManager.setLookAndFeel(new FlatMacDarkLaf());
@@ -220,14 +226,14 @@ public class ThemeManager {
                 UIManager.put("ScrollBar.hoverThumb", new ColorUIResource(new Color(140, 155, 180)));
                 UIManager.put("ScrollBar.pressedThumb", new ColorUIResource(currentPreset.getAccentColor()));
                 UIManager.put("ScrollBar.track", new ColorUIResource(new Color(22, 25, 32)));
-                if (toggleButton != null) toggleButton.setText("🎨 Theme ▾");
+                if (toggleButton instanceof AbstractButton ab) ab.setText("🎨 Theme ▾");
             } else {
                 UIManager.setLookAndFeel(new FlatMacLightLaf());
                 UIManager.put("ScrollBar.thumb", new ColorUIResource(new Color(165, 175, 190)));
                 UIManager.put("ScrollBar.hoverThumb", new ColorUIResource(new Color(115, 125, 145)));
                 UIManager.put("ScrollBar.pressedThumb", new ColorUIResource(currentPreset.getAccentColor()));
                 UIManager.put("ScrollBar.track", new ColorUIResource(new Color(245, 247, 250)));
-                if (toggleButton != null) toggleButton.setText("🎨 Theme ▾");
+                if (toggleButton instanceof AbstractButton ab) ab.setText("🎨 Theme ▾");
             }
 
             // Sleek modern borderless pill scrollbars (8px, no clunky arrow buttons)
@@ -246,13 +252,29 @@ public class ThemeManager {
 
             // Modern rounded corners for buttons, inputs, and tabs
             UIManager.put("Button.arc", 8);
+            UIManager.put("Button.margin", new Insets(4, 12, 4, 12));
             UIManager.put("Component.arc", 8);
             UIManager.put("TextComponent.arc", 8);
+            UIManager.put("TextComponent.margin", new Insets(3, 8, 3, 8));
             UIManager.put("CheckBox.arc", 5);
-            UIManager.put("TabbedPane.tabArc", 8);
-            UIManager.put("TabbedPane.cardTabArc", 8);
-            UIManager.put("TabbedPane.selectedBackground", new ColorUIResource(isDarkMode ? new Color(36, 44, 62) : new Color(232, 242, 255)));
+
+            // TabbedPane modern polish (VS Code / DataGrip styling)
+            UIManager.put("TabbedPane.tabArc", 6);
+            UIManager.put("TabbedPane.cardTabArc", 6);
+            UIManager.put("TabbedPane.tabHeight", Math.round(35 * uiScaleFactor));
+            UIManager.put("TabbedPane.tabInsets", new Insets(6, 12, 6, 12));
+            UIManager.put("TabbedPane.showTabSeparators", true);
+            UIManager.put("TabbedPane.hasFullBorder", false);
+            UIManager.put("TabbedPane.underlineColor", new ColorUIResource(currentPreset.getAccentColor()));
+            UIManager.put("TabbedPane.underlineHeight", 2);
+            UIManager.put("TabbedPane.hoverColor", new ColorUIResource(isDarkMode ? new Color(255, 255, 255, 12) : new Color(0, 0, 0, 10)));
+            UIManager.put("TabbedPane.selectedBackground", new ColorUIResource(isDarkMode ? new Color(34, 43, 62) : new Color(224, 238, 255)));
             UIManager.put("Component.focusColor", new ColorUIResource(currentPreset.getAccentColor()));
+
+            // Unified Windows 10/11 title pane
+            UIManager.put("TitlePane.unifiedBackground", true);
+            UIManager.put("MenuItem.selectionBackground", new ColorUIResource(currentPreset.getAccentColor()));
+            UIManager.put("MenuItem.selectionForeground", new ColorUIResource(Color.WHITE));
 
             // TablePlus-style table polish (MUST use ColorUIResource so Swing updates existing JTables on theme switch!)
             ColorUIResource tableBg = new ColorUIResource(currentPreset.getTableBg());
@@ -291,6 +313,7 @@ public class ThemeManager {
             UIManager.put("ComboBox.showPopupOnNavigation", false);
 
             FlatLaf.updateUI();
+            com.dbtool.ui.components.UiIconFactory.clearCache();
 
             for (ThemeChangeListener l : listeners) {
                 try {
@@ -371,6 +394,18 @@ public class ThemeManager {
         Font base = UIManager.getFont("defaultFont");
         String family = base != null ? base.getFamily() : "Segoe UI";
         return FontUtils.getCompositeFont(family, style, scaled);
+    }
+
+    public static Font getUiFont(int style, float size) {
+        return getUiFont(style, Math.round(size));
+    }
+
+    public static JSeparator createToolbarSeparator() {
+        JSeparator sep = new JSeparator(JSeparator.VERTICAL);
+        sep.setPreferredSize(new Dimension(1, 18));
+        sep.setMaximumSize(new Dimension(1, 22));
+        sep.setForeground(new Color(100, 116, 139, 90));
+        return sep;
     }
 
     private static void applyFontScaling() {

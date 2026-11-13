@@ -67,12 +67,13 @@ import java.util.List;
 
             JButton runJoinTopBtn = new JButton("▶ Run Query");
             runJoinTopBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
-            runJoinTopBtn.setForeground(new Color(0, 150, 0));
+            runJoinTopBtn.setForeground(com.dbtool.util.ThemeManager.getSuccessColor());
+            runJoinTopBtn.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.RUN, 13));
             runJoinTopBtn.setToolTipText("Execute the Visual Join query (or press Ctrl+Enter / F5)");
             runJoinTopBtn.addActionListener(e -> executeVisualJoin());
             tbBase.add(runJoinTopBtn);
 
-            tbBase.add(new JLabel(" | "));
+            tbBase.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
             JButton addTableBtn = new JButton("+ Table");
             addTableBtn.addActionListener(e -> {
                 ImplicitTablePanel itp = new ImplicitTablePanel();
@@ -90,7 +91,7 @@ import java.util.List;
             addWhereBtn.addActionListener(e -> addWhereRow());
             tbBase.add(addWhereBtn);
 
-            tbBase.add(new JLabel(" | "));
+            tbBase.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
             JToggleButton compactJoinBuilderBtn = new JToggleButton("▲ Compact Grid");
             compactJoinBuilderBtn.setToolTipText("Collapse join builder clauses and toolbars to maximize result table space");
             tbBase.add(compactJoinBuilderBtn);
@@ -142,11 +143,12 @@ import java.util.List;
 
             JButton runJoinBtn = new JButton("▶ Run Query");
             runJoinBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
-            runJoinBtn.setForeground(new Color(0, 150, 0));
+            runJoinBtn.setForeground(com.dbtool.util.ThemeManager.getSuccessColor());
+            runJoinBtn.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.RUN, 13));
             runJoinBtn.setToolTipText("Execute the Visual Join query (Ctrl+Enter / F5)");
             runJoinBtn.addActionListener(e -> executeVisualJoin());
             tbRun.add(runJoinBtn);
-            tbRun.add(new JLabel(" | "));
+            tbRun.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
 
             joinSelectColsButton.addActionListener(e -> openJoinColumnSelector());
             tbRun.add(joinSelectColsButton);
@@ -155,7 +157,7 @@ import java.util.List;
             joinLimitField.setPreferredSize(new Dimension(60, 26));
             tbRun.add(joinLimitField);
             tbRun.add(joinDistinctCheckbox);
-            tbRun.add(new JLabel(" | "));
+            tbRun.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
 
             JButton addJoinAggBtn = new JButton("+ Add Aggregate");
             addJoinAggBtn.setToolTipText("Add dynamic aggregate row (COUNT, SUM, AVG, MIN, MAX) to joined tables");
@@ -190,7 +192,7 @@ import java.util.List;
             tbClauses.add(joinSampleDropdown);
             joinLockDropdown.setToolTipText("Row-level locking clause (FOR UPDATE, SKIP LOCKED)");
             tbClauses.add(joinLockDropdown);
-            tbClauses.add(new JLabel(" | "));
+            tbClauses.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
 
             JButton joinAggregatesBtn = new JButton("📊 Aggregates Dialog");
             joinAggregatesBtn.setToolTipText("Open full join aggregate metrics & grouping dialog");
@@ -201,7 +203,7 @@ import java.util.List;
             explainJoinBtn.setToolTipText("Inspect join execution plan (EXPLAIN, ANALYZE, BUFFERS)");
             explainJoinBtn.addActionListener(e -> mainFrame.showExplainMenu(explainJoinBtn, () -> buildCurrentJoinQuery()));
             tbClauses.add(explainJoinBtn);
-            tbClauses.add(new JLabel(" | "));
+            tbClauses.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
 
             JButton saveJoinBtn = new JButton("💾 Save Project");
             JButton loadJoinBtn = new JButton("📂 Load Project");
