@@ -1,6 +1,6 @@
 # Supported Databases & Dialect Matrix
 
-**Version:** 1.7.3  
+**Version:** 2.0.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -8,7 +8,7 @@
 
 ## Engine Support Matrix
 
-SchemaSync provides first-class support for the following relational databases:
+SchemaSync v2.0.0 provides first-class support for the following relational databases, plus an extensible `DatabaseDialect` SPI and dynamic JDBC driver loading for arbitrary engines:
 
 | Database Engine | Driver Class | Default Port | Storage Type | Minimum Engine Version |
 | :--- | :--- | :--- | :--- | :--- |
@@ -17,6 +17,7 @@ SchemaSync provides first-class support for the following relational databases:
 | **SQLite** | `org.sqlite.JDBC` | N/A | Local File (`.db`, `.sqlite`) | SQLite 3.x |
 | **Microsoft Access** | `net.ucanaccess.jdbc.UcanaccessDriver` | N/A | Local File (`.accdb`, `.mdb`) | Access 2000, 2003, 2007, 2010, 2016, 365 |
 | **H2 Database (Sandbox)** | `org.h2.Driver` | N/A | In-Memory / File | H2 2.2.x |
+| **Custom JDBC Drivers** | Dynamic (`DriverShim`) | Any | Any | Any compliant JDBC 4.2+ driver |
 
 ---
 

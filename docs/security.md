@@ -1,30 +1,43 @@
 # SchemaSync Security & Cryptography Guide
 
-**Version:** 1.7.3  
+**Version:** 2.0.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
 ---
 
-## 1. Enterprise Credential Vault Architecture
+## 1. Enterprise Credential Vault Architecture (Vault V2)
 
-SchemaSync provides an integrated, zero-knowledge credential vault designed to safeguard sensitive database connection strings, usernames, and passwords against unauthorized access and disk inspection.
+SchemaSync v2.0.0 provides a dual-layer zero-knowledge credential vault designed to safeguard sensitive database connection strings, usernames, and passwords:
+
+1. **OS Keyring Integration (`SecretStore.java`):**
+   - **Windows:** Native DPAPI (Data Protection API) hardware/user-bound encryption via JNA (`CryptProtectData` / `CryptUnprotectData`).
+   - **macOS:** Native Keychain Services integration via `/usr/bin/security`.
+   - **Linux:** Freedesktop Secret Service API via `secret-tool`.
+2. **AES-256-GCM Authenticated Encryption (`CryptoUtil.java`):**
+   - High-iteration PBKDF2-HMAC-SHA256 key derivation (100,000 rounds).
+   - 96-bit unique IV generated per encryption event.
+   - 128-bit GCM authentication tag guaranteeing tamper evidence.
+   - **Fail-Closed Decryption:** Corrupted or tampered ciphertexts immediately throw explicit exceptions without leaking plaintext or falling back to unencrypted text.
 
 ```mermaid
 sequenceDiagram
     participant User as Developer / DBA
-    participant Memory as JVM Memory (char[] wipe)
+    participant OS as OS Keyring (DPAPI / Keychain / Secret-Tool)
     participant KDF as PBKDF2-HMAC-SHA256
     participant Cipher as AES-256-GCM
-    participant Disk as Encrypted File (.vault)
+    participant Disk as Encrypted File (.vault / profiles.v2.json)
 
-    User->>Memory: Enters Master Password
-    Memory->>KDF: 100,000 Iterations + SecureRandom Salt
-    KDF->>Cipher: 256-bit Derived Symmetric Key
-    Cipher->>Disk: Authenticated Decryption (128-bit Tag Check)
-    Disk-->>Memory: Plaintext Connection Profiles
-    Memory-->>User: Profiles Loaded into Memory
-    Note over Memory: char[] wiped immediately with 0x00
+    alt OS Keyring Available
+        OS->>Disk: Hardware/User-Bound Cryptographic Read
+        Disk-->>User: Profiles Loaded Seamlessly
+    else Master Password Fallback
+        User->>KDF: Master Password + Salt (100k rounds)
+        KDF->>Cipher: 256-bit Derived Symmetric Key
+        Cipher->>Disk: Authenticated Decryption (128-bit Tag Check)
+        Disk-->>User: Profiles Loaded into Memory
+    end
+    Note over User: char[] password buffers wiped immediately with 0x00
 ```
 
 ### Cryptographic Specifications
@@ -94,3 +107,12 @@ When analyzing production databases, dumping data for testing, or sharing query 
 * **Parameterized Queries:** All user-supplied filters and primary key updates in the Browse and Data Operations panels use `PreparedStatement` with typed parameter binding (`setInt`, `setString`, `setTimestamp`), completely eliminating SQL injection risks.
 * **Identifier Sanitization:** Table and column names are programmatically escaped according to engine-specific quoting rules (double quotes `"` for PostgreSQL/SQLite/H2, backticks `` ` `` for MySQL, square brackets `[]` for MS Access).
 * **Accidental Data Loss Protection:** Destructive actions (`DROP TABLE`, `TRUNCATE`, `DELETE` without `WHERE`) require explicit secondary confirmation dialogs detailing the target table and affected row estimates.
+
+---
+
+## 6. Cryptographically Verified Updates (`ReleaseVerifier.java`)
+
+To prevent supply-chain attacks and man-in-the-middle tampering during in-app auto-updates, SchemaSync v2.0.0 enforces dual-tier verification:
+
+1. **SHA-256 Checksum Validation:** Every downloaded asset is matched against the authoritative SHA-256 hash manifest published with the GitHub release.
+2. **ECDSA Digital Signatures:** Update packages are cryptographically signed with an Elliptic Curve Digital Signature Algorithm (ECDSA P-256) private key. `ReleaseVerifier` validates signatures using an embedded public key before initiating execution or restarting the application. Any signature mismatch or hash discrepancy halts the update and warns the user.

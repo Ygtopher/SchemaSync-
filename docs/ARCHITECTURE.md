@@ -1,6 +1,6 @@
 # SchemaSync System Architecture & Design
 
-**Version:** 1.7.3  
+**Version:** 2.0.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -8,70 +8,83 @@
 
 ## Architectural Overview
 
-SchemaSync is structured around a decoupled, thread-safe, modular desktop application architecture designed specifically for high-throughput database exploration and schema engineering without external web dependencies.
+SchemaSync v2.0.0 is structured as a modular, 3-module Maven reactor engineered for high-throughput database exploration, schema engineering, and CI/CD automation without external web runtime overhead:
+
+1. **`schemasync-core` (Headless Core Engine):** 100% headless library (zero `javax.swing.*` or `java.awt.*` imports). Encapsulates connection management, HikariCP pooling, cryptographic vaults, SQL parsing, AST analysis, schema reflection, keyset pagination, and the 2-phase chunked diff engine.
+2. **`schemasync-cli` (Automated CI/CD Utility):** Standalone headless CLI packaged as `schemasync-cli.jar` using Picocli 4.7.6. Executes schema diffs, drift checks, and exports in non-interactive pipelines.
+3. **`schemasync-ui` (Modern Desktop Studio):** Rich desktop client utilizing FlatLaf 3.4, MigLayout 11.3 responsive forms, JGraphX ERD canvas, and docking workbench panels.
 
 ```mermaid
 graph TD
-    subgraph UI_Layer ["Presentation Layer (Swing + FlatLaf)"]
+    subgraph UI_Layer ["Presentation Layer (schemasync-ui: Swing + FlatLaf + MigLayout)"]
         MainFrame["Main Application Window (JFrame)"]
-        Dashboard["Dashboard & Telemetry Panel"]
-        Browse["Multi-Tab Browse & Search Panel"]
-        JoinBuilder["Visual Join Builder & JSqlParser"]
-        ERDiagram["Interactive ER Diagram (JGraphX)"]
-        DataOps["Data Operations & DDL Workbench"]
-        SqlEditor["SQL Editor & Syntax Highlighter (RSyntaxTextArea)"]
-        ActivityMon["Activity Monitor & Live Profiler"]
-        DiffWorkbench["Table Compare & Schema Drift Studio"]
-        SecurityTools["Data Masking & AES-256-GCM Vault"]
-        SshPanel["SSH Terminal & SFTP Client (JSch)"]
+        Dashboard["DashboardPanel (Health & Telemetry)"]
+        BrowseTab["BrowseTabPanel & VisualJoinTabPanel"]
+        SqlEditor["SqlEditorPanel (RSyntaxTextArea)"]
+        ERDiagram["ErDiagramPanel (JGraphX)"]
+        DiffWorkbench["DualDatabaseComparePanel & DataCompareTabPanel"]
+        AiAssistant["AiAssistantTab (Pluggable LLM Chat)"]
+        SecurityTools["DataMaskingDialog & VaultDialog"]
+        SshPanel["SshSessionPanel (JediTerm + JSch)"]
     end
 
-    subgraph Service_Layer ["Service & Coordination Layer"]
-        DBManager["DatabaseManager (Connection Lifecycle & Metadata Cache)"]
-        ThemeMgr["ThemeManager (FlatLaf Dark/Light Styling)"]
-        VaultService["VaultManager (PBKDF2 + AES-GCM)"]
-        UpdateService["UpdateChecker & Self-Restart Engine"]
-        SessionSaver["SessionPersistence (Drafts & History)"]
+    subgraph CLI_Layer ["Automation Layer (schemasync-cli)"]
+        CliMain["SchemaSyncCli (Picocli Command Runner)"]
+        DiffCmd["DiffCommand (CLI Schema Comparison)"]
+        DriftCmd["DriftCheckCommand (CI Gate Verification)"]
+        ExportCmd["ExportCommand (Data Extract Pipeline)"]
     end
 
-    subgraph JDBC_Layer ["Database Abstraction & Driver Layer"]
-        PostgresDriver["PostgreSQL JDBC Driver (v42.7)"]
-        MySQLDriver["MySQL Connector/J (v8.3)"]
-        SQLiteDriver["SQLite JDBC Driver (v3.45)"]
-        UCanAccess["UCanAccess (MS Access .accdb Engine)"]
-        H2Driver["H2 In-Memory Embedded Database"]
+    subgraph Core_Layer ["Headless Core Engine (schemasync-core)"]
+        Coordinator["TaskCoordinator (Java 21 Virtual Threads)"]
+        EventBus["WorkspaceEventBus (Decoupled Pub/Sub)"]
+        PoolMgr["SessionPoolManager (HikariCP 5.1.0 + Leased File Sessions)"]
+        DiffEngine["ChunkedDataComparator & RowHasher (2-Phase Merkle SHA-256)"]
+        DialectRegistry["DialectRegistry (ServiceLoader DatabaseDialect SPI)"]
+        LlmRegistry["LlmProviderRegistry (Pluggable AI SPI)"]
+        VaultCore["SecretStore (OS Keyring DPAPI/Keychain) & ProfileStoreV2"]
+        PagedWindow["PagedResultWindow & VirtualResultTableModel"]
     end
 
-    subgraph Target_Engines ["Physical Storage & Servers"]
+    subgraph JDBC_Layer ["Database Abstraction & Driver SPI"]
+        PostgresDialect["PostgreSqlDialect + Postgres JDBC (42.7)"]
+        MySQLDialect["MySqlDialect + MySQL Connector/J (8.3)"]
+        SQLiteDialect["SqliteDialect + SQLite JDBC (3.45)"]
+        AccessDriver["UCanAccess (MS Access .accdb Engine)"]
+        H2Driver["H2 In-Memory Sandbox Engine"]
+        ExternalDrivers["DriverClassLoaderManager (Dynamic Custom JDBC Drivers)"]
+    end
+
+    subgraph Target_Engines ["Physical Storage & AI Endpoints"]
         RDBMS_PG["PostgreSQL Server"]
         RDBMS_MY["MySQL / MariaDB Server"]
         File_SQLITE["Local SQLite DB (.db / .sqlite)"]
         File_ACCESS["MS Access Files (.accdb / .mdb)"]
-        Mem_H2["In-Memory Sandbox Engine"]
-        Remote_SSH["Remote Linux Servers (SSH/SFTP)"]
+        AI_LLM["LLM Providers (Ollama, Gemini, OpenAI, Claude, OpenRouter)"]
     end
 
-    MainFrame --> UI_Layer
-    UI_Layer --> Service_Layer
-    Service_Layer --> DBManager
-    DBManager --> JDBC_Layer
+    UI_Layer --> Core_Layer
+    CLI_Layer --> Core_Layer
+    Core_Layer --> DialectRegistry
+    Core_Layer --> PoolMgr
+    DialectRegistry --> JDBC_Layer
     JDBC_Layer --> Target_Engines
+    LlmRegistry --> AI_LLM
 ```
 
 ---
 
 ## Key System Layers
 
-### 1. Presentation Layer (Swing + FlatLaf Modern Dark/Light)
-* **Single-Process Lightweight GUI:** Built entirely with native Java Swing, completely eliminating the heavyweight memory overhead of Electron or Chromium runtimes.
-* **Responsive Multi-Row Toolbars (`WrapLayout`):** Controls automatically wrap into clean vertical rows on smaller display resolutions and laptops, preventing toolbar clipping without requiring cumbersome submenus.
-* **Syntax Highlighting & Code Folding:** Powered by `RSyntaxTextArea` with customized dark SQL themes, keyword autocompletion, block bracket matching, and line numbering.
-* **Graph Visualization Engine:** Powered by `JGraphX` (mxGraph), providing GPU-accelerated canvas zooming, node panning, hierarchical tree layouts, and high-DPI export.
+### 1. Headless Core Architecture (`schemasync-core`)
+* **Strict Headless Isolation:** Completely free from UI toolkit dependencies, allowing seamless reuse across desktop UI, command-line interfaces, and background microservices.
+* **Concurrency with Java 21 Virtual Threads:** High-volume database queries and I/O tasks execute using lightweight Java 21 Virtual Threads via `TaskCoordinator.java`, eliminating thread pool starvation and scaling to thousands of concurrent operations.
+* **Deterministic Row Fingerprinting:** `CanonicalValueNormalizer` and `RowHasher` compute uniform 256-bit SHA-256 Merkle hashes across any supported database engine regardless of casing, timezone, or driver-specific object wrappers.
 
-### 2. Service & Business Logic Layer
-* **[`DatabaseManager.java`](file:///d:/projects/DBTOOL/src/main/java/com/dbtool/DatabaseManager.java):** The centralized nexus for all database interactions. Manages connection state, pooling, metadata discovery, query execution, and cache synchronization.
-* **Metadata & Column Cache:** Features thread-safe `ConcurrentHashMap` caches for schema table lists, column types, and foreign key graphs, drastically minimizing expensive round-trips to the database metadata catalogs during interactive querying.
-* **Query History & Draft Persistence:** Keystrokes in the SQL editor are debounced and persisted to `Documents/SchemaSyncSaves/sql_editor_draft.sql`, ensuring full crash recovery and seamless state restoration across sessions and app updates.
+### 2. High-Throughput Connection Management (`SessionPoolManager`)
+* **HikariCP 5.1.0 Server Pooling:** PostgreSQL and MySQL server connections use high-speed connection pools with validation timeouts, maximum lifetime management, and leak detection.
+* **Thread-Safe File Engine Lease Locks:** SQLite and MS Access use synchronized lease locks to eliminate file locking bugs and concurrency crashes while permitting concurrent UI operations.
+* **Dual Borrowing Semantics:** Short-lived queries borrow pooled connections with auto-close; transaction-controlled workbenches use `openPinnedSession()` to pin an unpooled connection for manual commit/rollback cycles.
 
 ### 3. Threading Model & UI Concurrency
 Database queries and network operations never block the Swing Event Dispatch Thread (EDT):
@@ -79,9 +92,9 @@ Database queries and network operations never block the Swing Event Dispatch Thr
 | Execution Type | Handler | Purpose |
 | :--- | :--- | :--- |
 | **GUI Events & Rendering** | **Event Dispatch Thread (EDT)** | Handles user clicks, repaints, modal dialogs, and table model updates. |
-| **SQL Query Execution** | **Background Worker Threads (`SwingWorker`)** | Long-running `SELECT`, `UPDATE`, or script executions run in isolated worker threads. |
-| **Telemetry & Health Polling** | **Scheduled Daemon Executors** | Periodic ping checks, connection keep-alives, and Activity Monitor queries run without UI stutter. |
-| **Background Metadata Preload** | **Asynchronous Background Threads** | Tables, column names, and foreign key relations are pre-cached in the background upon connection. |
+| **SQL Query & Diff Tasks** | **Java 21 Virtual Threads (`TaskCoordinator`)** | Long-running `SELECT`, chunked data diffs, or migrations execute on lightweight virtual threads. |
+| **Telemetry & Health Polling** | **Scheduled Virtual Thread Workers** | Periodic ping checks, connection keep-alives, and Activity Monitor queries run without UI stutter. |
+| **Decoupled System Events** | **`WorkspaceEventBus`** | Thread-safe pub/sub dispatching schema mutations, query metrics, and connection changes across workbench tabs. |
 
 ---
 

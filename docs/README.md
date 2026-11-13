@@ -1,6 +1,6 @@
 # SchemaSync Documentation Hub
 
-**Version:** 1.7.8  
+**Version:** 2.0.0  
 **Creator & Lead Architect:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -8,9 +8,9 @@
 
 ## Welcome to SchemaSync
 
-**SchemaSync** is an enterprise-grade, high-performance, lightweight database synchronization, management, and developer productivity studio built with **Java 11+ and modern FlatLaf UI**. 
+**SchemaSync** is an enterprise-grade, high-performance database synchronization, management, and developer productivity studio built with **Java 21 LTS, modular reactor architecture (`schemasync-core`, `schemasync-cli`, `schemasync-ui`), and modern FlatLaf UI**. 
 
-It provides seamless multi-engine connectivity across **PostgreSQL, MySQL, SQLite, Microsoft Access (.accdb / .mdb), and embedded H2**, delivering visual schema design, real-time query profiling, data anonymization, automated migrations, visual SQL charting, and full native cross-platform deployment on **Windows 11 (Smart App Control compliant), Ubuntu Desktop Linux (.deb), and Fedora Linux (.rpm)**.
+It provides seamless multi-engine connectivity across **PostgreSQL, MySQL, SQLite, Microsoft Access (.accdb / .mdb), embedded H2, and custom external JDBC drivers**, delivering visual schema design, high-throughput HikariCP pooling, 2-phase chunked SHA-256 diffing, pluggable AI SQL generation, real-time query profiling, data anonymization, automated migrations, visual SQL charting, a headless CLI, and full native cross-platform deployment on **Windows 11 (Smart App Control compliant + jpackage), Ubuntu Desktop Linux (.deb), and Fedora Linux (.rpm)**.
 
 ---
 
@@ -18,7 +18,7 @@ It provides seamless multi-engine connectivity across **PostgreSQL, MySQL, SQLit
 
 | Specification | Minimum Requirement | Recommended Requirement |
 | :--- | :--- | :--- |
-| **Java Runtime (JRE/JDK)** | Java 11 (LTS) | Java 21 (LTS) — Eclipse Temurin / Oracle |
+| **Java Runtime (JRE/JDK)** | Java 21 (LTS) | Java 21 (LTS) — Eclipse Temurin / Oracle (bundled in jpackage) |
 | **Operating System** | Windows 10/11 (64-bit), Ubuntu 20.04+, Fedora 38+ | Windows 11 (23H2+), Ubuntu 24.04 LTS, Fedora 44 |
 | **RAM** | 512 MB free RAM | 2 GB+ free RAM |
 | **Disk Space** | 150 MB for installation | 500 MB for local database caching & backups |

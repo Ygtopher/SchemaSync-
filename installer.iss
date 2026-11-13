@@ -1,5 +1,5 @@
 #define MyAppName "SchemaSync"
-#define MyAppVersion "1.8.1"
+#define MyAppVersion "2.0.0"
 #define MyAppPublisher "NSENGIYUMVA Christophe"
 #define MyAppURL "https://github.com/Ygtopher/SchemaSync-"
 #define MyAppExeName "SchemaSync.exe"
@@ -18,7 +18,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=release
 OutputBaseFilename=SchemaSync-Setup
-SetupIconFile=src\main\resources\icons\app.ico
+SetupIconFile=schemasync-ui\src\main\resources\icons\app.ico
 UninstallDisplayIcon={app}\app.ico
 UninstallDisplayName={#MyAppName}
 Compression=lzma2/max
@@ -36,7 +36,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "release\SchemaSync.jar"; DestDir: "{app}"; Flags: ignoreversion
-Source: "src\main\resources\icons\app.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "release\schemasync-cli.jar"; DestDir: "{app}"; Flags: ignoreversion
+Source: "schemasync-ui\src\main\resources\icons\app.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{code:GetJavaWExe}"; Parameters: "-Duser.timezone=UTC -jar ""{app}\SchemaSync.jar"""; WorkingDir: "{app}"; IconFilename: "{app}\app.ico"; AppUserModelID: "SchemaSync.DatabaseTool"
@@ -160,13 +161,13 @@ begin
   Result := 'javaw.exe';
 end;
 
-function IsJava11OrHigherInstalled(): Boolean;
+function IsJava21OrHigherInstalled(): Boolean;
 var
   ResultCode: Integer;
   CheckCmd: String;
 begin
   Result := False;
-  CheckCmd := '-ExecutionPolicy Bypass -Command "$v = & java -version 2>&1 | Out-String; if ($v -match ''version [\""'']?(\d+)'') { if ([int]$matches[1] -ge 11) { exit 0 } } elseif ($v -match ''version [\""'']?1\.(\d+)'') { if ([int]$matches[1] -ge 11) { exit 0 } }; exit 1"';
+  CheckCmd := '-ExecutionPolicy Bypass -Command "$v = & java -version 2>&1 | Out-String; if ($v -match ''version [\""'']?(\d+)'') { if ([int]$matches[1] -ge 21) { exit 0 } } elseif ($v -match ''version [\""'']?1\.(\d+)'') { if ([int]$matches[1] -ge 21) { exit 0 } }; exit 1"';
   if Exec('powershell.exe', CheckCmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
   begin
     Result := True;
@@ -189,10 +190,10 @@ begin
   Result := '';
   NeedsRestart := False;
 
-  if not IsJava11OrHigherInstalled() then
+  if not IsJava21OrHigherInstalled() then
   begin
-    if MsgBox('SchemaSync requires Java (version 11 or higher) to run.' + #13#10 + #13#10 +
-              'No compatible Java runtime was detected on this computer.' + #13#10 + #13#10 +
+    if MsgBox('SchemaSync v2.0.0 requires Java 21 LTS (or higher) to run.' + #13#10 + #13#10 +
+              'No compatible Java 21 runtime was detected on this computer.' + #13#10 + #13#10 +
               'Would you like Setup to automatically download and install Eclipse Temurin JRE 21 now?' + #13#10 +
               '(This runtime is digitally signed by Eclipse Foundation and fully trusted by Windows 11 Smart App Control)',
               mbConfirmation, MB_YESNO) = IDYES then
@@ -208,12 +209,12 @@ begin
       end
       else
       begin
-        MsgBox('Could not automatically download Java. Please download and install Java 11+ manually from https://adoptium.net', mbInformation, MB_OK);
+        MsgBox('Could not automatically download Java. Please download and install Java 21+ manually from https://adoptium.net', mbInformation, MB_OK);
       end;
     end
     else
     begin
-      MsgBox('Note: SchemaSync requires Java 11 or higher. You can install it manually anytime from https://adoptium.net', mbInformation, MB_OK);
+      MsgBox('Note: SchemaSync requires Java 21 or higher. You can install it manually anytime from https://adoptium.net', mbInformation, MB_OK);
     end;
   end;
 end;

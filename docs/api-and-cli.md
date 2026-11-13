@@ -1,14 +1,61 @@
 # Command-Line Interface (CLI) & Configuration Guide
 
-**Version:** 1.7.3  
+**Version:** 2.0.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
 ---
 
-## 1. CLI Usage & System Executables
+## 1. Dedicated Headless CLI (`schemasync-cli.jar`)
 
-SchemaSync can be launched directly from your system terminal or command prompt:
+SchemaSync v2.0.0 includes a dedicated, headless CLI tool built with Picocli 4.7.6 for automated CI/CD workflows and terminal operations:
+
+```bash
+java -jar release/schemasync-cli.jar [COMMAND] [OPTIONS]
+```
+
+### Supported Commands
+
+#### 1. `diff` (Schema Comparison)
+Compare structural schema definitions between two databases or saved profiles:
+```bash
+# Compare using saved connection profiles
+java -jar release/schemasync-cli.jar diff --source "production" --target "staging"
+
+# Compare using raw JDBC URLs
+java -jar release/schemasync-cli.jar diff \
+  --source "jdbc:postgresql://localhost:5432/prod_db" \
+  --target "jdbc:postgresql://localhost:5432/staging_db" \
+  --format json --output diff_report.json
+```
+
+#### 2. `drift-check` (CI/CD Schema Drift Gate)
+Verify that a live database matches an expected baseline snapshot or reference database. Exits with code `1` if schema drift is detected, failing pull requests automatically:
+```bash
+java -jar release/schemasync-cli.jar drift-check \
+  --source "production_profile" \
+  --target "migrations_baseline" \
+  --fail-on-drift
+```
+
+#### 3. `export` (Headless Data Export)
+Extract table rows directly into structured files without launching a graphical environment:
+```bash
+# Export table to CSV
+java -jar release/schemasync-cli.jar export --source "production" --table "orders" --format csv --output orders.csv
+
+# Export table to JSON array
+java -jar release/schemasync-cli.jar export --source "production" --table "users" --format json --output users.json
+
+# Export table to atomic SQL INSERT statements
+java -jar release/schemasync-cli.jar export --source "production" --table "config" --format sql --output config_seed.sql
+```
+
+---
+
+## 2. Desktop GUI Executables
+
+SchemaSync desktop can be launched directly from your system terminal or command prompt:
 
 ### Executable Command by Platform
 
@@ -17,7 +64,7 @@ SchemaSync can be launched directly from your system terminal or command prompt:
 | **Windows** | `SchemaSync.exe` or `javaw -jar SchemaSync.jar` | `%LOCALAPPDATA%\Programs\SchemaSync` |
 | **Ubuntu / Debian** | `schemasync` | `/usr/bin/schemasync` |
 | **Fedora / RHEL** | `schemasync` | `/usr/bin/schemasync` |
-| **Universal (All OS)** | `java -jar SchemaSync.jar` | Any local folder |
+| **Universal (All OS)** | `java -jar release/SchemaSync.jar` | Any local folder |
 
 ---
 

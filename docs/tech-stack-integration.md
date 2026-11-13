@@ -1,6 +1,6 @@
 # Technology Stack & System Integration Guide
 
-**Version:** 1.7.3  
+**Version:** 2.0.0  
 **Creator & Lead Architect:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -12,8 +12,11 @@ SchemaSync leverages a curated, high-performance ecosystem of proven enterprise 
 
 | Technology / Library | Version | Category | Primary Purpose in SchemaSync | Why This Over Alternatives? |
 | :--- | :---: | :--- | :--- | :--- |
-| **Java Platform (JDK)** | `11` (min)<br>`21` (opt) | Core Runtime | Base language, NIO streams, concurrency, process execution | Long-Term Support (LTS), zero runtime costs, native cross-platform byte-code execution. |
+| **Java Platform (JDK)** | `21` (LTS) | Core Runtime | Virtual Threads, Records, Pattern Matching, Sealed Types, Process execution | LTS release, lightweight virtual threads for high concurrency, zero web-runtime costs. |
+| **HikariCP** | `5.1.0` | Connection Pool | High-throughput JDBC connection pooling & pinned session management | Fastest connection pool in the Java ecosystem; zero-overhead byte-code optimized connection leasing. |
 | **FlatLaf** | `3.4` | UI Look & Feel | Modern Dark (`FlatMacDarkLaf`) & Light (`FlatMacLightLaf`) theme engine | Far superior to legacy Swing Metal/Nimbus; matches macOS and Windows 11 aesthetics with zero native code. |
+| **MigLayout** | `11.3` | Grid Layout Manager | Responsive form and multi-row toolbar grid layouts | Dynamic, constraint-based fluid layout engine preventing component clipping and layout misalignments. |
+| **Picocli** | `4.7.6` | CLI Framework | Command-line interface for `schemasync-cli` (`diff`, `drift-check`, `export`) | Lightweight, self-documenting command-line parser with zero dependencies. |
 | **JSqlParser** | `4.6` | SQL AST Engine | Parses, validates, and modifies SQL queries into Abstract Syntax Trees | Handles complex SQL grammar with ease; far more robust than error-prone regex string manipulation. |
 | **JGraphX (mxGraph)** | `4.2.2` | Graph Canvas | Interactive ER Diagram layout, zooming, vertex/edge rendering | High-performance 2D graph engine; allows real-time interactive drag, zoom, and dynamic topological layouts. |
 | **RSyntaxTextArea** | `3.4.0` | Code Editor | SQL query editor with syntax highlighting, bracket matching, folding | Industry-standard rich text component for Swing; includes dark themes, line numbering, and autocompletion. |
@@ -27,12 +30,13 @@ SchemaSync leverages a curated, high-performance ecosystem of proven enterprise 
 | **Jackson Databind** | `2.17.1` | JSON Engine | Schema drift snapshots, vault bundles, and GitHub Releases API | Fast, type-safe JSON serialization/deserialization for complex structural metadata trees. |
 | **JSch** | `0.2.16` | Remote Server | SSH port forwarding, SFTP file transfer, and remote terminal | Pure Java implementation of SSH2; supports modern ciphers, key types (RSA, ECDSA, Ed25519), and SFTP. |
 | **JediTerm** | `3.74` | Terminal UI | Pure Swing VT100 / Xterm terminal emulation | Renders a full interactive Linux shell terminal directly inside a Swing JPanel. |
-| **JNA (Java Native Access)**| `5.14.0` | OS Interop | Windows Taskbar pinning and AppUserModelID registration | Binds the Java window to `SchemaSync.DatabaseTool` in the Windows Shell without writing C/C++ DLLs. |
-| **Java Crypto (JCA)** | `JDK 11+` | Security | AES-256-GCM encryption and PBKDF2-HMAC-SHA256 key derivation | Built-in JVM cryptographic providers; hardware-accelerated via AES-NI instructions with zero external bloat. |
+| **JNA (Java Native Access)**| `5.14.0` | OS Interop | Windows Taskbar pinning, AppUserModelID, and DPAPI Keyring | CryptProtectData/CryptUnprotectData without native C/C++ DLL compilation. |
+| **Java Crypto (JCA)** | `JDK 21` | Security | AES-256-GCM encryption and PBKDF2-HMAC-SHA256 key derivation | Built-in JVM cryptographic providers; hardware-accelerated via AES-NI instructions with zero external bloat. |
 | **Inno Setup** | `6.7.3` | Windows Packaging | Creates `SchemaSync-Setup.exe` with signed JRE bootstrapping | Industry-standard Windows installer with high LZMA2 compression, start menu icons, and clean uninstallers. |
 | **Launch4j** | `2.5.1` | Windows Packaging | Generates native portable `SchemaSync.exe` wrapper | Provides native Windows executable headers, version resources, and custom application icons (`app.ico`). |
 | **Redline RPM** | `1.2.10` | Linux Packaging | Pure Java generator for Fedora 44 `.rpm` packages | Generates standard RPMs directly during Maven builds without requiring a Fedora host or native `rpmbuild`. |
 | **Apache Commons Compress** | `1.26.1` | Linux Packaging | Pure Java `.deb` package generation (`ar` and `tar.gz`) | Builds Debian packages on any operating system without requiring Debian host tools like `dpkg-deb`. |
+| **jpackage** | `JDK 21` | Native Packaging | Bundled self-contained OS app-images (`-Pjpackage`) | Eliminates external Java runtime requirements by bundling a tailored minimal modular JRE. |
 
 ---
 

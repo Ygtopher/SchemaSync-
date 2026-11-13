@@ -1,6 +1,6 @@
 # SchemaSync Codebase, Module & Function Map
 
-**Version:** 1.7.8  
+**Version:** 2.0.0  
 **Creator & Lead Architect:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -8,16 +8,18 @@
 
 ## 1. Architectural Map & Component Topology
 
-SchemaSync is organized into distinct, modular Java packages that enforce clean separation between presentation, state orchestration, database metadata reflection, SQL dialect abstraction, cryptography, and native packaging:
+SchemaSync v2.0.0 is organized across 3 decoupled Maven modules (`schemasync-core`, `schemasync-cli`, `schemasync-ui`) enforcing clean separation between headless logic, command-line automation, and presentation:
 
 ```mermaid
 graph TD
-    subgraph UI_Panels ["com.dbtool.panels (UI Panels & Dialogs)"]
+    subgraph UI_Panels ["schemasync-ui: com.dbtool.panels"]
         DashboardPanel["DashboardPanel"]
-        BrowseTab["Main$BrowseTab"]
-        VisualJoinTab["Main$VisualJoinTab"]
+        BrowseTab["BrowseTabPanel"]
+        VisualJoinTab["VisualJoinTabPanel"]
         SqlEditorPanel["SqlEditorPanel"]
         ErDiagramPanel["ErDiagramPanel"]
+        AiAssistantTab["AiAssistantTab"]
+        DriverManagerDialog["DriverManagerDialog"]
         SchemaDriftDialog["SchemaDriftDialog"]
         IndexAdvisorDialog["IndexAdvisorDialog"]
         DataMaskingDialog["DataMaskingDialog"]
@@ -28,7 +30,7 @@ graph TD
         DataImporterDialog["DataImporterDialog"]
         CascadeDeleteDialog["CascadeDeleteDialog"]
         OmniSearchDialog["OmniSearchDialog"]
-        SshTerminalPanel["SshTerminalPanel"]
+        SshTerminalPanel["SshSessionPanel"]
         TableComparePanel["TableComparePanel"]
         DualDatabaseComparePanel["DualDatabaseComparePanel"]
         ActivityMonitorPanel["ActivityMonitorPanel"]
@@ -36,26 +38,22 @@ graph TD
         DatabaseAuditorDialog["DatabaseAuditorDialog"]
     end
 
-    subgraph Core_Facade ["com.dbtool (Application Core & Facade)"]
-        Main["Main (Entry Point, Frame, Toolbar, TabbedPane)"]
-        DatabaseManager["DatabaseManager (Central Connection & JDBC Engine)"]
+    subgraph CLI_Module ["schemasync-cli: com.dbtool.cli"]
+        SchemaSyncCli["SchemaSyncCli (diff, drift-check, export)"]
     end
 
-    subgraph Core_Services ["com.dbtool.core (Engine & Dialects)"]
-        DialectRegistry["Dialect Registry (Postgres, MySQL, SQLite, Access, H2)"]
-        CatalogCache["Catalog Metadata Cache"]
-        DiffEngine["Schema & Data Diff Engines"]
-        Exporters["Exporters (Excel, CSV, PDF, JSON, SQL)"]
-        PsqlParser["ScriptRunner & PsqlMetaCommandParser"]
-    end
-
-    subgraph Utilities ["com.dbtool.util (Utilities & Infrastructure)"]
-        CryptoUtil["CryptoUtil (AES-256-GCM + PBKDF2)"]
-        ThemeManager["ThemeManager (FlatLaf Dark/Light Mode)"]
-        UpdateChecker["UpdateChecker (1-Click Updater & Restarter)"]
-        SessionRecovery["SessionRecoveryManager (Crash Recovery)"]
-        QueryLogger["QueryLogger (Latency Telemetry)"]
-        SqlSnippets["SqlSnippetsLibrary"]
+    subgraph Core_Engine ["schemasync-core: Headless Engine"]
+        TaskCoordinator["TaskCoordinator (Java 21 Virtual Threads)"]
+        WorkspaceEventBus["WorkspaceEventBus (Decoupled Pub/Sub)"]
+        SessionPoolManager["SessionPoolManager (HikariCP 5.1.0)"]
+        DialectRegistry["DialectRegistry (ServiceLoader SPI)"]
+        ChunkedDiff["ChunkedDataComparator & RowHasher (2-Phase Diff)"]
+        SecretStore["SecretStore (OS Keyring DPAPI/Keychain)"]
+        ProfileStoreV2["ProfileStoreV2 (profiles.v2.json)"]
+        ReleaseVerifier["ReleaseVerifier (ECDSA + SHA-256)"]
+        SqlSplitter["SqlStatementSplitter"]
+        LlmRegistry["LlmProviderRegistry (Ollama, Gemini, OpenAI, Claude, OpenRouter)"]
+        PagedWindow["PagedResultWindow & VirtualResultTableModel"]
     end
 
     subgraph Packaging ["com.dbtool.packaging (Native Linux Packaging)"]

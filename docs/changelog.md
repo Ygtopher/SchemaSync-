@@ -1,8 +1,47 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 1.8.4  
+**Current Version:** 2.0.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v2.0.0] - 2026-11-12
+### Major Architecture & Platform Redesign
+* **3-Module Maven Reactor Split:**
+  * Re-architected SchemaSync from a monolithic structure into a clean, decoupled 3-module reactor:
+    * `schemasync-core`: 100% headless engine (zero `javax.swing.*` or `java.awt.*` imports) containing models, crypto, connection management, SQL parsers, diff engines, and SPIs.
+    * `schemasync-cli`: Standalone, headless command-line utility powered by Picocli 4.7.6 (`diff`, `drift-check`, `export`) suitable for CI/CD pipelines.
+    * `schemasync-ui`: Rich desktop GUI powered by FlatLaf 3.4, MigLayout 11.3, and docking panels.
+* **Java 21 LTS Modernization & Virtual Threads:**
+  * Bumped `<source>`, `<target>`, and `<release>` across all modules to Java 21 LTS.
+  * Replaced heavyweight ThreadPools with `Executors.newVirtualThreadPerTaskExecutor()` in `TaskCoordinator` for high-concurrency database I/O.
+  * Modernized data models to Java 21 `record`s (`QueryExecutionMetric`, `DataTypeInfo`, `ConnectionChangedEvent`, `SchemaInvalidatedEvent`, `QueryExecutedEvent`, `TableMutatedEvent`).
+* **High-Throughput Connection Pooling (HikariCP 5.1.0):**
+  * Added `SessionPoolManager` delivering high-performance HikariCP connection pools for server databases (PostgreSQL, MySQL).
+  * Implemented synchronized lease locks for file-based engines (SQLite, MS Access) preventing file corruption while allowing multi-threaded UI access.
+  * Provided dual borrowing semantics: `borrowConnection()` for short pooled queries and `openPinnedSession()` for transaction-controlled workbenches.
+* **2-Phase Chunked & Canonical SHA-256 Hash Diff Engine:**
+  * Added `CanonicalValueNormalizer`, `CompositeKey`, and 256-bit `RowHasher` producing deterministic cryptographic row fingerprints.
+  * Built `ChunkedDataComparator` computing chunk-level Merkle hashes across keyspaces to instantly identify matching blocks and isolate dirty row ranges without full-table memory loading.
+  * Implemented `PagedResultWindow` (bounded 2,000-row LRU window) and `VirtualResultTableModel` for streaming keyset pagination.
+* **Pluggable Database Dialect & Custom JDBC Driver SPIs:**
+  * Extended `DatabaseDialect` interface with standard implementations (`PostgreSqlDialect`, `MySqlDialect`, `SqliteDialect`) loaded via Java's `ServiceLoader`.
+  * Implemented `DriverClassLoaderManager` and `DriverShim` for dynamic, on-the-fly loading of external JDBC drivers without restarting.
+  * Added interactive `DriverManagerDialog` with connection testing and dynamic registry updates.
+* **Pluggable Multi-Provider AI SQL Assistant:**
+  * Implemented `LlmProvider` SPI with out-of-the-box providers: Ollama (local private LLM), Google Gemini, OpenAI, Anthropic Claude, and OpenRouter.
+  * Added `AiKeyVault` for secure, encrypted API key storage.
+  * Added `SchemaContextBuilder` enforcing schema-only privacy (never sends table data or rows to external LLM providers).
+* **Enterprise Security Vault V2 & Cryptographic Update Verification:**
+  * Upgraded `SecretStore` with OS Keyring integration: Windows DPAPI via JNA, macOS Keychain via `/usr/bin/security`, and Linux Secret Service via `secret-tool`.
+  * Added AES-256-GCM authenticated encryption with fail-closed decryption semantics in `CryptoUtil` and `ProfileStoreV2`.
+  * Added `ReleaseVerifier` with SHA-256 checksum validation and ECDSA P-256 digital signature verification on GitHub Release artifacts.
+* **Responsive Layout Modernization (MigLayout 11.3):**
+  * Migrated toolbar and compare card layouts in `DualDatabaseComparePanel` and `DataCompareTabPanel` to fluid, responsive MigLayout constraints.
+* **Binary Untracking & Automated CI/CD Release Pipeline:**
+  * Untracked legacy release binary blobs from Git history and updated `.gitignore`.
+  * Added automated cross-platform GitHub Actions release pipeline (`.github/workflows/release.yml`) producing native `jpackage` app-images, Windows executables, Ubuntu `.deb`, and Fedora `.rpm` packages.
 
 ---
 

@@ -1,10 +1,10 @@
 # SchemaSync
 
-**Version:** 1.8.1  
+**Version:** 2.0.0  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
-SchemaSync is a high-performance, lightweight Java database synchronization and management tool for **PostgreSQL, MySQL, SQLite, MS Access, and H2**. It features a modern Dark Mode UI, 1-Click Schema Migration & Rollback generation, Database Health Diagnostics, Interactive Visual Data Charting, a Visual Join Builder, live Schema & Data diffing, an SSH Terminal, in-app update checks, and native packaging for **Windows 11 (Smart App Control compliant), Ubuntu (.deb), and Fedora (.rpm)**.
+SchemaSync is an enterprise-grade, high-performance Java 21 database synchronization, management, and schema engineering platform for **PostgreSQL, MySQL, SQLite, MS Access, and H2**. Re-architected in **v2.0.0** into a modular reactor (`schemasync-core`, `schemasync-cli`, `schemasync-ui`), it features a 100% headless core engine, high-throughput HikariCP connection pooling, a 2-phase chunked & canonical SHA-256 diff engine, ServiceLoader SPI dialects, dynamic JDBC driver loading, a pluggable multi-provider AI SQL assistant (Ollama, Gemini, OpenAI, Anthropic, OpenRouter), Vault V2 OS Keyring integration, ECDSA-verified releases, a headless CLI, and native packaging via `jpackage`, Windows portable executables, Ubuntu (`.deb`), and Fedora (`.rpm`).
 
 ---
 
@@ -12,16 +12,16 @@ SchemaSync is a high-performance, lightweight Java database synchronization and 
 
 Explore the comprehensive documentation suite located in the [`docs/`](docs/README.md) directory:
 
-* **[Codebase, Module & Function Map](docs/codebase-map.md):** Complete code, class, and method inventory across all packages.
+* **[Codebase, Module & Function Map](docs/codebase-map.md):** Complete code, class, and method inventory across `schemasync-core`, `schemasync-cli`, and `schemasync-ui`.
 * **[Technology Stack & Integration Guide](docs/tech-stack-integration.md):** Full breakdown of all 20+ libraries and end-to-end synergy workflows.
-* **[Architecture & Design](docs/architecture.md):** Modular Swing/FlatLaf layers, threading model, and transaction safety.
-* **[Supported Databases](docs/supported-databases.md):** Complete guide for PostgreSQL, MySQL, SQLite, MS Access, and embedded H2.
-* **[Comprehensive Features](docs/features.md):** Deep-dive into all 15+ workbench tools, telemetry, and editors.
-* **[Security & Cryptography](docs/security.md):** AES-256-GCM Credential Vault, PII masking, and Windows Smart App Control compliance.
-* **[Installation & Packaging](docs/installation-and-packaging.md):** Guides for Windows (`.exe`), Ubuntu (`.deb`), Fedora (`.rpm`), and Fat JAR.
-* **[Troubleshooting & FAQ](docs/troubleshooting.md):** Solutions for Smart App Control, Java runtime, and Wayland dock icons.
-* **[Changelog & History](docs/changelog.md):** Full version history from v1.0.0 through v1.7.8.
-* **[CLI & Configuration Guide](docs/api-and-cli.md):** JVM runtime tuning, system properties, and psql meta-commands.
+* **[Architecture & Design](docs/architecture.md):** 3-module reactor, headless core, Virtual Threads, HikariCP pooling, and transaction safety.
+* **[Supported Databases](docs/supported-databases.md):** Complete guide for PostgreSQL, MySQL, SQLite, MS Access, embedded H2, and custom JDBC drivers.
+* **[Comprehensive Features](docs/features.md):** Deep-dive into all 18+ workbench tools, 2-phase chunked diff, AI Assistant, telemetry, and editors.
+* **[Security & Cryptography](docs/security.md):** Vault V2 (OS Keyring + AES-256-GCM), ECDSA update verification, and PII masking.
+* **[Installation & Packaging](docs/installation-and-packaging.md):** Guides for Windows (`.exe` / `jpackage`), Ubuntu (`.deb`), Fedora (`.rpm`), Fat JAR, and CLI.
+* **[Troubleshooting & FAQ](docs/troubleshooting.md):** Solutions for Smart App Control, Java 21 runtime, and Wayland dock icons.
+* **[Changelog & History](docs/changelog.md):** Full version history from v1.0.0 through v2.0.0.
+* **[CLI & Configuration Guide](docs/api-and-cli.md):** Dedicated headless CLI (`diff`, `drift-check`, `export`), JVM runtime tuning, and psql meta-commands.
 
 ---
 
@@ -88,69 +88,89 @@ Explore the comprehensive documentation suite located in the [`docs/`](docs/READ
 
 ## Technologies Used
 
-* Java 11 (Swing)
-* Maven
-* FlatLaf (Modern Dark/Light Look and Feel)
-* PostgreSQL JDBC Driver
-* MySQL Connector/J
-* SQLite JDBC Driver
-* UCanAccess (MS Access Driver)
-* H2 Database Engine
-* Apache POI (Excel Exports)
-* OpenPDF (PDF Exports)
-* RSyntaxTextArea (SQL Syntax Highlighting)
-* JSch (SSH Terminal & SFTP)
-* JNA (Windows Native AppUserModelID & Taskbar Integration)
+* **Java 21 LTS** (Records, Virtual Threads, Pattern Matching)
+* **Maven 3.8+** (3-Module Reactor: `schemasync-core`, `schemasync-cli`, `schemasync-ui`)
+* **HikariCP 5.1.0** (High-throughput connection pooling & pinned sessions)
+* **FlatLaf 3.4** (Modern Dark/Light Look and Feel)
+* **MigLayout 11.3** (Fluid responsive grid forms and diff layouts)
+* **Picocli 4.7.6** (Type-safe, modern command-line interface)
+* **JSqlParser 4.6** (SQL AST parsing, dialect validation, statement splitting)
+* **PostgreSQL JDBC Driver** (`42.7.2`)
+* **MySQL Connector/J** (`8.3.0`)
+* **SQLite JDBC Driver** (`3.45.2.0`)
+* **UCanAccess & Jackcess** (`5.0.1`, MS Access bridge)
+* **H2 Database Engine** (`2.2.224`)
+* **Apache POI OOXML** (`5.2.5`, Excel export)
+* **OpenPDF** (`1.3.30`, Paginated PDF reports)
+* **RSyntaxTextArea** (`3.4.0`, SQL syntax highlighting)
+* **JSch** (`0.2.16`, SSH Terminal & SFTP)
+* **JNA** (`5.14.0`, Windows Taskbar & DPAPI Keyring integration)
 
 ## Building from Source
 
-This project uses Maven for dependency management and packaging.
+This project uses a 3-module Maven reactor:
+- `schemasync-core`: 100% headless engine (zero Swing/AWT imports).
+- `schemasync-cli`: Headless command-line tool with picocli.
+- `schemasync-ui`: Rich desktop UI with FlatLaf and MigLayout.
 
-1. Clone the repository.
-2. Open a terminal in the root directory.
-3. Run the following command to compile and build the standalone Fat JAR:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Ygtopher/SchemaSync-.git
+   cd SchemaSync-
+   ```
+2. Build all modules and test suite (Java 21 required):
+   ```bash
+   mvn clean package -DskipTests
+   ```
+   This compiles all three modules and packages:
+   - `release/SchemaSync.jar` (UI Fat JAR)
+   - `release/schemasync-cli.jar` (Headless CLI Fat JAR)
+   - `release/SchemaSync.exe` (Windows portable executable)
 
-```bash
-mvn clean package -DskipTests
-```
-
-This will generate a self-contained executable JAR in the `target/` directory.
+3. (Optional) Build self-contained native `jpackage` app-image (bundled JRE):
+   ```bash
+   mvn clean package -Pjpackage -DskipTests
+   ```
+   Outputs to `release/jpackage/SchemaSync/`.
 
 ## Running & Installing
 
-### Ubuntu Desktop Linux (DEB Package)
-Install SchemaSync natively on Ubuntu Desktop (20.04, 22.04, 24.04 LTS+) with automatic Java dependency resolution:
+### Headless CLI (`schemasync-cli.jar`)
+Automate diffing, drift detection, and data exports directly in CI/CD pipelines without graphical dependencies:
 ```bash
-sudo apt install ./schemasync_1.7.8_all.deb
-```
-Or install using `dpkg`:
-```bash
-sudo dpkg -i ./schemasync_1.7.8_all.deb
-sudo apt-get install -f  # resolves dependencies if needed
-```
-Launch directly from the Ubuntu App Grid, dock, or terminal:
-```bash
-schemasync
+# Compare schemas between two databases
+java -jar release/schemasync-cli.jar diff --source "jdbc:postgresql://localhost:5432/db1" --target "jdbc:postgresql://localhost:5432/db2"
+
+# Detect schema drift against a baseline
+java -jar release/schemasync-cli.jar drift-check --source "prod_db" --target "staging_db" --fail-on-drift
+
+# Headless data export to CSV / JSON / SQL
+java -jar release/schemasync-cli.jar export --source "prod_db" --table employees --format csv --output employees.csv
 ```
 
-### Fedora 44 Linux (RPM Package)
-Install SchemaSync natively on Fedora 44 with automatic Java dependency resolution:
-```bash
-sudo dnf install ./schemasync-1.7.8-1.fc44.noarch.rpm
-```
-Launch directly from the GNOME/KDE App Menu or from terminal:
-```bash
-schemasync
-```
+### Windows Desktop
+- **Portable Executable:** Run `release/SchemaSync.exe`.
+- **Bundled App-Image:** Run `release/jpackage/SchemaSync/SchemaSync.exe` (requires no external Java installed).
+- **Installer:** Run `release/SchemaSync-Setup.exe` for Start Menu and Desktop shortcuts.
 
-### Windows
-- Run the installer **`SchemaSync-Setup.exe`** for automatic Start Menu & Desktop shortcuts.
-- Or use the standalone portable executable **`SchemaSync.exe`**.
+### Linux (Ubuntu / Debian & Fedora)
+- **Ubuntu / Debian (.deb):**
+  ```bash
+  sudo apt install ./schemasync_2.0.0_all.deb
+  ```
+- **Fedora / RHEL (.rpm):**
+  ```bash
+  sudo dnf install ./schemasync-2.0.0-1.fc44.noarch.rpm
+  ```
+- Launch directly from terminal or application launcher:
+  ```bash
+  schemasync
+  ```
 
 ### Cross-Platform JAR
-Run directly with Java 11+ on any operating system:
+Run directly with Java 21+ on any operating system:
 ```bash
-java -jar SchemaSync.jar
+java -jar release/SchemaSync.jar
 ```
 
 ## Usage Notes

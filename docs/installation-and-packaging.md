@@ -1,6 +1,6 @@
 # Installation, Deployment & Packaging Guide
 
-**Version:** 1.7.8  
+**Version:** 2.0.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -12,17 +12,19 @@ SchemaSync provides native, first-class distribution packages for Windows and ma
 
 ```
 release/
-├── SchemaSync-Setup.exe               # Windows 10/11 Inno Setup Installer (~54.5 MB)
-├── SchemaSync.exe                     # Standalone Windows Launcher Wrapper (~60 MB)
-├── SchemaSync.jar                     # Cross-Platform Universal Fat JAR (~59.9 MB)
-├── SchemaSync-patch.jar               # Lightweight Instant Update Delta Patch (~1.17 MB)
-├── schemasync_1.7.8_all.deb           # Debian / Ubuntu Desktop Package (~55.8 MB)
-└── schemasync-1.7.8-1.fc44.noarch.rpm # Fedora / RHEL Native RPM Package (~55.7 MB)
+├── SchemaSync-Setup.exe               # Windows 10/11 Inno Setup Installer
+├── SchemaSync.exe                     # Standalone Windows Launcher Wrapper
+├── SchemaSync.jar                     # Cross-Platform Universal UI Fat JAR
+├── schemasync-cli.jar                 # Standalone Headless CLI Fat JAR
+├── SchemaSync-patch.jar               # Lightweight Instant Update Delta Patch
+├── jpackage/SchemaSync/               # Self-Contained Native Windows App-Image (Bundled JRE)
+├── schemasync_2.0.0_all.deb           # Debian / Ubuntu Desktop Package
+└── schemasync-2.0.0-1.fc44.noarch.rpm # Fedora / RHEL Native RPM Package
 ```
 
 ---
 
-## 1. Windows Installation (`SchemaSync-Setup.exe`)
+## 1. Windows Installation (`SchemaSync-Setup.exe` & `jpackage`)
 
 The Windows Setup Installer provides a frictionless setup experience for Windows 10 and Windows 11:
 
@@ -30,11 +32,16 @@ The Windows Setup Installer provides a frictionless setup experience for Windows
 1. Download or locate [`release/SchemaSync-Setup.exe`](file:///d:/projects/DBTOOL/release/SchemaSync-Setup.exe).
 2. Double-click the installer.
 3. **Automatic Java Detection & Installation:**
-   - If Java 11+ is not present, Setup prompts:  
-     *"SchemaSync requires Java (version 11 or higher) to run. Would you like Setup to automatically download and install Eclipse Temurin JRE 21 now?"*
+   - If Java 21+ is not present, Setup prompts:  
+     *"SchemaSync requires Java (version 21 or higher) to run. Would you like Setup to automatically download and install Eclipse Temurin JRE 21 now?"*
    - Clicking **Yes** automatically downloads and installs the official, signed **Eclipse Adoptium Temurin JRE 21 MSI**.
 4. Choose destination directory (defaults to `%LOCALAPPDATA%\Programs\SchemaSync`).
 5. Setup creates Start Menu and Desktop shortcuts and launches the application.
+
+### Native Bundled App-Image (`jpackage`)
+For zero-dependency deployment without requiring Java pre-installed:
+* Run `release/jpackage/SchemaSync/SchemaSync.exe`.
+* Includes a minimal, tree-shaken Java 21 runtime bundled directly inside the app folder.
 
 ### Windows 11 Smart App Control (SAC) Compatibility
 * The installer creates shortcuts configured to launch via the digitally signed `javaw.exe` runtime.
@@ -50,11 +57,11 @@ Compatible with **Ubuntu 20.04, 22.04, 24.04 LTS**, Linux Mint, Debian, and all 
 Open terminal in the folder containing the `.deb` file:
 ```bash
 sudo apt update
-sudo apt install ./schemasync_1.7.8_all.deb
+sudo apt install ./schemasync_2.0.0_all.deb
 ```
 Or via `dpkg`:
 ```bash
-sudo dpkg -i ./schemasync_1.7.8_all.deb
+sudo dpkg -i ./schemasync_2.0.0_all.deb
 sudo apt-get install -f   # Resolves dependencies if needed
 ```
 
@@ -76,7 +83,7 @@ Compatible with **Fedora 38, 39, 40, 41, 44**, Red Hat Enterprise Linux (RHEL), 
 ### Installation
 Open terminal in the folder containing the `.rpm` file:
 ```bash
-sudo dnf install ./schemasync-1.7.8-1.fc44.noarch.rpm
+sudo dnf install ./schemasync-2.0.0-1.fc44.noarch.rpm
 ```
 
 ### Wayland Dock Icon & Taskbar Binding

@@ -1,6 +1,6 @@
 # SchemaSync Comprehensive Feature Guide
 
-**Version:** 1.7.8  
+**Version:** 2.0.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -178,3 +178,34 @@ An advanced cross-database and multi-table comparison environment supporting 2, 
      * **⚡ Execution Results & Audit Log Tab:** Dedicated execution audit table tracking per-database execution status (`🟢 Success` / `🔴 Failed`), rows affected, duration in milliseconds, and error diagnostics.
   3. **Custom SQL Query Mode:** Independent SQL editors (`Query A` and `Query B`) with full SQL syntax highlighting, code folding, and line numbers for comparing differing queries between databases.
 * **One-Click Export:** Export unified diff tables or multi-database execution audit logs directly to CSV or formatted PDF documents.
+
+---
+
+## 17. 2-Phase Chunked Data Diff Engine (`ChunkedDataComparator`)
+A high-throughput, memory-bounded comparison engine engineered for multi-million row datasets:
+* **Phase 1 (Chunk Fingerprinting):** Divides key spaces into discrete chunks (e.g., 5,000 keys) and computes 256-bit SHA-256 Merkle hashes using `RowHasher` and `CanonicalValueNormalizer`. If chunk hashes match, the entire range is verified identical without fetching column payloads.
+* **Phase 2 (Dirty Range Resolution):** Only mismatched chunks are loaded into memory for row-level divergence analysis, dramatically slashing network I/O and query latency.
+* **Virtual Keyset Pagination:** Powered by `PagedResultWindow` and `VirtualResultTableModel`, keeping maximum memory utilization capped regardless of table size.
+
+---
+
+## 18. Pluggable Multi-Provider AI SQL Assistant (`AiAssistantTab`)
+An extensible, security-first generative AI SQL assistant:
+* **Multiple LLM Providers:** Integrated support for **Ollama** (100% private, local LLMs like Qwen 2.5 Coder, Llama 3.1, DeepSeek-R1), **Google Gemini**, **OpenAI (GPT-4o)**, **Anthropic Claude**, and **OpenRouter** via the pluggable `LlmProvider` SPI.
+* **Schema-Only Privacy (`SchemaContextBuilder`):** Only table schemas, column names, and data types are used to construct generation prompts; table rows, sensitive data, and credentials are never transmitted to external APIs.
+* **Secure API Key Management (`AiKeyVault`):** Encrypted local storage of model credentials and per-provider selections.
+
+---
+
+## 19. Headless CLI Tooling (`schemasync-cli`)
+Automate database diffing, drift checks, and data exports directly in shell scripts and CI/CD pipelines:
+* **`diff`:** Compares schemas between two connection profiles or JDBC URLs and outputs structured JSON or formatted diffs.
+* **`drift-check`:** Compares schema against a baseline snapshot and exits with code `1` on drift (ideal for PR gates).
+* **`export`:** Headless extraction of tables to CSV, JSON, or SQL INSERT statements.
+
+---
+
+## 20. Dynamic JDBC Driver Manager (`DriverManagerDialog`)
+* Load external JDBC driver `.jar` files dynamically at runtime without restarting SchemaSync.
+* Isolated class loading via `DriverClassLoaderManager` and `DriverShim` preventing classpath conflicts.
+* Built-in connection testing and dynamic registry persistence.
