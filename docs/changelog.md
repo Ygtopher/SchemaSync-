@@ -1,19 +1,39 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 2.1.0  
+**Current Version:** 2.2.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
 ---
 
-## [v2.1.0] - 2026-11-13
+## [v2.2.0] - 2026-11-13
+### Complete Dashboard Remake & Smooth Spline Area Chart Component
+* **All-New Mission Control Dashboard Architecture (`DashboardPanel`):**
+  * Eliminated legacy 12 cramped text-heavy telemetry cards and static table layout.
+  * **Live Identity Hero Banner**: Live database engine emblem, database name, connection status pill (`🟢 Live (Read / Write)`), host, port, active user, live ping badge (`⚡ 11 ms`), and interactive **Radial Schema Health Score Dial (`94 / 100`)**.
+  * **4 Primary High-Impact KPI Cards**: Catalog Inventory (`48 Tables, 12 Views`), Storage Footprint (`1.42 GB, ~650k Rows`), Query Latency (`14.2 ms Avg, 99.8% Success`), and Pool & Governance (`3 / 10 Active, Safe DML Guard ON`).
+  * **Actionable Schema & Performance Insights**: Real-time diagnostic recommendations detecting missing Primary Keys and unindexed foreign keys with 1-click execution shortcuts (`[ Review PKs ]`, `[ Add Index ]`).
+  * **Visual Table Storage Footprint**: Top 5 largest tables displayed with proportional gradient progress meters, row count estimates, storage percentages, and double-click navigation into Browse tab.
+  * **Executive Studio Launchpad**: 6 modern quick-action tiles with procedural vector icons (`OmniSearch`, `ER Diagram`, `Dual DB Compare`, `Schema Drift`, `Data Masking`, `Mock Data Gen`).
+  * **Recent Query Execution Activity**: Live timeline stream displaying recent queries with execution duration badges (`12 ms`), status checkmarks, timestamps, and formatted SQL previews.
+* **Smooth Spline Gradient Area Chart Component (`SplineAreaChartPanel`):**
+  * Built a custom, pure Java 2D smooth spline area chart component with Catmull-Rom cubic bezier curve interpolation (no jagged lines).
+  * Smooth vertical gradient fill (`GradientPaint`) fading down to 0% opacity at baseline, matching modern Cloud Console aesthetics.
+  * Multi-metric switcher: Toggle between `Query Volume (Throughput)`, `Avg Latency (ms)`, and `Storage Growth`.
+  * Time range filters: Quick toggles for `24h`, `7d`, `30d`, and `12m` timeline.
+  * Interactive hover crosshair: Dynamic dashed vertical marker, glowing beacon dot, and floating tooltip showing exact timestamp and metric values.
+  * Summary telemetry cards: Peak throughput, lowest latency, 99th percentile, and query error rate.
+
+---
+
+## [v2.2.0] - 2026-11-13
 ### Visual Design Overhaul ("Best Look Ever") & Modern Developer Experience
 * **Procedural High-DPI Vector Icon Suite (`UiIconFactory`):**
   * Built a 100% pure Java 2D vector procedural icon rendering engine producing razor-sharp, anti-aliased icons at any screen resolution or UI scale factor.
   * Vector icons for all 13 workspace tabs (`Dashboard`, `Browse & Search`, `Visual Join Builder`, `Data Operations`, `SQL Editor`, `Activity Monitor`, `Schema Dependencies`, `ER Diagram`, `Script Builder`, `Compare Queries`, `Dual DB Compare`, `SSH / Server`, `AI Assistant`), plus actions (`RUN`, `STOP`, `CONNECT`, `DISCONNECT`, `DATABASE`, `TABLE`, `REFRESH`, `LOCK`, `CHIP_RAM`, `CHART`, etc.).
 * **Unified App Header Bar (`Main`):**
   * Replaced legacy top button wraps with a clean 3-section header bar:
-    * **West:** Sidebar toggle (`☰`, `Ctrl+B`), high-res app emblem, bold `SchemaSync` brand title, `v2.1.0` badge, and interactive **Connection Status Pill** (`🟢 Engine / Database` with 1-click disconnect `✕`).
+    * **West:** Sidebar toggle (`☰`, `Ctrl+B`), high-res app emblem, bold `SchemaSync` brand title, `v2.2.0` badge, and interactive **Connection Status Pill** (`🟢 Engine / Database` with 1-click disconnect `✕`).
     * **Center:** Spotlight Command Search bar (`[ Ctrl K ]`) for rapid table and workbench navigation.
     * **East:** Primary CTA button (`+ Connect`), `Profiles ▾`, `⚡ Sandbox`, `🧰 Studios ▾`, `🎨 Theme ▾`, and `⋮ More ▾` dropdowns.
 * **DataGrip / VS Code-Grade Interactive Status Bar (`StatusBar`):**

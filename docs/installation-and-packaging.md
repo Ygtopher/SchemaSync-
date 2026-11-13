@@ -1,6 +1,6 @@
 # Installation, Deployment & Packaging Guide
 
-**Version:** 2.1.0  
+**Version:** 2.2.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -18,8 +18,8 @@ release/
 ├── schemasync-cli.jar                 # Standalone Headless CLI Fat JAR
 ├── SchemaSync-patch.jar               # Lightweight Instant Update Delta Patch
 ├── jpackage/SchemaSync/               # Self-Contained Native Windows App-Image (Bundled JRE)
-├── schemasync_2.1.0_all.deb           # Debian / Ubuntu Desktop Package
-└── schemasync-2.1.0-1.fc44.noarch.rpm # Fedora / RHEL Native RPM Package
+├── schemasync_2.2.0_all.deb           # Debian / Ubuntu Desktop Package
+└── schemasync-2.2.0-1.fc44.noarch.rpm # Fedora / RHEL Native RPM Package
 ```
 
 ---
@@ -57,11 +57,11 @@ Compatible with **Ubuntu 20.04, 22.04, 24.04 LTS**, Linux Mint, Debian, and all 
 Open terminal in the folder containing the `.deb` file:
 ```bash
 sudo apt update
-sudo apt install ./schemasync_2.1.0_all.deb
+sudo apt install ./schemasync_2.2.0_all.deb
 ```
 Or via `dpkg`:
 ```bash
-sudo dpkg -i ./schemasync_2.1.0_all.deb
+sudo dpkg -i ./schemasync_2.2.0_all.deb
 sudo apt-get install -f   # Resolves dependencies if needed
 ```
 
@@ -83,7 +83,7 @@ Compatible with **Fedora 38, 39, 40, 41, 44**, Red Hat Enterprise Linux (RHEL), 
 ### Installation
 Open terminal in the folder containing the `.rpm` file:
 ```bash
-sudo dnf install ./schemasync-2.1.0-1.fc44.noarch.rpm
+sudo dnf install ./schemasync-2.2.0-1.fc44.noarch.rpm
 ```
 
 ### Wayland Dock Icon & Taskbar Binding

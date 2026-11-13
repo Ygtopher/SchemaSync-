@@ -113,6 +113,30 @@ public class ThemeManager {
         return isDarkMode;
     }
 
+    public static boolean isDark() {
+        return isDarkMode();
+    }
+
+    public static Color getAccentColor() {
+        return getPrimaryActionColor();
+    }
+
+    public static Color getTextColor() {
+        Color fg = UIManager.getColor("Label.foreground");
+        if (fg != null) return fg;
+        return isDarkMode() ? new Color(241, 245, 249) : new Color(15, 23, 42);
+    }
+
+    public static Color getBorderColor() {
+        Color bc = UIManager.getColor("Component.borderColor");
+        if (bc != null) return bc;
+        return isDarkMode() ? new Color(51, 65, 85) : new Color(226, 232, 240);
+    }
+
+    public static Font getMonospaceFont(int style, int size) {
+        return new Font(Font.MONOSPACED, style, (int) (size * getUiScaleFactor()));
+    }
+
     public static Color getPrimaryActionColor() {
         return currentPreset != null ? currentPreset.getAccentColor()
                 : (isDarkMode ? new Color(100, 181, 246) : new Color(0, 102, 180));

@@ -1,5 +1,5 @@
 #define MyAppName "SchemaSync"
-#define MyAppVersion "2.1.0"
+#define MyAppVersion "2.2.0"
 #define MyAppPublisher "NSENGIYUMVA Christophe"
 #define MyAppURL "https://github.com/Ygtopher/SchemaSync-"
 #define MyAppExeName "SchemaSync.exe"
@@ -192,7 +192,7 @@ begin
 
   if not IsJava21OrHigherInstalled() then
   begin
-    if MsgBox('SchemaSync v2.1.0 requires Java 21 LTS (or higher) to run.' + #13#10 + #13#10 +
+    if MsgBox('SchemaSync v2.2.0 requires Java 21 LTS (or higher) to run.' + #13#10 + #13#10 +
               'No compatible Java 21 runtime was detected on this computer.' + #13#10 + #13#10 +
               'Would you like Setup to automatically download and install Eclipse Temurin JRE 21 now?' + #13#10 +
               '(This runtime is digitally signed by Eclipse Foundation and fully trusted by Windows 11 Smart App Control)',

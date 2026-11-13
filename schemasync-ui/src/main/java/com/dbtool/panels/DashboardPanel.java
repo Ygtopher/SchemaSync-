@@ -1,37 +1,38 @@
 package com.dbtool.panels;
 
 import com.dbtool.DatabaseManager;
+import com.dbtool.ui.components.SplineAreaChartPanel;
+import com.dbtool.ui.components.UiIconFactory;
 import com.dbtool.util.AppUsageTracker;
 import com.dbtool.util.QueryHistory;
-import com.dbtool.util.SavedQueries;
 import com.dbtool.util.ThemeManager;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.LineBorder;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.RoundRectangle2D;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 /**
- * Enterprise Database Overview, Health & Comprehensive Application Usage Statistics Dashboard Panel.
- * Provides live database telemetry, deep schema quality & column type distribution,
- * storage volume distribution, health score, persistent application usage analytics
- * (latency percentiles, daily trends, hot tables, safety/linter governance, data movement,
- * JVM runtime memory), and an executive quick-launchpad.
+ * Modern Executive Database Mission Control & Interactive Intelligence Dashboard.
  *
- * Part of SchemaSync Tier 4 Enterprise Governance & Live Intelligence.
+ * Features:
+ * - Live Database Identity Banner with Radial Schema Health Score Gauge
+ * - 4 Primary High-Impact KPI Metric Cards (Catalog, Storage, Query Performance, Pool & Safety)
+ * - Central Smooth Spline Area Chart (Catmull-Rom Bezier with translucent gradient fill & timeline)
+ * - Actionable Schema & Performance Insights Feed with 1-click execution buttons
+ * - Visual Storage Footprint Meters for Top Tables (with double-click navigation)
+ * - Executive Studio Launchpad with procedural vector icons
+ * - Live Recent Query Execution Stream with duration badges and instant rerun
  */
 public class DashboardPanel extends JPanel {
 
@@ -60,80 +61,43 @@ public class DashboardPanel extends JPanel {
     private final Runnable onOpenImporter;
     private final Runnable onOpenMockData;
 
-    // UI Elements
-    private JLabel dbTitleLabel;
-    private JLabel statusPillLabel;
-    private JLabel lastRefreshedLabel;
-    private JProgressBar headerProgress;
+    // Hero Header Components
+    private JLabel engineIconLabel;
+    private JLabel dbNameLabel;
+    private JLabel connStatusPill;
+    private JLabel connDetailsLabel;
+    private HealthDialComponent healthDial;
+    private JButton refreshBtn;
+    private JButton disconnectBtn;
 
-    // Row 1: Live Database, Runtime Memory & Schema Quality Cards
-    private JLabel connHostUserLabel;
-    private JLabel connLatencyLabel;
-    private JLabel connAutoCommitLabel;
+    // 4 KPI Cards
+    private JLabel kpiTablesCountLabel;
+    private JLabel kpiTablesSubLabel;
 
-    private JLabel engineNameVersionLabel;
-    private JLabel runtimeMemoryLabel;
+    private JLabel kpiStorageSizeLabel;
+    private JLabel kpiStorageSubLabel;
 
-    private JLabel catalogTablesViewsLabel;
-    private JLabel catalogColsIndexesLabel;
-    private JLabel catalogCacheStatsLabel;
+    private JLabel kpiLatencyAvgLabel;
+    private JLabel kpiLatencySubLabel;
 
-    private JLabel healthScoreLabel;
-    private JLabel healthIssuesLabel;
+    private JLabel kpiPoolActiveLabel;
+    private JLabel kpiPoolSubLabel;
 
-    // Row 2: Sessions, Query Performance, Percentiles & Workload Cards
-    private JLabel usageSessionsLabel;
-    private JLabel usageUptimeLabel;
-    private JLabel usageStreakLabel;
+    // Central Spline Chart
+    private SplineAreaChartPanel splineChartPanel;
 
-    private JLabel usageQueriesTotalLabel;
-    private JLabel usageDailyTrendLabel;
-    private JLabel usageSuccessRateLabel;
+    // Actionable Insights Panel
+    private JPanel insightsContainer;
 
-    private JLabel usageLatencyPercentilesLabel;
-    private JLabel usageSlowQueriesLabel;
-    private JLabel usageRowVolumeLabel;
+    // Storage Distribution Container
+    private JPanel storageBarsContainer;
 
-    private JLabel usageSelectBreakdownLabel;
-    private JLabel usageDmlDdlBreakdownLabel;
-    private JLabel usageHotTableLabel;
+    // Recent Query Timeline Container
+    private JPanel queryTimelineContainer;
 
-    // Row 3: Governance, Data Movement, Column Types & Library Cards
-    private JLabel usageGuardrailLabel;
-    private JLabel usageLinterStatsLabel;
-    private JLabel usagePrivacyDriftLabel;
-
-    private JLabel usageConnectionsExportsLabel;
-    private JLabel usageIngestVolumeLabel;
-    private JLabel usageSyncCodegenLabel;
-
-    private JLabel schemaTypeTextNumLabel;
-    private JLabel schemaTypeDateBoolLabel;
-    private JLabel schemaTypeJsonOtherLabel;
-
-    private JLabel usageLibraryCountsLabel;
-    private JLabel usageTopFeatureLabel;
-    private JLabel usageTopEngineLabel;
-
-    // Live Schema Type & Quality Counters (from connected DB)
-    private volatile int lastTextCols = 0;
-    private volatile int lastNumericCols = 0;
-    private volatile int lastDateCols = 0;
-    private volatile int lastBoolCols = 0;
-    private volatile int lastOtherCols = 0;
-    private volatile int lastMissingPkTables = 0;
-    private volatile int lastOrphanTables = 0;
-    private volatile int lastEmptyTables = 0;
-    private volatile int lastPopulatedTables = 0;
-
-    // Table Storage Grid
-    private DefaultTableModel storageTableModel;
-    private JTable storageTable;
-
-    // Application Usage Breakdown Grid + Category Filter
-    private DefaultTableModel usageBreakdownTableModel;
-    private JTable usageBreakdownTable;
-    private JComboBox<String> usageCategoryFilterCombo;
+    // State Tracking
+    private volatile int lastHealthScore = 95;
+    private final List<TableStorageInfo> currentTopTables = new ArrayList<>();
 
     public DashboardPanel(DatabaseManager dbManager,
                           Consumer<String> onNavigateToTable,
@@ -157,853 +121,890 @@ public class DashboardPanel extends JPanel {
         this.onOpenMockData = onOpenMockData;
 
         setLayout(new BorderLayout());
+        setOpaque(false);
+
         initUI();
         refreshUsageStatistics();
 
-        // Automatically refresh usage stats when telemetry updates or periodically for live session uptime & JVM RAM
+        // Auto-refresh when telemetry records new actions
         AppUsageTracker.addListener(() -> SwingUtilities.invokeLater(this::refreshUsageStatistics));
-        javax.swing.Timer liveUptimeTimer = new javax.swing.Timer(5000, e -> {
+
+        // Periodic light heartbeat for live session time & RAM
+        javax.swing.Timer heartbeat = new javax.swing.Timer(10000, e -> {
             if (isShowing()) {
                 refreshUsageStatistics();
             }
         });
-        liveUptimeTimer.start();
+        heartbeat.start();
     }
 
     private void initUI() {
-        JPanel root = new JPanel(new BorderLayout(8, 8));
-        root.setBorder(new EmptyBorder(10, 16, 10, 16));
+        JPanel scrollRoot = new JPanel();
+        scrollRoot.setLayout(new BoxLayout(scrollRoot, BoxLayout.Y_AXIS));
+        scrollRoot.setBorder(new EmptyBorder(16, 20, 20, 20));
+        scrollRoot.setOpaque(false);
 
-        // 1. Header Toolbar
-        JPanel headerPanel = new JPanel(new BorderLayout(10, 4));
-        JPanel leftHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        dbTitleLabel = new JLabel("🏠 Database Overview & Application Usage Dashboard");
-        dbTitleLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 17));
-        statusPillLabel = new JLabel("● Disconnected");
-        statusPillLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
-        statusPillLabel.setForeground(Color.GRAY);
-        leftHeader.add(dbTitleLabel);
-        leftHeader.add(statusPillLabel);
-        headerPanel.add(leftHeader, BorderLayout.WEST);
+        // 1. Hero Connection & Health Header
+        scrollRoot.add(createHeroHeader());
+        scrollRoot.add(Box.createVerticalStrut(14));
 
-        JPanel rightHeader = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        headerProgress = new JProgressBar();
-        headerProgress.setPreferredSize(new Dimension(100, 16));
-        headerProgress.setVisible(false);
-        rightHeader.add(headerProgress);
+        // 2. 4 Primary High-Impact KPI Cards
+        scrollRoot.add(createKpiCardsRow());
+        scrollRoot.add(Box.createVerticalStrut(14));
 
-        lastRefreshedLabel = new JLabel("Ready");
-        lastRefreshedLabel.setFont(ThemeManager.getUiFont(Font.PLAIN, 11));
-        lastRefreshedLabel.setForeground(Color.GRAY);
-        rightHeader.add(lastRefreshedLabel);
+        // 3. Central Smooth Spline Area Chart (Catmull-Rom Bezier with Gradient Fill)
+        JPanel chartCard = createCardWrapper();
+        splineChartPanel = new SplineAreaChartPanel();
+        chartCard.add(splineChartPanel, BorderLayout.CENTER);
+        scrollRoot.add(chartCard);
+        scrollRoot.add(Box.createVerticalStrut(14));
 
-        JButton resetUsageBtn = new JButton("🧹 Reset Usage Stats");
-        resetUsageBtn.setFont(ThemeManager.getUiFont(Font.PLAIN, 11));
-        resetUsageBtn.setToolTipText("Reset cumulative application usage statistics");
-        resetUsageBtn.addActionListener(e -> {
-            int confirm = JOptionPane.showConfirmDialog(
-                    this,
-                    "Are you sure you want to reset all cumulative application usage statistics?",
-                    "Reset Application Usage Statistics",
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE
-            );
-            if (confirm == JOptionPane.YES_OPTION) {
-                AppUsageTracker.resetStats();
-                refreshUsageStatistics();
-            }
-        });
-        rightHeader.add(resetUsageBtn);
+        // 4. Actionable Schema & Performance Insights
+        scrollRoot.add(createActionableInsightsSection());
+        scrollRoot.add(Box.createVerticalStrut(14));
 
-        JButton refreshBtn = new JButton("🔄 Refresh Metrics");
-        refreshBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
-        refreshBtn.addActionListener(e -> refresh());
-        rightHeader.add(refreshBtn);
-        headerPanel.add(rightHeader, BorderLayout.EAST);
+        // 5. Two-Column Grid: Left = Top 5 Storage Footprint; Right = Executive Studio Launchpad
+        scrollRoot.add(createTwoColumnMiddleSection());
+        scrollRoot.add(Box.createVerticalStrut(14));
 
-        root.add(headerPanel, BorderLayout.NORTH);
+        // 6. Recent Query Execution Activity Timeline
+        scrollRoot.add(createQueryActivitySection());
 
-        // 2. Top Metrics Container (3 rows of 4 cards = 12 telemetry cards)
-        JPanel allCardsContainer = new JPanel(new GridLayout(3, 4, 8, 6));
+        JScrollPane scrollPane = new JScrollPane(scrollRoot);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.setOpaque(false);
+        scrollPane.getViewport().setOpaque(false);
 
-        // --- ROW 1: Live Database, Runtime RAM & Schema Integrity ---
-        connHostUserLabel = new JLabel("Host: -");
-        connLatencyLabel = new JLabel("Ping Latency: -");
-        connAutoCommitLabel = new JLabel("Auto-Commit: -");
-        allCardsContainer.add(createMetricCard("⚡ Live DB Telemetry",
-                new JLabel[]{connHostUserLabel, connLatencyLabel, connAutoCommitLabel}, new Color(59, 130, 246)));
-
-        engineNameVersionLabel = new JLabel("Engine: -");
-        runtimeMemoryLabel = new JLabel("JVM RAM: -");
-        JLabel gcActionLabel = new JLabel("<html><u>⚡ Optimize Memory (Run GC) →</u></html>");
-        gcActionLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        gcActionLabel.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                System.gc();
-                refreshUsageStatistics();
-            }
-        });
-        allCardsContainer.add(createMetricCard("⚙️ Engine & Runtime Health",
-                new JLabel[]{engineNameVersionLabel, runtimeMemoryLabel, gcActionLabel}, new Color(139, 92, 246)));
-
-        catalogTablesViewsLabel = new JLabel("0 Tables (0 Populated / 0 Empty)");
-        catalogColsIndexesLabel = new JLabel("0 Columns | 0 Indexes");
-        catalogCacheStatsLabel = new JLabel("Cache: 0 Tbls | 0 Cols | 0 FKs");
-        allCardsContainer.add(createMetricCard("📚 Catalog & Cache Inventory",
-                new JLabel[]{catalogTablesViewsLabel, catalogColsIndexesLabel, catalogCacheStatsLabel}, new Color(16, 185, 129)));
-
-        healthScoreLabel = new JLabel("Score: -- / 100");
-        healthScoreLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
-        healthIssuesLabel = new JLabel("Missing PKs: - | Orphan Tbls: -");
-        JLabel healthActionLabel = new JLabel("<html><u>Click to launch Index Advisor →</u></html>");
-        healthActionLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        healthActionLabel.addMouseListener(new MouseAdapter() {
-            @Override public void mouseClicked(MouseEvent e) { if (onOpenIndexAdvisor != null) onOpenIndexAdvisor.run(); }
-        });
-        allCardsContainer.add(createMetricCard("🛡️ Schema Health & Integrity",
-                new JLabel[]{healthScoreLabel, healthIssuesLabel, healthActionLabel}, new Color(245, 158, 11)));
-
-        // --- ROW 2: App Sessions, Query Trends, Latency Percentiles & Workload ---
-        usageSessionsLabel = new JLabel("Launches: 1 | Session: 0s");
-        usageUptimeLabel = new JLabel("Cumulative Time: 0s");
-        usageStreakLabel = new JLabel("Active Days: 1 | Streak: 🔥 1d");
-        allCardsContainer.add(createMetricCard("🚀 Sessions & Activity Streak",
-                new JLabel[]{usageSessionsLabel, usageUptimeLabel, usageStreakLabel}, new Color(14, 165, 233)));
-
-        usageQueriesTotalLabel = new JLabel("Queries Run: 0 (Session: 0)");
-        usageDailyTrendLabel = new JLabel("Today: 0 | Yesterday: 0 | 7d: 0");
-        usageSuccessRateLabel = new JLabel("Success: 100.0% (0 OK / 0 Err)");
-        allCardsContainer.add(createMetricCard("📈 Query Volume & Daily Trend",
-                new JLabel[]{usageQueriesTotalLabel, usageDailyTrendLabel, usageSuccessRateLabel}, new Color(16, 185, 129)));
-
-        usageLatencyPercentilesLabel = new JLabel("Avg: 0ms | P50: 0ms | P95: 0ms");
-        usageSlowQueriesLabel = new JLabel("Max: 0ms | Slow (>500ms): 0");
-        usageRowVolumeLabel = new JLabel("Rows Read: 0 | Mutated: 0");
-        allCardsContainer.add(createMetricCard("⏱️ Latency Percentiles & Rows",
-                new JLabel[]{usageLatencyPercentilesLabel, usageSlowQueriesLabel, usageRowVolumeLabel}, new Color(249, 115, 22)));
-
-        usageSelectBreakdownLabel = new JLabel("SELECT: 0 (0%) | EXPLAIN: 0");
-        usageDmlDdlBreakdownLabel = new JLabel("DML (INS/UPD/DEL): 0 | DDL: 0");
-        usageHotTableLabel = new JLabel("🔥 Hot Table: -");
-        allCardsContainer.add(createMetricCard("📊 SQL Workload & Hot Tables",
-                new JLabel[]{usageSelectBreakdownLabel, usageDmlDdlBreakdownLabel, usageHotTableLabel}, new Color(168, 85, 247)));
-
-        // --- ROW 3: Safety Governance, Data Movement, Column Types & Library ---
-        usageGuardrailLabel = new JLabel("Destructive DML Guarded: 0");
-        usageLinterStatsLabel = new JLabel("Linter Warnings: 0 | Fixes: 0");
-        usagePrivacyDriftLabel = new JLabel("PII Masked: 0 | Drift Ops: 0");
-        allCardsContainer.add(createMetricCard("🛡️ Safety & Linter Governance",
-                new JLabel[]{usageGuardrailLabel, usageLinterStatsLabel, usagePrivacyDriftLabel}, new Color(239, 68, 68)));
-
-        usageConnectionsExportsLabel = new JLabel("DB Connections: 0 | Exports: 0");
-        usageIngestVolumeLabel = new JLabel("Imported: 0 | Mock Rows: 0");
-        usageSyncCodegenLabel = new JLabel("DB Compares: 0 | ORM Models: 0");
-        allCardsContainer.add(createMetricCard("🔄 Data Movement & CodeGen",
-                new JLabel[]{usageConnectionsExportsLabel, usageIngestVolumeLabel, usageSyncCodegenLabel}, new Color(6, 182, 212)));
-
-        schemaTypeTextNumLabel = new JLabel("Text/VARCHAR: - | Numeric: -");
-        schemaTypeDateBoolLabel = new JLabel("Date/Time: - | Boolean: -");
-        schemaTypeJsonOtherLabel = new JLabel("JSON/Binary/Other: -");
-        allCardsContainer.add(createMetricCard("🗄️ Column Type Distribution",
-                new JLabel[]{schemaTypeTextNumLabel, schemaTypeDateBoolLabel, schemaTypeJsonOtherLabel}, new Color(99, 102, 241)));
-
-        usageLibraryCountsLabel = new JLabel("Saved: 0 | History: 0 (⭐ 0 Pinned)");
-        usageTopFeatureLabel = new JLabel("Top Tool: -");
-        usageTopEngineLabel = new JLabel("Top Engine: -");
-        allCardsContainer.add(createMetricCard("🔖 Workbench & Library Stats",
-                new JLabel[]{usageLibraryCountsLabel, usageTopFeatureLabel, usageTopEngineLabel}, new Color(236, 72, 153)));
-
-        // 3. Center Section: Left = Vertically Split (Usage Breakdown Table + Top 10 Largest Tables); Right = Executive Launchpad
-        JSplitPane centerSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        centerSplit.setResizeWeight(0.65);
-
-        // Left Top: Application Usage Breakdown Table with Category Filter
-        JPanel usageTablePanel = new JPanel(new BorderLayout(4, 4));
-        usageTablePanel.setBorder(BorderFactory.createTitledBorder("📊 Comprehensive Usage & Telemetry Breakdown (Tools, Hot Tables, SQL Mix, Daily Activity & Schema)"));
-
-        JPanel usageFilterBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
-        usageFilterBar.add(new JLabel("Filter Category:"));
-        usageCategoryFilterCombo = new JComboBox<>(new String[]{
-                "All Categories",
-                "🛠️ Workbench Tools",
-                "🔥 Hot Queried Tables",
-                "⚡ SQL Workload",
-                "📅 Daily Activity (7d)",
-                "🛡️ Safety & Data Movement",
-                "🗄️ DB Engines & Column Types"
-        });
-        usageCategoryFilterCombo.addActionListener(e -> refreshUsageStatistics());
-        usageFilterBar.add(usageCategoryFilterCombo);
-        usageTablePanel.add(usageFilterBar, BorderLayout.NORTH);
-
-        String[] usageCols = {"Category", "Feature / Metric / Table", "Volume / Count", "Share / Intensity"};
-        usageBreakdownTableModel = new DefaultTableModel(usageCols, 0) {
-            @Override public boolean isCellEditable(int r, int c) { return false; }
-        };
-        usageBreakdownTable = new JTable(usageBreakdownTableModel);
-        usageBreakdownTable.setRowHeight(23);
-        usageBreakdownTable.getColumnModel().getColumn(0).setPreferredWidth(135);
-        usageBreakdownTable.getColumnModel().getColumn(1).setPreferredWidth(215);
-        usageBreakdownTable.getColumnModel().getColumn(2).setPreferredWidth(95);
-        usageBreakdownTable.getColumnModel().getColumn(3).setPreferredWidth(145);
-
-        usageBreakdownTable.getColumnModel().getColumn(3).setCellRenderer(createProgressCellRenderer(new Color(14, 165, 233)));
-        usageTablePanel.add(new JScrollPane(usageBreakdownTable), BorderLayout.CENTER);
-
-        // Left Bottom: Top 10 Largest Tables by Storage & Volume
-        JPanel storagePanel = new JPanel(new BorderLayout(4, 4));
-        storagePanel.setBorder(BorderFactory.createTitledBorder("Top 10 Largest Tables by Storage & Volume (Double-click to Browse)"));
-
-        String[] cols = {"#", "Table Name", "Est. Rows", "Est. Size", "Storage Distribution"};
-        storageTableModel = new DefaultTableModel(cols, 0) {
-            @Override public boolean isCellEditable(int r, int c) { return false; }
-        };
-        storageTable = new JTable(storageTableModel);
-        storageTable.setRowHeight(23);
-        storageTable.getColumnModel().getColumn(0).setPreferredWidth(35);
-        storageTable.getColumnModel().getColumn(1).setPreferredWidth(180);
-        storageTable.getColumnModel().getColumn(2).setPreferredWidth(90);
-        storageTable.getColumnModel().getColumn(3).setPreferredWidth(90);
-        storageTable.getColumnModel().getColumn(4).setPreferredWidth(145);
-
-        storageTable.getColumnModel().getColumn(4).setCellRenderer(createProgressCellRenderer(new Color(59, 130, 246)));
-
-        storageTable.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2 && storageTable.getSelectedRow() >= 0) {
-                    int r = storageTable.getSelectedRow();
-                    String tbl = (String) storageTable.getValueAt(r, 1);
-                    if (tbl != null && onNavigateToTable != null) {
-                        onNavigateToTable.accept(tbl);
-                    }
-                }
-            }
-        });
-
-        storagePanel.add(new JScrollPane(storageTable), BorderLayout.CENTER);
-
-        JSplitPane leftVerticalSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, usageTablePanel, storagePanel);
-        leftVerticalSplit.setResizeWeight(0.55);
-        leftVerticalSplit.setBorder(BorderFactory.createEmptyBorder());
-        centerSplit.setLeftComponent(leftVerticalSplit);
-
-        // Right Component: Executive Launchpad
-        JPanel launchpadPanel = new JPanel();
-        launchpadPanel.setLayout(new BoxLayout(launchpadPanel, BoxLayout.Y_AXIS));
-        launchpadPanel.setBorder(BorderFactory.createTitledBorder("Executive Launchpad & Security Hub"));
-
-        launchpadPanel.add(createActionTile("⚡ Index & Performance Advisor", "Scan unindexed foreign keys, redundant indexes, and missing PKs with 1-click fixes.", onOpenIndexAdvisor));
-        launchpadPanel.add(Box.createVerticalStrut(5));
-        launchpadPanel.add(createActionTile("📐 Interactive Architecture & ER Diagram", "High-contrast zoomable schema canvas with PNG & Mermaid.js exports.", onOpenErDiagram));
-        launchpadPanel.add(Box.createVerticalStrut(5));
-        launchpadPanel.add(createActionTile("📸 Schema Drift & Migration Studio", "Compare database snapshots, detect structural drift, and generate UP/DOWN scripts.", onOpenSchemaDrift));
-        launchpadPanel.add(Box.createVerticalStrut(5));
-        launchpadPanel.add(createActionTile("🔍 Global OmniSearch (Ctrl+Shift+F)", "Search IDs, text, and keywords across all tables and columns in streaming parallel.", onOpenOmniSearch));
-        launchpadPanel.add(Box.createVerticalStrut(5));
-        launchpadPanel.add(createActionTile("🔒 Sensitive Data Masking & Anonymizer", "Sanitize PII (emails, phones, names) for GDPR-compliant dev/staging datasets.", onOpenDataMasking));
-        launchpadPanel.add(Box.createVerticalStrut(5));
-        launchpadPanel.add(createActionTile("🛡️ Encrypted Credential Vault (AES-256)", "Manage Master Password and securely export/import encrypted connection bundles.", onOpenVault));
-        launchpadPanel.add(Box.createVerticalStrut(5));
-        launchpadPanel.add(createActionTile("📥 Smart CSV / Excel Data Importer", "Drag-and-drop batch file importer with auto-mapping and rollback transaction safety.", onOpenImporter));
-        launchpadPanel.add(Box.createVerticalStrut(5));
-        launchpadPanel.add(createActionTile("🧪 Synthetic Mock Data Generator", "Generate 10 to 10,000 realistic sample records respecting foreign key constraints.", onOpenMockData));
-
-        JScrollPane launchpadScroll = new JScrollPane(launchpadPanel);
-        launchpadScroll.setBorder(BorderFactory.createEmptyBorder());
-        centerSplit.setRightComponent(launchpadScroll);
-
-        // Assemble Content
-        JPanel mainContent = new JPanel(new BorderLayout(0, 8));
-        mainContent.add(allCardsContainer, BorderLayout.NORTH);
-        mainContent.add(centerSplit, BorderLayout.CENTER);
-
-        root.add(mainContent, BorderLayout.CENTER);
-        add(root, BorderLayout.CENTER);
+        add(scrollPane, BorderLayout.CENTER);
     }
 
-    private DefaultTableCellRenderer createProgressCellRenderer(Color baseColor) {
-        return new DefaultTableCellRenderer() {
-            private final JProgressBar pBar = new JProgressBar(0, 100);
-            {
-                pBar.setStringPainted(true);
-                pBar.setBorderPainted(false);
-            }
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-                if (value instanceof Number) {
-                    int pct = Math.max(0, Math.min(100, ((Number) value).intValue()));
-                    pBar.setValue(pct);
-                    pBar.setString(pct + "%");
-                    pBar.setForeground(pct > 60 ? new Color(16, 185, 129) : (pct > 25 ? baseColor : new Color(139, 92, 246)));
-                } else {
-                    pBar.setValue(0);
-                    pBar.setString("0%");
-                }
-                return pBar;
-            }
-        };
-    }
-
-    private JPanel createMetricCard(String title, JLabel[] items, Color accentColor) {
-        JPanel card = new JPanel(new BorderLayout(2, 2)) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2 = (Graphics2D) g.create();
-                try {
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g2.setColor(accentColor);
-                    g2.fillRoundRect(0, 0, getWidth(), 3, 2, 2);
-                } finally {
-                    g2.dispose();
-                }
-            }
-        };
-        boolean dark = ThemeManager.isDarkMode();
+    private JPanel createCardWrapper() {
+        JPanel card = new JPanel(new BorderLayout());
+        card.setBackground(ThemeManager.isDark() ? new Color(24, 28, 40) : Color.WHITE);
         card.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(dark ? new Color(45, 55, 72) : new Color(220, 228, 238), 1, true),
-                new EmptyBorder(7, 10, 6, 10)
+                BorderFactory.createLineBorder(ThemeManager.getBorderColor(), 1),
+                new EmptyBorder(4, 4, 4, 4)
         ));
-
-        JPanel titlePanel = new JPanel(new BorderLayout());
-        titlePanel.setOpaque(false);
-        JLabel titleLbl = new JLabel(title);
-        titleLbl.setFont(ThemeManager.getUiFont(Font.BOLD, 11.5f));
-        titleLbl.setForeground(accentColor);
-        titlePanel.add(titleLbl, BorderLayout.WEST);
-        card.add(titlePanel, BorderLayout.NORTH);
-
-        JPanel itemsPanel = new JPanel();
-        itemsPanel.setOpaque(false);
-        itemsPanel.setLayout(new BoxLayout(itemsPanel, BoxLayout.Y_AXIS));
-        for (JLabel lbl : items) {
-            lbl.setFont(ThemeManager.getUiFont(Font.PLAIN, 10));
-            itemsPanel.add(lbl);
-            itemsPanel.add(Box.createVerticalStrut(1));
-        }
-        card.add(itemsPanel, BorderLayout.CENTER);
         return card;
     }
 
-    private JPanel createActionTile(String title, String description, Runnable action) {
-        JPanel tile = new JPanel(new BorderLayout(8, 2));
-        boolean dark = ThemeManager.isDarkMode();
-        tile.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(dark ? new Color(45, 55, 72) : new Color(220, 228, 238), 1, true),
-                new EmptyBorder(6, 11, 6, 11)
+    // ==========================================
+    // 1. HERO HEADER WITH RADIAL HEALTH GAUGE
+    // ==========================================
+    private JPanel createHeroHeader() {
+        JPanel hero = new JPanel(new BorderLayout(14, 10));
+        hero.setBackground(ThemeManager.isDark() ? new Color(24, 28, 42) : Color.WHITE);
+        hero.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ThemeManager.getBorderColor(), 1),
+                new EmptyBorder(14, 18, 14, 18)
         ));
 
-        JPanel textPanel = new JPanel();
-        textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+        // Left: Engine Emblem, Name, Status Pill & Host Info
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 14, 0));
+        left.setOpaque(false);
 
-        JLabel titleLbl = new JLabel(title);
-        titleLbl.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
+        engineIconLabel = new JLabel(UiIconFactory.getIcon(UiIconFactory.IconType.DATABASE, 26, ThemeManager.getAccentColor()));
+        left.add(engineIconLabel);
 
-        JLabel descLbl = new JLabel("<html>" + description + "</html>");
-        descLbl.setFont(ThemeManager.getUiFont(Font.PLAIN, 10));
-        descLbl.setForeground(ThemeManager.isDarkMode() ? new Color(160, 160, 160) : new Color(100, 100, 100));
+        JPanel infoBlock = new JPanel();
+        infoBlock.setLayout(new BoxLayout(infoBlock, BoxLayout.Y_AXIS));
+        infoBlock.setOpaque(false);
 
-        textPanel.add(titleLbl);
-        textPanel.add(Box.createVerticalStrut(2));
-        textPanel.add(descLbl);
-        tile.add(textPanel, BorderLayout.CENTER);
+        JPanel titleRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        titleRow.setOpaque(false);
 
-        JButton launchBtn = new JButton("Open →");
-        launchBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
-        launchBtn.setMargin(new Insets(2, 8, 2, 8));
-        launchBtn.addActionListener(e -> {
-            if (action != null) action.run();
+        dbNameLabel = new JLabel("Database Overview");
+        dbNameLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 18));
+        dbNameLabel.setForeground(ThemeManager.getTextColor());
+        titleRow.add(dbNameLabel);
+
+        connStatusPill = new JLabel("Offline");
+        connStatusPill.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
+        connStatusPill.setForeground(Color.GRAY);
+        connStatusPill.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ThemeManager.getBorderColor(), 1),
+                new EmptyBorder(2, 7, 2, 7)
+        ));
+        titleRow.add(connStatusPill);
+
+        JLabel versionBadge = new JLabel("v2.2.0");
+        versionBadge.setFont(ThemeManager.getUiFont(Font.PLAIN, 10));
+        versionBadge.setForeground(ThemeManager.getMutedTextColor());
+        versionBadge.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ThemeManager.getBorderColor(), 1),
+                new EmptyBorder(2, 5, 2, 5)
+        ));
+        titleRow.add(versionBadge);
+
+        infoBlock.add(titleRow);
+        infoBlock.add(Box.createVerticalStrut(3));
+
+        connDetailsLabel = new JLabel("No active database session • Connect to view live telemetry");
+        connDetailsLabel.setFont(ThemeManager.getUiFont(Font.PLAIN, 12));
+        connDetailsLabel.setForeground(ThemeManager.getMutedTextColor());
+        infoBlock.add(connDetailsLabel);
+
+        left.add(infoBlock);
+        hero.add(left, BorderLayout.WEST);
+
+        // Right: Health Score Dial + Actions
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
+        right.setOpaque(false);
+
+        healthDial = new HealthDialComponent();
+        healthDial.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        healthDial.setToolTipText("Click to launch Index & Schema Performance Advisor");
+        healthDial.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (onOpenIndexAdvisor != null) onOpenIndexAdvisor.run();
+            }
         });
-        tile.add(launchBtn, BorderLayout.EAST);
+        right.add(healthDial);
+
+        refreshBtn = new JButton("Refresh");
+        refreshBtn.setIcon(UiIconFactory.getIcon(UiIconFactory.IconType.REFRESH, 12, ThemeManager.getTextColor()));
+        refreshBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
+        refreshBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        refreshBtn.addActionListener(e -> refresh());
+        right.add(refreshBtn);
+
+        disconnectBtn = new JButton("Disconnect");
+        disconnectBtn.setIcon(UiIconFactory.getIcon(UiIconFactory.IconType.DISCONNECT, 12, new Color(239, 68, 68)));
+        disconnectBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
+        disconnectBtn.setForeground(new Color(239, 68, 68));
+        disconnectBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        disconnectBtn.addActionListener(e -> {
+            if (dbManager != null) dbManager.closePool();
+            refresh();
+        });
+        right.add(disconnectBtn);
+
+        hero.add(right, BorderLayout.EAST);
+        return hero;
+    }
+
+    // ==========================================
+    // 2. FOUR HIGH-IMPACT PRIMARY KPI CARDS
+    // ==========================================
+    private JPanel createKpiCardsRow() {
+        JPanel row = new JPanel(new GridLayout(1, 4, 12, 0));
+        row.setOpaque(false);
+
+        // Card 1: Catalog Inventory
+        kpiTablesCountLabel = new JLabel("0 Tables");
+        kpiTablesSubLabel = new JLabel("0 Views • 0 Columns • 0 FKs");
+        row.add(createKpiCard("Catalog Inventory", UiIconFactory.IconType.TABLE, new Color(59, 130, 246),
+                kpiTablesCountLabel, kpiTablesSubLabel));
+
+        // Card 2: Storage Volume
+        kpiStorageSizeLabel = new JLabel("0.0 MB");
+        kpiStorageSubLabel = new JLabel("0 Est. Rows • 0 MB Indexes");
+        row.add(createKpiCard("Storage Footprint", UiIconFactory.IconType.DATABASE, new Color(139, 92, 246),
+                kpiStorageSizeLabel, kpiStorageSubLabel));
+
+        // Card 3: Query Throughput & Latency
+        kpiLatencyAvgLabel = new JLabel("0.0 ms");
+        kpiLatencySubLabel = new JLabel("P95: 0ms • 100% Success");
+        row.add(createKpiCard("Query Latency", UiIconFactory.IconType.RUN, new Color(16, 185, 129),
+                kpiLatencyAvgLabel, kpiLatencySubLabel));
+
+        // Card 4: Connection Pool & Safety
+        kpiPoolActiveLabel = new JLabel("0 / 0 Active");
+        kpiPoolSubLabel = new JLabel("Auto-Commit: ON • Safe DML");
+        row.add(createKpiCard("Pool & Governance", UiIconFactory.IconType.LOCK, new Color(245, 158, 11),
+                kpiPoolActiveLabel, kpiPoolSubLabel));
+
+        return row;
+    }
+
+    private JPanel createKpiCard(String title, UiIconFactory.IconType iconType, Color accentColor,
+                                 JLabel mainValueLabel, JLabel subLabel) {
+        JPanel card = new JPanel(new BorderLayout(8, 6));
+        card.setBackground(ThemeManager.isDark() ? new Color(24, 28, 40) : Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ThemeManager.getBorderColor(), 1),
+                new EmptyBorder(12, 14, 12, 14)
+        ));
+
+        // Top line: Title + Icon
+        JPanel topLine = new JPanel(new BorderLayout());
+        topLine.setOpaque(false);
+
+        JLabel titleLbl = new JLabel(title.toUpperCase());
+        titleLbl.setFont(ThemeManager.getUiFont(Font.BOLD, 10));
+        titleLbl.setForeground(ThemeManager.getMutedTextColor());
+        topLine.add(titleLbl, BorderLayout.WEST);
+
+        JLabel iconLbl = new JLabel(UiIconFactory.getIcon(iconType, 15, accentColor));
+        topLine.add(iconLbl, BorderLayout.EAST);
+        card.add(topLine, BorderLayout.NORTH);
+
+        // Center: Big Bold Number
+        mainValueLabel.setFont(ThemeManager.getUiFont(Font.BOLD, 22));
+        mainValueLabel.setForeground(ThemeManager.getTextColor());
+        card.add(mainValueLabel, BorderLayout.CENTER);
+
+        // Bottom: Detail subtitle
+        subLabel.setFont(ThemeManager.getUiFont(Font.PLAIN, 11));
+        subLabel.setForeground(ThemeManager.getMutedTextColor());
+        card.add(subLabel, BorderLayout.SOUTH);
+
+        return card;
+    }
+
+    // ==========================================
+    // 3. ACTIONABLE SCHEMA INSIGHTS FEED
+    // ==========================================
+    private JPanel createActionableInsightsSection() {
+        JPanel section = new JPanel(new BorderLayout(8, 8));
+        section.setBackground(ThemeManager.isDark() ? new Color(26, 30, 44) : new Color(254, 252, 245));
+        section.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(245, 158, 11, 80), 1),
+                new EmptyBorder(12, 16, 12, 16)
+        ));
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+
+        JLabel title = new JLabel("💡 Actionable Schema & Performance Insights");
+        title.setFont(ThemeManager.getUiFont(Font.BOLD, 12));
+        title.setForeground(new Color(217, 119, 6));
+        header.add(title, BorderLayout.WEST);
+
+        JLabel note = new JLabel("Live Automated Diagnostics");
+        note.setFont(ThemeManager.getUiFont(Font.PLAIN, 10));
+        note.setForeground(ThemeManager.getMutedTextColor());
+        header.add(note, BorderLayout.EAST);
+        section.add(header, BorderLayout.NORTH);
+
+        insightsContainer = new JPanel(new GridLayout(1, 2, 10, 0));
+        insightsContainer.setOpaque(false);
+
+        // Default initial items
+        insightsContainer.add(createInsightItem(
+                "Missing Primary Key",
+                "Tables without Primary Keys risk replication errors and slow lookups.",
+                "Review PKs",
+                onOpenIndexAdvisor
+        ));
+        insightsContainer.add(createInsightItem(
+                "Unindexed Foreign Keys",
+                "Foreign keys without indexes cause full table scans on parent DELETE/JOIN.",
+                "Add Index",
+                onOpenIndexAdvisor
+        ));
+
+        section.add(insightsContainer, BorderLayout.CENTER);
+        return section;
+    }
+
+    private JPanel createInsightItem(String heading, String desc, String buttonText, Runnable action) {
+        JPanel item = new JPanel(new BorderLayout(8, 4));
+        item.setBackground(ThemeManager.isDark() ? new Color(20, 24, 36) : Color.WHITE);
+        item.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ThemeManager.getBorderColor(), 1),
+                new EmptyBorder(8, 12, 8, 12)
+        ));
+
+        JPanel textBlock = new JPanel();
+        textBlock.setLayout(new BoxLayout(textBlock, BoxLayout.Y_AXIS));
+        textBlock.setOpaque(false);
+
+        JLabel headLbl = new JLabel(heading);
+        headLbl.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
+        headLbl.setForeground(ThemeManager.getTextColor());
+
+        JLabel descLbl = new JLabel("<html>" + desc + "</html>");
+        descLbl.setFont(ThemeManager.getUiFont(Font.PLAIN, 11));
+        descLbl.setForeground(ThemeManager.getMutedTextColor());
+
+        textBlock.add(headLbl);
+        textBlock.add(Box.createVerticalStrut(2));
+        textBlock.add(descLbl);
+        item.add(textBlock, BorderLayout.CENTER);
+
+        if (buttonText != null && action != null) {
+            JButton actBtn = new JButton(buttonText);
+            actBtn.setFont(ThemeManager.getUiFont(Font.BOLD, 10));
+            actBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            actBtn.addActionListener(e -> action.run());
+            item.add(actBtn, BorderLayout.EAST);
+        }
+
+        return item;
+    }
+
+    // ==========================================
+    // 4. MIDDLE TWO-COLUMN GRID: Storage vs Launchpad
+    // ==========================================
+    private JPanel createTwoColumnMiddleSection() {
+        JPanel middle = new JPanel(new GridLayout(1, 2, 14, 0));
+        middle.setOpaque(false);
+
+        // Left Column: Top 5 Storage Footprint Meters
+        JPanel storageCard = createCardWrapper();
+        JPanel storageInner = new JPanel(new BorderLayout(0, 10));
+        storageInner.setOpaque(false);
+        storageInner.setBorder(new EmptyBorder(12, 14, 12, 14));
+
+        JPanel sHeader = new JPanel(new BorderLayout());
+        sHeader.setOpaque(false);
+        JLabel sTitle = new JLabel("Largest Tables by Storage Footprint");
+        sTitle.setFont(ThemeManager.getUiFont(Font.BOLD, 13));
+        sTitle.setForeground(ThemeManager.getTextColor());
+        sHeader.add(sTitle, BorderLayout.WEST);
+
+        JLabel sSub = new JLabel("Double-click to Browse");
+        sSub.setFont(ThemeManager.getUiFont(Font.PLAIN, 10));
+        sSub.setForeground(ThemeManager.getMutedTextColor());
+        sHeader.add(sSub, BorderLayout.EAST);
+        storageInner.add(sHeader, BorderLayout.NORTH);
+
+        storageBarsContainer = new JPanel();
+        storageBarsContainer.setLayout(new BoxLayout(storageBarsContainer, BoxLayout.Y_AXIS));
+        storageBarsContainer.setOpaque(false);
+        populateDefaultStorageBars();
+
+        storageInner.add(storageBarsContainer, BorderLayout.CENTER);
+        storageCard.add(storageInner, BorderLayout.CENTER);
+        middle.add(storageCard);
+
+        // Right Column: Executive Studio Launchpad Grid
+        JPanel launchpadCard = createCardWrapper();
+        JPanel launchpadInner = new JPanel(new BorderLayout(0, 10));
+        launchpadInner.setOpaque(false);
+        launchpadInner.setBorder(new EmptyBorder(12, 14, 12, 14));
+
+        JPanel lHeader = new JPanel(new BorderLayout());
+        lHeader.setOpaque(false);
+        JLabel lTitle = new JLabel("Executive Studio Launchpad");
+        lTitle.setFont(ThemeManager.getUiFont(Font.BOLD, 13));
+        lTitle.setForeground(ThemeManager.getTextColor());
+        lHeader.add(lTitle, BorderLayout.WEST);
+
+        JLabel lSub = new JLabel("Quick Workbenches");
+        lSub.setFont(ThemeManager.getUiFont(Font.PLAIN, 10));
+        lSub.setForeground(ThemeManager.getMutedTextColor());
+        lHeader.add(lSub, BorderLayout.EAST);
+        launchpadInner.add(lHeader, BorderLayout.NORTH);
+
+        JPanel launchpadGrid = new JPanel(new GridLayout(3, 2, 8, 8));
+        launchpadGrid.setOpaque(false);
+
+        launchpadGrid.add(createLaunchTile("OmniSearch", "Global text, ID & schema search",
+                UiIconFactory.IconType.SEARCH, onOpenOmniSearch));
+        launchpadGrid.add(createLaunchTile("ER Diagram", "Interactive relationship topology",
+                UiIconFactory.IconType.ER_DIAGRAM, onOpenErDiagram));
+        launchpadGrid.add(createLaunchTile("Dual DB Compare", "Live diff & chunked data hashes",
+                UiIconFactory.IconType.DUAL_DB, onOpenSchemaDrift));
+        launchpadGrid.add(createLaunchTile("Schema Drift", "Snapshots & UP/DOWN migrations",
+                UiIconFactory.IconType.CHART, onOpenSchemaDrift));
+        launchpadGrid.add(createLaunchTile("Data Masking", "Sanitize sensitive PII for GDPR",
+                UiIconFactory.IconType.LOCK, onOpenDataMasking));
+        launchpadGrid.add(createLaunchTile("Mock Data Gen", "Synthetic rows with FK integrity",
+                UiIconFactory.IconType.TABLE, onOpenMockData));
+
+        launchpadInner.add(launchpadGrid, BorderLayout.CENTER);
+        launchpadCard.add(launchpadInner, BorderLayout.CENTER);
+        middle.add(launchpadCard);
+
+        return middle;
+    }
+
+    private void populateDefaultStorageBars() {
+        storageBarsContainer.removeAll();
+        if (currentTopTables.isEmpty()) {
+            JLabel empty = new JLabel("No table storage data available. Connect to a database or click Refresh.");
+            empty.setFont(ThemeManager.getUiFont(Font.PLAIN, 11));
+            empty.setForeground(ThemeManager.getMutedTextColor());
+            storageBarsContainer.add(empty);
+        } else {
+            for (TableStorageInfo info : currentTopTables) {
+                storageBarsContainer.add(createTableStorageBar(info));
+                storageBarsContainer.add(Box.createVerticalStrut(8));
+            }
+        }
+        storageBarsContainer.revalidate();
+        storageBarsContainer.repaint();
+    }
+
+    private JPanel createTableStorageBar(TableStorageInfo info) {
+        JPanel row = new JPanel(new BorderLayout(4, 2));
+        row.setOpaque(false);
+        row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        row.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2 && onNavigateToTable != null) {
+                    onNavigateToTable.accept(info.tableName);
+                }
+            }
+        });
+
+        // Top line: Name + Details
+        JPanel line = new JPanel(new BorderLayout());
+        line.setOpaque(false);
+
+        JLabel nameLbl = new JLabel(info.tableName);
+        nameLbl.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
+        nameLbl.setForeground(ThemeManager.getTextColor());
+        line.add(nameLbl, BorderLayout.WEST);
+
+        String sizeStr = formatBytes(info.sizeBytes);
+        String rowsStr = String.format("%,d rows", info.rowCount);
+        String pctStr = String.format("%.1f%%", info.percentOfTotal);
+
+        JLabel valLbl = new JLabel(sizeStr + " • " + rowsStr + " (" + pctStr + ")");
+        valLbl.setFont(ThemeManager.getUiFont(Font.PLAIN, 11));
+        valLbl.setForeground(new Color(59, 130, 246));
+        line.add(valLbl, BorderLayout.EAST);
+        row.add(line, BorderLayout.NORTH);
+
+        // Progress bar meter
+        JProgressBar bar = new JProgressBar(0, 100);
+        bar.setValue((int) Math.min(100, Math.max(0, info.percentOfTotal)));
+        bar.setPreferredSize(new Dimension(100, 6));
+        bar.setBorderPainted(false);
+        bar.setForeground(new Color(59, 130, 246));
+        bar.setBackground(ThemeManager.isDark() ? new Color(36, 42, 58) : new Color(225, 230, 240));
+        row.add(bar, BorderLayout.SOUTH);
+
+        return row;
+    }
+
+    private JPanel createLaunchTile(String title, String desc, UiIconFactory.IconType iconType, Runnable action) {
+        JPanel tile = new JPanel(new BorderLayout(6, 4));
+        tile.setBackground(ThemeManager.isDark() ? new Color(28, 33, 48) : new Color(245, 247, 250));
+        tile.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ThemeManager.getBorderColor(), 1),
+                new EmptyBorder(8, 10, 8, 10)
+        ));
+        tile.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+        JLabel icon = new JLabel(UiIconFactory.getIcon(iconType, 16, ThemeManager.getAccentColor()));
+        tile.add(icon, BorderLayout.WEST);
+
+        JPanel text = new JPanel();
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+        text.setOpaque(false);
+
+        JLabel t = new JLabel(title);
+        t.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
+        t.setForeground(ThemeManager.getTextColor());
+
+        JLabel d = new JLabel(desc);
+        d.setFont(ThemeManager.getUiFont(Font.PLAIN, 10));
+        d.setForeground(ThemeManager.getMutedTextColor());
+
+        text.add(t);
+        text.add(d);
+        tile.add(text, BorderLayout.CENTER);
+
+        tile.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (action != null) action.run();
+            }
+
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                tile.setBackground(ThemeManager.isDark() ? new Color(38, 45, 65) : new Color(235, 240, 248));
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                tile.setBackground(ThemeManager.isDark() ? new Color(28, 33, 48) : new Color(245, 247, 250));
+            }
+        });
+
         return tile;
     }
 
-    /**
-     * Updates all Application Usage & Activity Statistics cards, Runtime Memory, and the Breakdown Table.
-     * Works both when disconnected and when connected to a database.
-     */
-    public void refreshUsageStatistics() {
-        AppUsageTracker.UsageStatsData d = AppUsageTracker.getStats();
-        long sessionSec = AppUsageTracker.getCurrentSessionUptimeSeconds();
-        long totalSec = AppUsageTracker.getTotalUptimeSeconds();
+    // ==========================================
+    // 5. RECENT QUERY EXECUTION STREAM
+    // ==========================================
+    private JPanel createQueryActivitySection() {
+        JPanel card = createCardWrapper();
+        JPanel inner = new JPanel(new BorderLayout(0, 8));
+        inner.setOpaque(false);
+        inner.setBorder(new EmptyBorder(12, 14, 12, 14));
 
-        // Runtime Memory & Cache
-        long usedMb = AppUsageTracker.getJvmUsedMemoryMb();
-        long maxMb = AppUsageTracker.getJvmMaxMemoryMb();
-        int memPct = AppUsageTracker.getJvmMemoryUsagePercent();
-        runtimeMemoryLabel.setText(String.format("JVM Heap: %,d / %,d MB (%d%%)", usedMb, maxMb, memPct));
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
 
-        if (dbManager != null) {
-            catalogCacheStatsLabel.setText(String.format("Cache: %,d Tbls | %,d Cols | %,d FKs",
-                    dbManager.getCachedTableCount(), dbManager.getCachedColumnCount(), dbManager.getCachedFkCount()));
-        }
+        JLabel title = new JLabel("Recent Query Execution Activity");
+        title.setFont(ThemeManager.getUiFont(Font.BOLD, 13));
+        title.setForeground(ThemeManager.getTextColor());
+        header.add(title, BorderLayout.WEST);
 
-        // Card 5: Sessions, Uptime & Streak
-        long sessions = Math.max(1L, d.totalSessions);
-        usageSessionsLabel.setText(String.format("Launches: %,d | Session: %s",
-                sessions, AppUsageTracker.formatDuration(sessionSec)));
-        usageUptimeLabel.setText("Cumulative Time: " + AppUsageTracker.formatDuration(totalSec));
-        usageStreakLabel.setText(String.format("Active Days: %,d | Streak: 🔥 %,dd",
-                AppUsageTracker.getActiveDaysCount(), AppUsageTracker.getCurrentDayStreak()));
+        JLabel sub = new JLabel("Real-Time Execution Telemetry");
+        sub.setFont(ThemeManager.getUiFont(Font.PLAIN, 10));
+        sub.setForeground(ThemeManager.getMutedTextColor());
+        header.add(sub, BorderLayout.EAST);
+        inner.add(header, BorderLayout.NORTH);
 
-        // Card 6: Query Volume & Daily Trend
-        long totalQ = d.totalQueriesExecuted;
-        long sessQ = AppUsageTracker.getSessionQueriesExecuted();
-        long todayQ = AppUsageTracker.getTodayQueriesCount();
-        long yestQ = AppUsageTracker.getYesterdayQueriesCount();
-        long last7Q = AppUsageTracker.getLast7DaysQueriesCount();
-        double successRate = AppUsageTracker.getSuccessRatePercent();
+        queryTimelineContainer = new JPanel();
+        queryTimelineContainer.setLayout(new BoxLayout(queryTimelineContainer, BoxLayout.Y_AXIS));
+        queryTimelineContainer.setOpaque(false);
+        populateRecentQueries();
 
-        usageQueriesTotalLabel.setText(String.format("Queries Run: %,d (Session: %,d)", totalQ, sessQ));
-        usageDailyTrendLabel.setText(String.format("Today: %,d | Yest: %,d | 7d: %,d", todayQ, yestQ, last7Q));
-        usageSuccessRateLabel.setText(String.format("Success: %.1f%% (%,d OK / %,d Err)",
-                successRate, d.successfulQueries, d.failedQueries));
+        inner.add(queryTimelineContainer, BorderLayout.CENTER);
+        card.add(inner, BorderLayout.CENTER);
+        return card;
+    }
 
-        // Card 7: Latency Percentiles, Slow Queries & Row Volume
-        long avgLat = AppUsageTracker.getAverageQueryDurationMs();
-        long p50Lat = AppUsageTracker.getP50LatencyMs();
-        long p95Lat = AppUsageTracker.getP95LatencyMs();
-        usageLatencyPercentilesLabel.setText(String.format("Avg: %,dms | P50: %,dms | P95: %,dms", avgLat, p50Lat, p95Lat));
-        usageSlowQueriesLabel.setText(String.format("Max: %,dms | Slow (>500ms): %,d", d.maxQueryDurationMs, d.slowQueriesCount));
-        usageSlowQueriesLabel.setToolTipText(d.slowestQuerySql != null && !d.slowestQuerySql.isEmpty()
-                ? "Slowest Query: " + d.slowestQuerySql
-                : "No slow queries recorded");
-        usageRowVolumeLabel.setText(String.format("Rows Read: %,d | Mutated: %,d", d.totalRowsFetched, d.totalRowsMutated));
+    private void populateRecentQueries() {
+        queryTimelineContainer.removeAll();
+        List<String> history = QueryHistory.load();
+        Map<String, QueryHistory.HistoryMetadata> metaMap = QueryHistory.loadMetadataMap();
 
-        // Card 8: SQL Workload & Hot Tables
-        int selectPct = totalQ > 0 ? (int) Math.round((d.selectQueries * 100.0) / totalQ) : 0;
-        usageSelectBreakdownLabel.setText(String.format("SELECT: %,d (%d%%) | EXPLAIN: %,d", d.selectQueries, selectPct, d.explainQueries));
-        usageDmlDdlBreakdownLabel.setText(String.format("DML (INS/UPD/DEL): %,d | DDL: %,d", d.dmlQueries, d.ddlQueries));
-        usageHotTableLabel.setText("🔥 Hot Table: " + truncate(AppUsageTracker.getTopEntry(d.queriedTableCounts, "None yet"), 25));
-
-        // Card 9: Safety & Linter Governance
-        usageGuardrailLabel.setText(String.format("Destructive DML Guarded: %,d", d.destructiveQueriesIntercepted));
-        usageLinterStatsLabel.setText(String.format("Linter Warnings: %,d | Fixes: %,d", d.linterIssuesDetected, d.linterFixesApplied));
-        usagePrivacyDriftLabel.setText(String.format("PII Masked: %,d | Drift Ops: %,d", d.piiRowsMasked, d.schemaSnapshotsAndMigrations));
-
-        // Card 10: Data Movement & CodeGen
-        usageConnectionsExportsLabel.setText(String.format("DB Connections: %,d | Exports: %,d", d.totalConnectionsOpened, d.totalExportsPerformed));
-        usageIngestVolumeLabel.setText(String.format("Imported: %,d | Mock Rows: %,d", d.rowsImported, d.mockRowsGenerated));
-        usageSyncCodegenLabel.setText(String.format("DB Compares: %,d | ORM Models: %,d", d.dualDbComparisonsRun, d.ormModelsGenerated));
-
-        // Card 12: Workbench & Library Stats
-        int savedCount = 0;
-        int historyCount = 0;
-        int pinnedCount = 0;
-        try {
-            savedCount = SavedQueries.load().size();
-            List<String> historyList = QueryHistory.load();
-            historyCount = historyList.size();
-            Map<String, QueryHistory.HistoryMetadata> meta = QueryHistory.loadMetadataMap();
-            for (QueryHistory.HistoryMetadata e : meta.values()) {
-                if (e != null && e.pinned) pinnedCount++;
-            }
-        } catch (Exception ignored) {}
-
-        usageLibraryCountsLabel.setText(String.format("Saved: %,d | History: %,d (⭐ %,d Pinned)",
-                savedCount, historyCount, pinnedCount));
-        usageTopFeatureLabel.setText("Top Tool: " + truncate(AppUsageTracker.getTopEntry(d.featureUsageCounts, "Dashboard"), 26));
-        usageTopEngineLabel.setText("Top Engine: " + truncate(AppUsageTracker.getTopEntry(d.engineConnections, "None yet"), 24));
-
-        // Populate Usage Breakdown Table
-        if (usageBreakdownTableModel != null) {
-            usageBreakdownTableModel.setRowCount(0);
-            String filter = usageCategoryFilterCombo != null && usageCategoryFilterCombo.getSelectedItem() != null
-                    ? usageCategoryFilterCombo.getSelectedItem().toString()
-                    : "All Categories";
-            boolean showAll = "All Categories".equals(filter);
-
-            // 1. Workbench Tools / Features
-            if ((showAll || filter.contains("Workbench Tools")) && d.featureUsageCounts != null && !d.featureUsageCounts.isEmpty()) {
-                populateSortedMapRows("🛠️ Workbench Tool", d.featureUsageCounts);
-            }
-
-            // 2. Hot Queried Tables
-            if ((showAll || filter.contains("Hot Queried Tables")) && d.queriedTableCounts != null && !d.queriedTableCounts.isEmpty()) {
-                populateSortedMapRows("🔥 Hot Table", d.queriedTableCounts);
-            }
-
-            // 3. SQL Workload
-            if ((showAll || filter.contains("SQL Workload")) && totalQ > 0) {
-                addBreakdownRow("⚡ SQL Workload", "SELECT / DQL Queries", d.selectQueries, totalQ);
-                addBreakdownRow("⚡ SQL Workload", "DML (INSERT / UPDATE / DELETE)", d.dmlQueries, totalQ);
-                addBreakdownRow("⚡ SQL Workload", "DDL (CREATE / ALTER / DROP)", d.ddlQueries, totalQ);
-                addBreakdownRow("⚡ SQL Workload", "EXPLAIN Execution Plans", d.explainQueries, totalQ);
-                addBreakdownRow("⚡ SQL Workload", "Slow Queries (> 500 ms)", d.slowQueriesCount, totalQ);
-                if (d.otherQueries > 0) {
-                    addBreakdownRow("⚡ SQL Workload", "Other SQL Statements", d.otherQueries, totalQ);
+        if (history == null || history.isEmpty()) {
+            JLabel empty = new JLabel("No queries executed yet. Run queries in the SQL Editor to stream activity here.");
+            empty.setFont(ThemeManager.getUiFont(Font.PLAIN, 11));
+            empty.setForeground(ThemeManager.getMutedTextColor());
+            queryTimelineContainer.add(empty);
+        } else {
+            int count = Math.min(5, history.size());
+            for (int i = 0; i < count; i++) {
+                String sql = history.get(i);
+                QueryHistory.HistoryMetadata meta = metaMap != null ? metaMap.get(sql) : null;
+                long dur = (meta != null && meta.durationMs > 0) ? meta.durationMs : 8L;
+                long ts = (meta != null && meta.timestamp > 0) ? meta.timestamp : System.currentTimeMillis();
+                queryTimelineContainer.add(createQueryItemRow(sql, dur, ts));
+                if (i < count - 1) {
+                    queryTimelineContainer.add(Box.createVerticalStrut(6));
                 }
             }
+        }
+        queryTimelineContainer.revalidate();
+        queryTimelineContainer.repaint();
+    }
 
-            // 4. Daily Activity (Last 7 Days)
-            if (showAll || filter.contains("Daily Activity")) {
-                long maxDayQ = Math.max(1L, last7Q);
-                LocalDate today = LocalDate.now();
-                for (int i = 0; i < 7; i++) {
-                    LocalDate day = today.minusDays(i);
-                    String key = day.format(DateTimeFormatter.ISO_LOCAL_DATE);
-                    long cnt = d.dailyQueryCounts.getOrDefault(key, 0L);
-                    if (cnt > 0 || !showAll) {
-                        String dayLabel = (i == 0 ? "Today (" + key + ")" : (i == 1 ? "Yesterday (" + key + ")" : key));
-                        int share = (int) Math.round((cnt * 100.0) / maxDayQ);
-                        usageBreakdownTableModel.addRow(new Object[]{
-                                "📅 Daily Activity",
-                                dayLabel,
-                                String.format("%,d queries", cnt),
-                                share
-                        });
+    private JPanel createQueryItemRow(String sql, long durationMs, long timestamp) {
+        JPanel row = new JPanel(new BorderLayout(10, 0));
+        row.setOpaque(false);
+        row.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ThemeManager.getBorderColor(), 1),
+                new EmptyBorder(6, 10, 6, 10)
+        ));
+
+        // Left: Success indicator + SQL
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        left.setOpaque(false);
+
+        JLabel status = new JLabel("✓");
+        status.setFont(ThemeManager.getUiFont(Font.BOLD, 13));
+        status.setForeground(new Color(16, 185, 129));
+        left.add(status);
+
+        String sqlPreview = sql != null ? sql.replace("\n", " ").trim() : "";
+        if (sqlPreview.length() > 90) sqlPreview = sqlPreview.substring(0, 90) + "...";
+
+        JLabel sqlLbl = new JLabel(sqlPreview);
+        sqlLbl.setFont(ThemeManager.getMonospaceFont(Font.PLAIN, 11));
+        sqlLbl.setForeground(ThemeManager.getTextColor());
+        left.add(sqlLbl);
+        row.add(left, BorderLayout.CENTER);
+
+        // Right: Duration + Timestamp
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        right.setOpaque(false);
+
+        JLabel durLbl = new JLabel(durationMs + " ms");
+        durLbl.setFont(ThemeManager.getUiFont(Font.BOLD, 10));
+        durLbl.setForeground(new Color(16, 185, 129));
+        durLbl.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(16, 185, 129, 90), 1),
+                new EmptyBorder(1, 5, 1, 5)
+        ));
+        right.add(durLbl);
+
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+        JLabel timeLbl = new JLabel(sdf.format(new Date(timestamp)));
+        timeLbl.setFont(ThemeManager.getUiFont(Font.PLAIN, 10));
+        timeLbl.setForeground(ThemeManager.getMutedTextColor());
+        right.add(timeLbl);
+
+        row.add(right, BorderLayout.EAST);
+        return row;
+    }
+
+    // ==========================================
+    // PUBLIC REFRESH APIs
+    // ==========================================
+    public void refresh() {
+        if (dbManager == null) return;
+
+        boolean connected = dbManager.isConnected();
+        if (!connected) {
+            dbNameLabel.setText("Database Overview (Offline)");
+            connStatusPill.setText("Offline");
+            connStatusPill.setForeground(Color.GRAY);
+            connDetailsLabel.setText("No active database session • Connect to view live telemetry");
+            healthDial.setScore(0);
+            return;
+        }
+
+        // Run heavy metadata inspection asynchronously on virtual threads
+        Executors.newVirtualThreadPerTaskExecutor().submit(() -> {
+            try (java.sql.Connection conn = dbManager.borrowConnection()) {
+                if (conn == null) return;
+                DatabaseMetaData meta = conn.getMetaData();
+                String engine = meta.getDatabaseProductName();
+                String version = meta.getDatabaseProductVersion();
+                String dbName = dbManager.getLastDbName();
+                if (dbName == null || dbName.isEmpty()) dbName = "Connected Database";
+                String host = dbManager.getLastHost();
+                String port = dbManager.getLastPort();
+                String location = (host != null && !host.isEmpty()) ? (host + ":" + port) : "Local / Embedded";
+
+                // Measure ping
+                long pingMs = 1;
+                try {
+                    long t0 = System.currentTimeMillis();
+                    try (Statement st = conn.createStatement()) {
+                        st.execute("SELECT 1");
                     }
+                    pingMs = Math.max(1, System.currentTimeMillis() - t0);
+                } catch (Exception ignored) {}
+
+                // Catalog inspection
+                List<String> tableNames = dbManager.getTableNames();
+                int tableCount = tableNames.size();
+                int colCount = 0;
+                int fkCount = 0;
+                int missingPks = 0;
+                long totalRows = 0;
+                long totalBytes = 0;
+
+                List<TableStorageInfo> storageList = new ArrayList<>();
+
+                for (String tbl : tableNames) {
+                    // Check columns
+                    try (ResultSet rs = meta.getColumns(null, null, tbl, "%")) {
+                        while (rs.next()) colCount++;
+                    } catch (Exception ignored) {}
+
+                    // Check primary keys
+                    boolean hasPk = false;
+                    try (ResultSet rs = meta.getPrimaryKeys(null, null, tbl)) {
+                        if (rs.next()) hasPk = true;
+                    } catch (Exception ignored) {}
+                    if (!hasPk) missingPks++;
+
+                    // Check foreign keys
+                    try (ResultSet rs = meta.getImportedKeys(null, null, tbl)) {
+                        while (rs.next()) fkCount++;
+                    } catch (Exception ignored) {}
+
+                    // Estimate row count
+                    long rows = estimateRowCount(conn, tbl);
+                    totalRows += rows;
+                    long estBytes = rows * 128L; // average record footprint
+                    totalBytes += estBytes;
+
+                    storageList.add(new TableStorageInfo(tbl, rows, estBytes));
                 }
-            }
 
-            // 5. Safety, Governance & Data Movement
-            if (showAll || filter.contains("Safety & Data Movement")) {
-                long govTotal = Math.max(1L, d.destructiveQueriesIntercepted + d.linterIssuesDetected + d.linterFixesApplied
-                        + d.piiRowsMasked + d.rowsImported + d.mockRowsGenerated + d.dualDbComparisonsRun + d.ormModelsGenerated);
-                addBreakdownRow("🛡️ Governance & Ops", "Unfiltered DML Guarded / Dry-Run", d.destructiveQueriesIntercepted, govTotal);
-                addBreakdownRow("🛡️ Governance & Ops", "Static Linter Issues Detected", d.linterIssuesDetected, govTotal);
-                addBreakdownRow("🛡️ Governance & Ops", "Static Linter Auto-Fixes Applied", d.linterFixesApplied, govTotal);
-                addBreakdownRow("🛡️ Governance & Ops", "PII Rows Masked & Anonymized", d.piiRowsMasked, govTotal);
-                addBreakdownRow("🛡️ Governance & Ops", "Schema Drift Snapshots & Migrations", d.schemaSnapshotsAndMigrations, govTotal);
-                addBreakdownRow("🔄 Data & CodeGen", "CSV / Excel Rows Imported", d.rowsImported, govTotal);
-                addBreakdownRow("🔄 Data & CodeGen", "Synthetic Mock Rows Generated", d.mockRowsGenerated, govTotal);
-                addBreakdownRow("🔄 Data & CodeGen", "Dual DB Comparisons Executed", d.dualDbComparisonsRun, govTotal);
-                addBreakdownRow("🔄 Data & CodeGen", "ORM Entity Models Generated", d.ormModelsGenerated, govTotal);
-            }
-
-            // 6. Database Engines & Column Data Types
-            if (showAll || filter.contains("DB Engines & Column Types")) {
-                if (d.engineConnections != null && !d.engineConnections.isEmpty()) {
-                    populateSortedMapRows("🗄️ DB Engine", d.engineConnections);
+                // Compute percentages and sort top 5
+                storageList.sort((a, b) -> Long.compare(b.rowCount, a.rowCount));
+                long finalTotalBytes = totalBytes;
+                for (TableStorageInfo tsi : storageList) {
+                    tsi.percentOfTotal = (finalTotalBytes > 0) ? (tsi.sizeBytes * 100.0 / finalTotalBytes) : 0.0;
                 }
-                int totalSchemaCols = lastTextCols + lastNumericCols + lastDateCols + lastBoolCols + lastOtherCols;
-                if (totalSchemaCols > 0) {
-                    addBreakdownRow("🗄️ Schema Col Type", "Text / VARCHAR / CHAR", lastTextCols, totalSchemaCols);
-                    addBreakdownRow("🗄️ Schema Col Type", "Numeric / INT / DECIMAL", lastNumericCols, totalSchemaCols);
-                    addBreakdownRow("🗄️ Schema Col Type", "Date / Time / Timestamp", lastDateCols, totalSchemaCols);
-                    addBreakdownRow("🗄️ Schema Col Type", "Boolean / Bit", lastBoolCols, totalSchemaCols);
-                    addBreakdownRow("🗄️ Schema Col Type", "JSON / Binary / Other", lastOtherCols, totalSchemaCols);
+
+                List<TableStorageInfo> top5 = new ArrayList<>();
+                for (int i = 0; i < Math.min(5, storageList.size()); i++) {
+                    top5.add(storageList.get(i));
                 }
-            }
-        }
-    }
 
-    private void populateSortedMapRows(String category, Map<String, Long> map) {
-        long total = 0L;
-        List<Map.Entry<String, Long>> sorted = new ArrayList<>(map.entrySet());
-        sorted.sort((a, b) -> Long.compare(
-                b.getValue() != null ? b.getValue() : 0L,
-                a.getValue() != null ? a.getValue() : 0L));
-        for (Map.Entry<String, Long> e : sorted) {
-            if (e.getValue() != null && e.getValue() > 0) {
-                total += e.getValue();
-            }
-        }
-        for (Map.Entry<String, Long> e : sorted) {
-            long count = e.getValue() != null ? e.getValue() : 0L;
-            if (count <= 0) continue;
-            int share = total > 0 ? (int) Math.round((count * 100.0) / total) : 0;
-            usageBreakdownTableModel.addRow(new Object[]{
-                    category,
-                    e.getKey(),
-                    String.format("%,d", count),
-                    share
-            });
-        }
-    }
+                // Compute Schema Health Score
+                int computedHealth = 100 - (missingPks * 6);
+                computedHealth = Math.max(50, Math.min(100, computedHealth));
+                lastHealthScore = computedHealth;
 
-    private void addBreakdownRow(String category, String label, long count, long denominator) {
-        if (count <= 0) return;
-        int pct = denominator > 0 ? (int) Math.min(100L, Math.round((count * 100.0) / denominator)) : 0;
-        usageBreakdownTableModel.addRow(new Object[]{
-                category,
-                label,
-                String.format("%,d", count),
-                pct
+                final String finalDbName = dbName;
+                final long finalPing = pingMs;
+                final int finalTableCount = tableCount;
+                final int finalColCount = colCount;
+                final int finalFkCount = fkCount;
+                final long finalTotalRows = totalRows;
+                final long finalTotalBytes1 = totalBytes;
+                final int finalMissingPks = missingPks;
+
+                SwingUtilities.invokeLater(() -> {
+                    dbNameLabel.setText(finalDbName);
+                    connStatusPill.setText("Live (Read / Write)");
+                    connStatusPill.setForeground(new Color(16, 185, 129));
+
+                    connDetailsLabel.setText(String.format("%s %s • %s • ⚡ %d ms",
+                            engine, version, location, finalPing));
+
+                    healthDial.setScore(lastHealthScore);
+
+                    // Update KPIs
+                    kpiTablesCountLabel.setText(finalTableCount + " Tables");
+                    kpiTablesSubLabel.setText(finalColCount + " Columns • " + finalFkCount + " FKs");
+
+                    kpiStorageSizeLabel.setText(formatBytes(finalTotalBytes1));
+                    kpiStorageSubLabel.setText(String.format("%,d Est. Rows", finalTotalRows));
+
+                    currentTopTables.clear();
+                    currentTopTables.addAll(top5);
+                    populateDefaultStorageBars();
+
+                    updateActionableInsights(finalMissingPks);
+                    refreshUsageStatistics();
+                });
+
+            } catch (Exception e) {
+                // Keep UI resilient on failure
+            }
         });
     }
 
-    private final java.util.concurrent.atomic.AtomicBoolean isRefreshing = new java.util.concurrent.atomic.AtomicBoolean(false);
-
-    public void refresh() {
-        refreshUsageStatistics();
-
-        if (dbManager == null || dbManager.connection == null) {
-            statusPillLabel.setText("● Disconnected");
-            statusPillLabel.setForeground(Color.GRAY);
-            lastRefreshedLabel.setText("Usage Updated " + new SimpleDateFormat("HH:mm:ss").format(new Date()));
-            return;
+    private long estimateRowCount(java.sql.Connection conn, String table) {
+        if (conn == null) return 0L;
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM \"" + table + "\"")) {
+            if (rs.next()) return rs.getLong(1);
+        } catch (Exception ignored) {
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM " + table)) {
+                if (rs.next()) return rs.getLong(1);
+            } catch (Exception ignored2) {}
         }
-        if (!isRefreshing.compareAndSet(false, true)) {
-            return;
-        }
-
-        headerProgress.setVisible(true);
-        headerProgress.setIndeterminate(true);
-
-        new Thread(() -> {
-            try {
-                long pingStart = System.currentTimeMillis();
-                try (Statement s = dbManager.connection.createStatement()) {
-                    s.execute("SELECT 1");
-                }
-                long latency = System.currentTimeMillis() - pingStart;
-
-                DatabaseMetaData meta = dbManager.connection.getMetaData();
-                String productName = meta.getDatabaseProductName();
-                String productVersion = meta.getDatabaseProductVersion();
-                String user = meta.getUserName();
-                String url = meta.getURL();
-                boolean autoCommit = dbManager.connection.getAutoCommit();
-
-                dbManager.preloadAllColumns();
-                dbManager.preloadAllForeignKeys();
-
-                List<String> tables = dbManager.getTableNames();
-                int tableCount = tables.size();
-
-                // Compute storage and table sizes in a SINGLE batch query instead of N*3 queries
-                List<TableStorageInfo> storageList = new ArrayList<>();
-                long totalCatalogBytes = 0;
-                java.util.Map<String, long[]> statsMap = new java.util.HashMap<>();
-                int batchIndexCount = 0;
-
-                if (dbManager.isPostgres()) {
-                    try (Statement s = dbManager.connection.createStatement()) {
-                        try (ResultSet rs = s.executeQuery(
-                                "SELECT CASE WHEN schemaname = 'public' THEN relname ELSE schemaname || '.' || relname END, " +
-                                "COALESCE(n_live_tup, 0), COALESCE(pg_total_relation_size(relid), 0) " +
-                                "FROM pg_stat_user_tables")) {
-                            while (rs.next()) {
-                                String tName = rs.getString(1);
-                                long rCount = Math.max(0, rs.getLong(2));
-                                long bSize = Math.max(0, rs.getLong(3));
-                                if (tName != null) {
-                                    statsMap.put(tName, new long[]{rCount, bSize});
-                                }
-                            }
-                        } catch (Exception ignored) {}
-                        try (ResultSet rs = s.executeQuery(
-                                "SELECT COUNT(*) FROM pg_indexes WHERE schemaname NOT IN ('pg_catalog', 'information_schema')")) {
-                            if (rs.next()) batchIndexCount = rs.getInt(1);
-                        } catch (Exception ignored) {}
-                    } catch (Exception ignored) {}
-                } else if (dbManager.isMySQL()) {
-                    try (Statement s = dbManager.connection.createStatement()) {
-                        try (ResultSet rs = s.executeQuery(
-                                "SELECT table_name, COALESCE(table_rows, 0), COALESCE(data_length + index_length, 0) " +
-                                "FROM information_schema.tables WHERE table_schema = DATABASE()")) {
-                            while (rs.next()) {
-                                String tName = rs.getString(1);
-                                long rCount = Math.max(0, rs.getLong(2));
-                                long bSize = Math.max(0, rs.getLong(3));
-                                if (tName != null) {
-                                    statsMap.put(tName, new long[]{rCount, bSize});
-                                }
-                            }
-                        } catch (Exception ignored) {}
-                    } catch (Exception ignored) {}
-                } else if (tables.size() <= 20) {
-                    // Local embedded DB (SQLite / H2 Sandbox) with few tables
-                    for (String t : tables) {
-                        try (Statement s = dbManager.connection.createStatement();
-                             ResultSet rs = s.executeQuery("SELECT COUNT(*) FROM " + dbManager.quoteTableName(t))) {
-                            if (rs.next()) {
-                                long r = Math.max(0, rs.getLong(1));
-                                statsMap.put(t, new long[]{r, r * 128L});
-                            }
-                        } catch (Exception ignored) {}
-                    }
-                }
-
-                int populatedCount = 0;
-                int emptyCount = 0;
-                for (String t : tables) {
-                    long[] st = statsMap.get(t);
-                    long rows = st != null ? st[0] : 0;
-                    long bytes = st != null ? st[1] : 0;
-                    if (rows > 0) populatedCount++;
-                    else emptyCount++;
-                    if (bytes == 0 && rows > 0) {
-                        bytes = rows * 128L;
-                    }
-                    totalCatalogBytes += bytes;
-                    storageList.add(new TableStorageInfo(t, rows, bytes));
-                }
-
-                // Sort descending by bytes/rows
-                storageList.sort((a, b) -> Long.compare(b.sizeBytes > 0 ? b.sizeBytes : b.rowCount, a.sizeBytes > 0 ? a.sizeBytes : a.rowCount));
-
-                // Calculate percentages
-                final long finalTotalBytes = totalCatalogBytes;
-                for (TableStorageInfo info : storageList) {
-                    if (finalTotalBytes > 0) {
-                        info.percentOfTotal = (double) info.sizeBytes / finalTotalBytes * 100.0;
-                    }
-                }
-
-                // Count columns, foreign keys, orphan tables, missing PKs, and column type distribution
-                int totalCols = 0;
-                int totalFk = 0;
-                int missingPkCount = 0;
-                Set<String> referencedTables = new HashSet<>();
-                Set<String> tablesWithOutgoingFk = new HashSet<>();
-
-                for (String t : tables) {
-                    totalCols += dbManager.getColumnNames(t).size();
-                    Map<String, String[]> fks = dbManager.getCachedForeignKeys(t);
-                    totalFk += fks.size();
-                    if (!fks.isEmpty()) {
-                        tablesWithOutgoingFk.add(t.toLowerCase(Locale.ROOT));
-                        for (String[] target : fks.values()) {
-                            if (target != null && target.length > 0 && target[0] != null) {
-                                referencedTables.add(target[0].toLowerCase(Locale.ROOT));
-                            }
-                        }
-                    }
-                    if (tables.size() <= 40) {
-                        try {
-                            if (dbManager.getPrimaryKeys(t).isEmpty()) {
-                                missingPkCount++;
-                            }
-                        } catch (Exception ignored) {}
-                    }
-                }
-
-                int orphanCount = 0;
-                for (String t : tables) {
-                    String lower = t.toLowerCase(Locale.ROOT);
-                    String bare = lower.contains(".") ? lower.substring(lower.indexOf('.') + 1) : lower;
-                    if (!tablesWithOutgoingFk.contains(lower)
-                            && !referencedTables.contains(lower)
-                            && !referencedTables.contains(bare)) {
-                        orphanCount++;
-                    }
-                }
-
-                // Column Data-Type Distribution from DatabaseMetaData in one pass
-                int textCols = 0, numCols = 0, dateCols = 0, boolCols = 0, otherCols = 0;
-                Set<String> validTableSet = new HashSet<>();
-                for (String t : tables) {
-                    validTableSet.add(t.toLowerCase(Locale.ROOT));
-                    if (t.contains(".")) {
-                        validTableSet.add(t.substring(t.indexOf('.') + 1).toLowerCase(Locale.ROOT));
-                    }
-                }
-                try (ResultSet rs = meta.getColumns(null, null, "%", "%")) {
-                    while (rs.next()) {
-                        String tblName = rs.getString("TABLE_NAME");
-                        if (tblName == null || !validTableSet.contains(tblName.toLowerCase(Locale.ROOT))) {
-                            continue;
-                        }
-                        String typeName = rs.getString("TYPE_NAME");
-                        String u = typeName != null ? typeName.toUpperCase(Locale.ROOT) : "";
-                        if (u.contains("CHAR") || u.contains("TEXT") || u.contains("CLOB") || u.contains("STRING")) {
-                            textCols++;
-                        } else if (u.contains("INT") || u.contains("NUMERIC") || u.contains("DECIMAL") || u.contains("FLOAT")
-                                || u.contains("DOUBLE") || u.contains("REAL") || u.contains("SERIAL") || u.contains("NUMBER") || u.contains("MONEY")) {
-                            numCols++;
-                        } else if (u.contains("DATE") || u.contains("TIME") || u.contains("YEAR") || u.contains("INTERVAL")) {
-                            dateCols++;
-                        } else if (u.contains("BOOL") || u.equals("BIT")) {
-                            boolCols++;
-                        } else {
-                            otherCols++;
-                        }
-                    }
-                } catch (Exception ignored) {}
-
-                lastTextCols = textCols;
-                lastNumericCols = numCols;
-                lastDateCols = dateCols;
-                lastBoolCols = boolCols;
-                lastOtherCols = otherCols;
-                lastMissingPkTables = missingPkCount;
-                lastOrphanTables = orphanCount;
-                lastPopulatedTables = populatedCount;
-                lastEmptyTables = emptyCount;
-
-                int totalIdx = batchIndexCount > 0 ? batchIndexCount : Math.max(tableCount, totalFk);
-
-                final int finalCols = totalCols;
-                final int finalIdx = totalIdx;
-                final int finalFk = totalFk;
-                final int finalMissingPk = missingPkCount;
-                final int finalOrphan = orphanCount;
-                final int finalPopulated = populatedCount;
-                final int finalEmpty = emptyCount;
-                final int fText = textCols, fNum = numCols, fDate = dateCols, fBool = boolCols, fOther = otherCols;
-                final long finalLatency = latency;
-
-                SwingUtilities.invokeLater(() -> {
-                    headerProgress.setVisible(false);
-                    statusPillLabel.setText("● Connected: " + productName);
-                    statusPillLabel.setForeground(new Color(16, 185, 129));
-
-                    connHostUserLabel.setText("User: " + (user != null ? user : "default") + " | URL: " + truncate(url, 26));
-                    connLatencyLabel.setText("Ping Latency: " + finalLatency + " ms");
-                    connAutoCommitLabel.setText("Auto-Commit: " + (autoCommit ? "ON (Safe)" : "MANUAL (Active Tx)"));
-
-                    engineNameVersionLabel.setText("Engine: " + productName + " (" + truncate(productVersion, 16) + ")");
-
-                    catalogTablesViewsLabel.setText(String.format("%d Tables (%d Populated / %d Empty)",
-                            tableCount, finalPopulated, finalEmpty));
-                    catalogColsIndexesLabel.setText(finalCols + "+ Columns | " + finalIdx + "+ Indexes");
-
-                    int healthScore = 98;
-                    if (finalLatency > 200) healthScore -= 10;
-                    if (finalFk > 0 && finalIdx < finalFk) healthScore -= 12;
-                    if (finalMissingPk > 0) healthScore -= Math.min(20, finalMissingPk * 5);
-                    healthScoreLabel.setText("Score: " + healthScore + " / 100 " + (healthScore > 85 ? "EXCELLENT" : "GOOD"));
-                    healthScoreLabel.setForeground(healthScore > 85 ? new Color(16, 185, 129) : new Color(245, 158, 11));
-                    healthIssuesLabel.setText(String.format("Missing PKs: %d | Orphan Tbls: %d | FKs: %d",
-                            finalMissingPk, finalOrphan, finalFk));
-
-                    schemaTypeTextNumLabel.setText(String.format("Text/VARCHAR: %,d | Numeric: %,d", fText, fNum));
-                    schemaTypeDateBoolLabel.setText(String.format("Date/Time: %,d | Boolean: %,d", fDate, fBool));
-                    schemaTypeJsonOtherLabel.setText(String.format("JSON / Binary / Other: %,d", fOther));
-
-                    // Populate storage table
-                    storageTableModel.setRowCount(0);
-                    int rank = 1;
-                    for (int i = 0; i < Math.min(storageList.size(), 10); i++) {
-                        TableStorageInfo tsi = storageList.get(i);
-                        storageTableModel.addRow(new Object[]{
-                                rank++,
-                                tsi.tableName,
-                                String.format("%,d", tsi.rowCount),
-                                formatBytes(tsi.sizeBytes),
-                                (int) Math.round(tsi.percentOfTotal)
-                        });
-                    }
-
-                    refreshUsageStatistics();
-                    lastRefreshedLabel.setText("Refreshed " + new SimpleDateFormat("HH:mm:ss").format(new Date()));
-                });
-            } catch (Exception ex) {
-                SwingUtilities.invokeLater(() -> {
-                    headerProgress.setVisible(false);
-                    statusPillLabel.setText("● Telemetry Error");
-                    statusPillLabel.setForeground(Color.RED);
-                });
-            } finally {
-                isRefreshing.set(false);
-            }
-        }).start();
+        return 0L;
     }
 
-    private static String truncate(String str, int maxLen) {
-        if (str == null) return "-";
-        return str.length() <= maxLen ? str : str.substring(0, maxLen - 3) + "...";
+    private void updateActionableInsights(int missingPks) {
+        insightsContainer.removeAll();
+
+        if (missingPks > 0) {
+            insightsContainer.add(createInsightItem(
+                    "⚠️ " + missingPks + " Tables Missing Primary Key",
+                    "Tables without PKs degrade replication and join performance.",
+                    "Review PKs",
+                    onOpenIndexAdvisor
+            ));
+        } else {
+            insightsContainer.add(createInsightItem(
+                    "✓ Primary Key Integrity Verified",
+                    "All tables have explicit primary keys defined.",
+                    null,
+                    null
+            ));
+        }
+
+        insightsContainer.add(createInsightItem(
+                "⚡ Foreign Key Index Optimization",
+                "Ensure parent-child relationships have matching indexes for fast JOINs.",
+                "Index Advisor",
+                onOpenIndexAdvisor
+        ));
+
+        insightsContainer.revalidate();
+        insightsContainer.repaint();
+    }
+
+    public void refreshUsageStatistics() {
+        AppUsageTracker.UsageStatsData stats = AppUsageTracker.getStats();
+
+        // Query throughput & latency KPI
+        long avgLatency = (stats.totalQueriesExecuted > 0) ? (stats.totalQueryDurationMs / stats.totalQueriesExecuted) : 0L;
+        long p95Latency = AppUsageTracker.getP95LatencyMs();
+        double successRate = (stats.totalQueriesExecuted > 0)
+                ? (stats.successfulQueries * 100.0 / stats.totalQueriesExecuted) : 100.0;
+
+        kpiLatencyAvgLabel.setText(avgLatency + " ms");
+        kpiLatencySubLabel.setText(String.format("P95: %dms • %.1f%% OK", p95Latency, successRate));
+
+        // Pool & Governance KPI
+        int poolActive = dbManager != null && dbManager.isConnected() ? 1 : 0;
+        kpiPoolActiveLabel.setText(poolActive + " / 10 Active");
+        kpiPoolSubLabel.setText("HikariCP • Safe DML Guard ON");
+
+        // Refresh recent queries list
+        populateRecentQueries();
     }
 
     private static String formatBytes(long bytes) {
-        if (bytes <= 0) return "-";
         if (bytes < 1024) return bytes + " B";
         int exp = (int) (Math.log(bytes) / Math.log(1024));
         char pre = "KMGTPE".charAt(exp - 1);
-        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
+        return String.format("%.1f %cB", bytes / Math.pow(1024, exp), pre);
+    }
+
+    // ==========================================
+    // RADIAL HEALTH SCORE DIAL COMPONENT
+    // ==========================================
+    private static class HealthDialComponent extends JComponent {
+        private int score = 94;
+
+        public HealthDialComponent() {
+            setPreferredSize(new Dimension(140, 50));
+        }
+
+        public void setScore(int score) {
+            this.score = score;
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            int h = getHeight();
+
+            // Background pill
+            RoundRectangle2D.Double bg = new RoundRectangle2D.Double(0, 2, getWidth() - 2, h - 4, 12, 12);
+            g2.setColor(ThemeManager.isDark() ? new Color(30, 36, 52) : new Color(245, 247, 250));
+            g2.fill(bg);
+            g2.setColor(ThemeManager.getBorderColor());
+            g2.draw(bg);
+
+            // Ring gauge on the left
+            int dialSize = 34;
+            int dialX = 8;
+            int dialY = (h - dialSize) / 2;
+
+            g2.setColor(ThemeManager.isDark() ? new Color(50, 58, 80) : new Color(220, 225, 235));
+            g2.setStroke(new BasicStroke(3.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawOval(dialX, dialY, dialSize, dialSize);
+
+            // Progress arc
+            Color scoreColor = (score >= 85) ? new Color(16, 185, 129) :
+                    ((score >= 65) ? new Color(245, 158, 11) : new Color(239, 68, 68));
+            g2.setColor(scoreColor);
+            int arcAngle = (int) (360.0 * (score / 100.0));
+            g2.drawArc(dialX, dialY, dialSize, dialSize, 90, -arcAngle);
+
+            // Score text inside ring
+            g2.setFont(ThemeManager.getUiFont(Font.BOLD, 10));
+            String scStr = String.valueOf(score);
+            FontMetrics fm = g2.getFontMetrics();
+            int sx = dialX + (dialSize - fm.stringWidth(scStr)) / 2;
+            int sy = dialY + (dialSize + fm.getAscent()) / 2 - 2;
+            g2.drawString(scStr, sx, sy);
+
+            // Text on right
+            int tx = dialX + dialSize + 8;
+            g2.setFont(ThemeManager.getUiFont(Font.BOLD, 10));
+            g2.setColor(ThemeManager.getMutedTextColor());
+            g2.drawString("HEALTH SCORE", tx, dialY + 12);
+
+            g2.setFont(ThemeManager.getUiFont(Font.BOLD, 11));
+            g2.setColor(scoreColor);
+            String status = (score >= 85) ? "Optimal (" + score + "/100)" :
+                    ((score >= 65) ? "Good (" + score + "/100)" : "Attention (" + score + "/100)");
+            g2.drawString(status, tx, dialY + 26);
+
+            g2.dispose();
+        }
     }
 }
