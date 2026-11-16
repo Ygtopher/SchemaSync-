@@ -1,6 +1,6 @@
-﻿# SchemaSync Comprehensive Feature Guide
+# SchemaSync Comprehensive Feature Guide
 
-**Version:** 2.4.2  
+**Version:** 2.4.3  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 

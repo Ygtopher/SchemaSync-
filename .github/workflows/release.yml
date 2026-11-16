@@ -58,9 +58,12 @@ jobs:
       run: |
         mkdir -p release/dist
         cp release/SchemaSync.jar release/dist/ || true
+        cp release/SchemaSync-patch.jar release/dist/ || true
         cp release/schemasync-cli.jar release/dist/ || true
         cp release/SchemaSync.exe release/dist/ || true
         cp release/SchemaSync-windows-x64.zip release/dist/ || true
+        cp release/*.deb release/dist/ || true
+        cp release/*.rpm release/dist/ || true
         (cd release/dist && sha256sum * > SHA256SUMS.txt)
 
     - name: Upload GitHub Release Assets

@@ -1,8 +1,33 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 2.4.2  
+**Current Version:** 2.4.3  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v2.4.3] - 2026-11-16
+### Configurable SQL Editor Limits, Table Browser Enter-Key Limits & Table Header Render Stability
+* **Configurable SQL Editor Query Limits (`SqlEditorPanel`):**
+  * Removed the arbitrary hardcoded `stmt.setMaxRows(5000);` limit in SQL query execution.
+  * Added a dedicated, user-configurable **`Limit:`** selector directly on the SQL Editor toolbar adjacent to the **Run** and **Run All** buttons.
+  * Provided presets: `No Limit (∞)` (default, translates to JDBC `stmt.setMaxRows(0)`), `50,000`, `10,000`, `5,000`, `1,000`, and `100,000`.
+  * Fully editable combo box allowing custom numeric limits to be typed directly (e.g. `2500`).
+  * Dynamic result tab titles and execution status bar messages indicating `[Capped at X rows]` only when a configured limit is actively hit.
+* **Table Browser Limit Field Fixes (`BrowseTabPanel`):**
+  * Attached an <kbd>Enter</kbd> key `ActionListener` to the `limitField` to immediately execute data reload on enter.
+  * Added placeholder text (`All / ∞`) and informative tooltips explaining row limits.
+  * Removed clamp of limits under 100 so user-specified limits (e.g. 50, 500) are honored directly.
+  * Added a live row count indicator on the toolbar (`(50 rows, Limit: 50)` / `(1,000+ rows)`).
+* **Table Header Compound Border & Zoom Drift Fix (`SmartTableCellRenderer`):**
+  * Diagnosed and fixed the table "zooming in" bug when clicking Run Query multiple times.
+  * Swing's `DefaultTableCellHeaderRenderer` is a shared singleton `JLabel` across all table headers in FlatLaf/Swing. Repeated calls to `BorderFactory.createCompoundBorder` mutated the singleton's border on each render cycle, compounding padding by $+6\text{px}$ on every run and inflating column widths up to $550\text{px}$.
+  * Memoized the original base border via a client property (`SchemaSync.baseHeaderBorder`) on the header component, ensuring header padding is completely idempotent.
+  * Added an unwrapper loop in `SmartTableCellRenderer.install()` to prevent stacking nested wrapper renderers.
+  * Added regression unit test verifying $0\text{px}$ drift across 50 render cycles.
+* **Instant In-Place Delta Auto-Update Pipeline (`UpdateChecker`, `.github/workflows/release.yml`):**
+  * Updated release pipeline to include `SchemaSync-patch.jar` (~1.3MB delta unshaded patch) and Linux packages in release assets.
+  * Enables installed instances of SchemaSync to automatically download lightweight delta patches and perform instant in-place binary updates without re-downloading the entire installer.
 
 ---
 
