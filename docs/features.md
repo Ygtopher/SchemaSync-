@@ -1,6 +1,6 @@
 # SchemaSync Comprehensive Feature Guide
 
-**Version:** 2.3.0  
+**Version:** 2.4.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -23,6 +23,15 @@ The premier multi-session workflow system enabling concurrent database administr
   * Prominent `[ ↗ Detached ]` status badge and active connection coordinates displayed in the header.
   * 1-Click Re-attach: `[ ↙ Re-attach to Main ]` returns the workspace tab to the primary coordinator window seamlessly.
   * Full lifecycle safety: closing a detached window cleanly returns the session to the main window or disconnects without data loss.
+
+---
+
+## 0.1 PostgreSQL & MySQL Database Auto-Discovery & Zero-Name Instant Connect (`DatabasePickerDialog`, `ConnectionUtil`)
+Streamlined connection workflow eliminating the need to guess or memorize database names:
+* **Server-Wide Catalog Auto-Discovery:** Connect using only Host, Port, Username, and Password. Automatically queries the server system catalog (`pg_database` with `has_database_privilege(current_user, datname, 'CONNECT')` on PostgreSQL, or `SHOW DATABASES;` on MySQL).
+* **Searchable Database Picker Dialog (`DatabasePickerDialog`):** Interactive modal dialog with real-time text filtering, vector engine icons, maintenance database badges (`postgres (maintenance)`), and active selection markers (`★ current`).
+* **Instant Double-Click & Keyboard Triggers:** Press Enter or double-click any discovered database to select and connect.
+* **Seamless Connection Profile Integration (`ConnectionManagerDialog`):** Editable combobox with `[ ↻ Fetch DBs ]` action button and placeholder `(Optional) Leave blank to pick from all databases`. Leaving database name blank automatically discovers databases upon clicking **Connect**.
 
 ---
 

@@ -1,8 +1,30 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 2.3.0  
+**Current Version:** 2.4.0  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v2.4.0] - 2026-11-16
+### PostgreSQL & MySQL Database Auto-Discovery & Zero-Name Instant Connection
+* **Server-Wide Catalog Auto-Discovery (`ConnectionUtil`, `DatabaseManager`):**
+  * Connect to PostgreSQL or MySQL servers specifying only Host, Port, Username, and Password without needing to manually know or type the database name.
+  * Multi-candidate catalog connection fallback for PostgreSQL: connects via default maintenance catalogs (`postgres`, `template1`, or current user identity).
+  * System catalog queries filtered by user permissions: executes `SELECT datname FROM pg_database WHERE datistemplate = false AND has_database_privilege(current_user, datname, 'CONNECT') ORDER BY datname;` with automatic fallback to unfiltered query if permissions restrict privilege functions.
+  * MySQL/MariaDB database discovery executing `SHOW DATABASES;` at the server root.
+  * Fast-fail on authentication failure or connection timeout without blocking UI threads.
+* **Modern Database Picker Dialog (`DatabasePickerDialog`):**
+  * Interactive modal dialog with real-time instant search and fuzzy filtering (`JTextField` with `DocumentListener`).
+  * Custom list renderer with vector database icons, maintenance catalog tags (`postgres (maintenance)`), and current active selection markers (`★ current`).
+  * Instant double-click to connect and keyboard shortcuts (`Enter` to select & connect, `Escape` to cancel).
+  * Static helper `DatabasePickerDialog.showPicker(...)` returning the selected database string.
+* **Ergonomic Connection Profile Manager (`ConnectionManagerDialog`):**
+  * Replaced static text field with editable `dbNameCombo` (`JComboBox<String>`) featuring placeholder `(Optional) Leave blank to pick from all databases`.
+  * Dedicated **`[ ↻ Fetch DBs ]`** action button to discover and load all available databases into the dropdown.
+  * **Zero-Name Instant Connect Flow:** Leaving Database Name blank and clicking **Connect** (or pressing `Enter` on password) automatically queries the server catalog, opens the visual picker, and connects upon selection.
+  * **Catalog Verification in Test Connection:** Testing a connection with an empty database name tests the server catalog and populates the database dropdown with discovered schemas.
+  * Ergonomic keyboard navigation traversing `Host -> Port -> Username -> Password -> Connect` on `Enter`.
 
 ---
 

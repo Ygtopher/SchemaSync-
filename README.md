@@ -1,10 +1,10 @@
 # SchemaSync
 
-**Version:** 2.3.0  
+**Version:** 2.4.0  
 **Created & Developed by:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
-SchemaSync is an enterprise-grade, high-performance Java 21 database synchronization, management, and schema engineering platform for **PostgreSQL, MySQL, SQLite, MS Access, and H2**. Re-architected in **v2.0.0** into a modular reactor (`schemasync-core`, `schemasync-cli`, `schemasync-ui`), styled in **v2.1.0** with an IDE-grade visual redesign, elevated in **v2.2.0** with an all-new **Mission Control Dashboard** featuring a **Smooth Spline Gradient Area Chart** (`SplineAreaChartPanel`), Radial Schema Health Score dial, and Actionable Insights feed, and empowered in **v2.3.0** with **Multi-Connection Database Workspaces & Detachable Floating Windows** (`SessionManager`, `SessionTabBar`, dual-mode coordinator & detached frames), it features a unified App Header Bar, high-DPI procedural vector icon suite, Tokyo Night and Dracula themes, interactive bottom status bar with 1-click GC RAM optimizer, floating toast notifications, 100% headless core engine, high-throughput HikariCP connection pooling, 2-phase chunked & canonical SHA-256 diff engine, ServiceLoader SPI dialects, dynamic JDBC driver loading, pluggable AI SQL assistant (Ollama, Gemini, OpenAI, Anthropic, OpenRouter), Vault V2 OS Keyring integration, ECDSA-verified releases, headless CLI, and native packaging via `jpackage`, Windows portable executables, Ubuntu (`.deb`), and Fedora (`.rpm`).
+SchemaSync is an enterprise-grade, high-performance Java 21 database synchronization, management, and schema engineering platform for **PostgreSQL, MySQL, SQLite, MS Access, and H2**. Re-architected in **v2.0.0** into a modular reactor (`schemasync-core`, `schemasync-cli`, `schemasync-ui`), styled in **v2.1.0** with an IDE-grade visual redesign, elevated in **v2.2.0** with an all-new **Mission Control Dashboard** featuring a **Smooth Spline Gradient Area Chart** (`SplineAreaChartPanel`), Radial Schema Health Score dial, and Actionable Insights feed, empowered in **v2.3.0** with **Multi-Connection Database Workspaces & Detachable Floating Windows** (`SessionManager`, `SessionTabBar`, dual-mode coordinator & detached frames), and enhanced in **v2.4.0** with **PostgreSQL & MySQL Database Auto-Discovery & Zero-Name Instant Connection** (`DatabasePickerDialog`, `ConnectionUtil`, catalog discovery & visual picker), it features a unified App Header Bar, high-DPI procedural vector icon suite, Tokyo Night and Dracula themes, interactive bottom status bar with 1-click GC RAM optimizer, floating toast notifications, 100% headless core engine, high-throughput HikariCP connection pooling, 2-phase chunked & canonical SHA-256 diff engine, ServiceLoader SPI dialects, dynamic JDBC driver loading, pluggable AI SQL assistant (Ollama, Gemini, OpenAI, Anthropic, OpenRouter), Vault V2 OS Keyring integration, ECDSA-verified releases, headless CLI, and native packaging via `jpackage`, Windows portable executables, Ubuntu (`.deb`), and Fedora (`.rpm`).
 
 ---
 
@@ -20,13 +20,18 @@ Explore the comprehensive documentation suite located in the [`docs/`](docs/READ
 * **[Security & Cryptography](docs/security.md):** Vault V2 (OS Keyring + AES-256-GCM), ECDSA update verification, and PII masking.
 * **[Installation & Packaging](docs/installation-and-packaging.md):** Guides for Windows (`.exe` / `jpackage`), Ubuntu (`.deb`), Fedora (`.rpm`), Fat JAR, and CLI.
 * **[Troubleshooting & FAQ](docs/troubleshooting.md):** Solutions for Smart App Control, Java 21 runtime, and Wayland dock icons.
-* **[Changelog & History](docs/changelog.md):** Full version history from v1.0.0 through v2.3.0.
+* **[Changelog & History](docs/changelog.md):** Full version history from v1.0.0 through v2.4.0.
 * **[CLI & Configuration Guide](docs/api-and-cli.md):** Dedicated headless CLI (`diff`, `drift-check`, `export`), JVM runtime tuning, and psql meta-commands.
 
 ---
 
 ## Key Features
 
+* **🔍 PostgreSQL & MySQL Database Auto-Discovery & Zero-Name Instant Connect (`DatabasePickerDialog`, `ConnectionUtil`):**
+  * **Connect with Only Host & Credentials:** No need to know or manually type the target database name. SchemaSync automatically connects to maintenance catalogs (`postgres`, `template1`) and queries `pg_database` with `has_database_privilege(current_user, datname, 'CONNECT')` (or `SHOW DATABASES;` for MySQL) to discover all accessible databases.
+  * **Interactive Searchable Database Picker:** Dedicated modal dialog (`DatabasePickerDialog`) with real-time fuzzy search, maintenance database indicators (`postgres (maintenance)`), and active selection markers (`★ current`).
+  * **1-Click Connect & Double-Click Selection:** Double-click any discovered database to select and establish connection immediately.
+  * **Smart `[ ↻ Fetch DBs ]` & Inline Dropdown:** The connection profile editor features an editable combobox with placeholder `(Optional) Leave blank to pick from all databases` and a one-click fetch button.
 * **🗂️ Multi-Connection Database Workspaces & Detachable Floating Windows (`SessionManager`, `SessionTabBar`, `DatabaseSession`):**
   * **Simultaneous Concurrent Connections:** Connect to multiple databases (PostgreSQL, MySQL, SQLite, etc.) at the same time in a single application window without launching multiple instances.
   * **Dynamic Session Tab Bar:** Chrome/DataGrip-style tab strip with engine vector logos, live status indicator dots (`🟢 Live`, `⚪ Offline`), and active session highlight.
@@ -53,7 +58,7 @@ Explore the comprehensive documentation suite located in the [`docs/`](docs/READ
   * **Smart Row Copying (`INSERT` without PK, `UPDATE`, `JSON`, `Markdown`):** Right-click any table row in Browse, Join, or SQL Editor results to copy as **SQL INSERT** (automatically omitting primary keys), **SQL INSERT (Include Primary Key)**, **SQL UPDATE**, **JSON Array**, or **GitHub Markdown Table**.
 * **📜 Upgraded Query History & Favorites:** Searchable Query History sidebar with `⭐ Pinned` favorites filter, execution latency/row count telemetry badges (`[14ms, 25r]`), and 1-click promotion to Named Saved Queries.
 * **⚡ Dual DB Compare Unified SQL Mode ("One Query Affects All Databases"):** Write a single SQL query that executes simultaneously across all connected databases in the pool alongside **Quick Table Match** and **Custom SQL Query** modes. Supports concurrent `SELECT` data diffs (side-by-side grids + cell-level unified diffs) and multi-DB DML/DDL execution (`UPDATE`, `INSERT`, `DELETE`, `CREATE`, `ALTER`, `DROP`) with confirmation safeguards and per-database telemetry logs.
-* **🐧 Native Fedora 44 RPM Package (`.rpm`) & Wayland Dock Integration:** Full native integration for Fedora 44 (and compatible RPM-based Linux distributions). Installs seamlessly via `sudo dnf install ./schemasync-2.3.0-1.fc44.noarch.rpm` with automatic OpenJDK dependency resolution (`java-headless >= 11`), `/usr/bin/schemasync` system command launcher, GNOME/KDE `.desktop` application grid integration, automatic Wayland dock icon binding via `--add-opens` and X11/Wayland `awtAppClassName` matching, system `/usr/share/pixmaps` fallbacks, and multi-resolution hicolor icons.
+* **🐧 Native Fedora 44 RPM Package (`.rpm`) & Wayland Dock Integration:** Full native integration for Fedora 44 (and compatible RPM-based Linux distributions). Installs seamlessly via `sudo dnf install ./schemasync-2.4.0-1.fc44.noarch.rpm` with automatic OpenJDK dependency resolution (`java-headless >= 11`), `/usr/bin/schemasync` system command launcher, GNOME/KDE `.desktop` application grid integration, automatic Wayland dock icon binding via `--add-opens` and X11/Wayland `awtAppClassName` matching, system `/usr/share/pixmaps` fallbacks, and multi-resolution hicolor icons.
 * **📝 Automatic SQL Editor Session Recovery (Draft Persistence):** Never lose your work across app updates or reboots. Automatically saves the active SQL editor buffer into `Documents/SchemaSyncSaves/sql_editor_draft.sql` with real-time keystroke debouncing, instant execution saving, and graceful shutdown hooks, automatically restoring your draft upon launch.
 * **📜 Persistent & Isolated Query History:** Relocates Query History and Saved Queries to `Documents/SchemaSyncSaves/` with automatic legacy migration, expanded 100-query capacity, thread-safe asynchronous execution, and complete test isolation.
 * **⚡ 1-Click In-App Auto-Updater & Silent Restarter:** Automatic background update checks on launch, interactive What's New changelog viewer, live-streamed download progress bar, and 1-click automated silent installation & seamless application restart (with permanent options for direct installer downloads and GitHub release navigation).
@@ -162,11 +167,11 @@ java -jar release/schemasync-cli.jar export --source "prod_db" --table employees
 ### Linux (Ubuntu / Debian & Fedora)
 - **Ubuntu / Debian (.deb):**
   ```bash
-  sudo apt install ./schemasync_2.3.0_all.deb
+  sudo apt install ./schemasync_2.4.0_all.deb
   ```
 - **Fedora / RHEL (.rpm):**
   ```bash
-  sudo dnf install ./schemasync-2.3.0-1.fc44.noarch.rpm
+  sudo dnf install ./schemasync-2.4.0-1.fc44.noarch.rpm
   ```
 - Launch directly from terminal or application launcher:
   ```bash

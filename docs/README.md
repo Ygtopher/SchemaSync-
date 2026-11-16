@@ -1,6 +1,6 @@
 # SchemaSync Documentation Hub
 
-**Version:** 2.3.0  
+**Version:** 2.4.0  
 **Creator & Lead Architect:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
