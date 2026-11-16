@@ -1,6 +1,6 @@
 # Technology Stack & System Integration Guide
 
-**Version:** 2.4.0  
+**Version:** 2.4.1  
 **Creator & Lead Architect:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 

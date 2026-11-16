@@ -99,6 +99,7 @@ public class AppUsageTracker {
     private static final List<Runnable> listeners = new CopyOnWriteArrayList<>();
 
     public static synchronized void setFileForTesting(File file) {
+        flush();
         customFile = file;
         stats = null;
         sessionStartMs = System.currentTimeMillis();
@@ -192,11 +193,28 @@ public class AppUsageTracker {
         } catch (Exception ignored) {}
     }
 
+    private static final java.util.concurrent.ExecutorService asyncPersistExecutor =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "AppUsageTracker-AsyncPersist");
+                t.setDaemon(true);
+                return t;
+            });
+
     private static synchronized void persist() {
         if (stats == null) return;
         try {
             stats.lastActiveTimestamp = System.currentTimeMillis();
-            mapper.writeValue(getFile(), stats);
+            final byte[] jsonBytes = mapper.writeValueAsBytes(stats);
+            final File target = getFile();
+            if (customFile != null) {
+                java.nio.file.Files.write(target.toPath(), jsonBytes);
+                return;
+            }
+            asyncPersistExecutor.submit(() -> {
+                try {
+                    java.nio.file.Files.write(target.toPath(), jsonBytes);
+                } catch (Exception ignored) {}
+            });
         } catch (Exception ignored) {}
     }
 
@@ -655,11 +673,25 @@ public class AppUsageTracker {
         }
     }
 
+    private static final java.util.concurrent.atomic.AtomicBoolean listenerNotificationPending = new java.util.concurrent.atomic.AtomicBoolean(false);
+
     private static void notifyListeners() {
-        for (Runnable r : listeners) {
-            try {
-                r.run();
-            } catch (Exception ignored) {}
+        if (listeners.isEmpty()) return;
+        if (listenerNotificationPending.compareAndSet(false, true)) {
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                listenerNotificationPending.set(false);
+                for (Runnable r : listeners) {
+                    try {
+                        r.run();
+                    } catch (Exception ignored) {}
+                }
+            });
         }
+    }
+
+    public static void flush() {
+        try {
+            asyncPersistExecutor.submit(() -> {}).get(5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception ignored) {}
     }
 }

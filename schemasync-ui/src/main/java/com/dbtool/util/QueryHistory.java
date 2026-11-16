@@ -34,8 +34,20 @@ public class QueryHistory {
     public static final int MAX = 100;
     private static final ObjectMapper mapper = new ObjectMapper();
 
+    private static List<String> cachedHistory = null;
+    private static Map<String, HistoryMetadata> cachedMetaMap = null;
+    private static final java.util.concurrent.ExecutorService asyncSaveExecutor =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "QueryHistory-AsyncSave");
+                t.setDaemon(true);
+                return t;
+            });
+
     public static synchronized void setHistoryFileForTesting(File file) {
+        flush();
         customFile = file;
+        cachedHistory = null;
+        cachedMetaMap = null;
     }
 
     public static synchronized File getFile() {
@@ -59,34 +71,60 @@ public class QueryHistory {
     }
 
     public static synchronized List<String> load() {
+        if (cachedHistory != null) {
+            return new ArrayList<>(cachedHistory);
+        }
         try {
             File file = getFile();
-            if (!file.exists()) return new ArrayList<>();
+            if (!file.exists()) {
+                cachedHistory = new ArrayList<>();
+                return new ArrayList<>();
+            }
             CollectionType type = mapper.getTypeFactory().constructCollectionType(List.class, String.class);
             List<String> list = mapper.readValue(file, type);
-            return list != null ? list : new ArrayList<>();
+            cachedHistory = list != null ? new ArrayList<>(list) : new ArrayList<>();
+            return new ArrayList<>(cachedHistory);
         } catch (Exception e) {
+            cachedHistory = new ArrayList<>();
             return new ArrayList<>();
         }
     }
 
     public static synchronized Map<String, HistoryMetadata> loadMetadataMap() {
+        if (cachedMetaMap != null) {
+            return new HashMap<>(cachedMetaMap);
+        }
         try {
             File metaFile = getMetaFile();
-            if (!metaFile.exists()) return new HashMap<>();
+            if (!metaFile.exists()) {
+                cachedMetaMap = new HashMap<>();
+                return new HashMap<>();
+            }
             MapType type = mapper.getTypeFactory().constructMapType(HashMap.class, String.class, HistoryMetadata.class);
             Map<String, HistoryMetadata> map = mapper.readValue(metaFile, type);
-            return map != null ? map : new HashMap<>();
+            cachedMetaMap = map != null ? new HashMap<>(map) : new HashMap<>();
+            return new HashMap<>(cachedMetaMap);
         } catch (Exception e) {
+            cachedMetaMap = new HashMap<>();
             return new HashMap<>();
         }
     }
 
     private static synchronized void saveMetadataMap(Map<String, HistoryMetadata> map) {
-        try {
-            File metaFile = getMetaFile();
-            mapper.writeValue(metaFile, map != null ? map : new HashMap<>());
-        } catch (Exception ignored) {}
+        cachedMetaMap = map != null ? new HashMap<>(map) : new HashMap<>();
+        final Map<String, HistoryMetadata> copy = new HashMap<>(cachedMetaMap);
+        final File metaFile = getMetaFile();
+        if (customFile != null) {
+            try {
+                mapper.writeValue(metaFile, copy);
+            } catch (Exception ignored) {}
+            return;
+        }
+        asyncSaveExecutor.submit(() -> {
+            try {
+                mapper.writeValue(metaFile, copy);
+            } catch (Exception ignored) {}
+        });
     }
 
     public static synchronized void add(String query) {
@@ -177,20 +215,49 @@ public class QueryHistory {
     }
 
     public static synchronized void save(List<String> history) {
-        try {
-            File file = getFile();
-            mapper.writeValue(file, history != null ? history : new ArrayList<>());
-        } catch (Exception ignored) {}
+        cachedHistory = history != null ? new ArrayList<>(history) : new ArrayList<>();
+        final List<String> copyToPersist = new ArrayList<>(cachedHistory);
+        final File file = getFile();
+        if (customFile != null) {
+            try {
+                mapper.writeValue(file, copyToPersist);
+            } catch (Exception ignored) {}
+            return;
+        }
+        asyncSaveExecutor.submit(() -> {
+            try {
+                mapper.writeValue(file, copyToPersist);
+            } catch (Exception ignored) {}
+        });
     }
 
     public static synchronized void clear() {
+        cachedHistory = new ArrayList<>();
+        cachedMetaMap = new HashMap<>();
+        final File file = getFile();
+        final File metaFile = getMetaFile();
+        if (customFile != null) {
+            try {
+                mapper.writeValue(file, new ArrayList<>());
+                if (metaFile.exists()) {
+                    metaFile.delete();
+                }
+            } catch (Exception ignored) {}
+            return;
+        }
+        asyncSaveExecutor.submit(() -> {
+            try {
+                mapper.writeValue(file, new ArrayList<>());
+                if (metaFile.exists()) {
+                    metaFile.delete();
+                }
+            } catch (Exception ignored) {}
+        });
+    }
+
+    public static void flush() {
         try {
-            File file = getFile();
-            mapper.writeValue(file, new ArrayList<>());
-            File metaFile = getMetaFile();
-            if (metaFile.exists()) {
-                metaFile.delete();
-            }
+            asyncSaveExecutor.submit(() -> {}).get(5, java.util.concurrent.TimeUnit.SECONDS);
         } catch (Exception ignored) {}
     }
 }

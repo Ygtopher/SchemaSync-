@@ -80,22 +80,43 @@ public final class ProfileStoreV2 {
 
     private ProfileStoreV2() {}
 
+    private static volatile StoreData cachedStoreData = null;
+
     public static Path getStorePath() {
         return CryptoUtil.getConfigDir().resolve(STORE_FILENAME);
     }
 
+    public static synchronized void invalidateCache() {
+        cachedStoreData = null;
+    }
+
+    private static StoreData cloneStoreData(StoreData src) {
+        if (src == null) return new StoreData();
+        StoreData copy = new StoreData();
+        copy.version = src.version;
+        if (src.dbProfiles != null) copy.dbProfiles.putAll(src.dbProfiles);
+        if (src.sshProfiles != null) copy.sshProfiles.putAll(src.sshProfiles);
+        if (src.aiSecrets != null) copy.aiSecrets.putAll(src.aiSecrets);
+        return copy;
+    }
+
     public static synchronized StoreData load() {
+        if (cachedStoreData != null) {
+            return cloneStoreData(cachedStoreData);
+        }
         Path storePath = getStorePath();
         if (!Files.exists(storePath)) {
-            return new StoreData();
+            cachedStoreData = new StoreData();
+            return cloneStoreData(cachedStoreData);
         }
         try {
             StoreData data = MAPPER.readValue(storePath.toFile(), StoreData.class);
-            if (data == null) return new StoreData();
+            if (data == null) data = new StoreData();
             if (data.dbProfiles == null) data.dbProfiles = new LinkedHashMap<>();
             if (data.sshProfiles == null) data.sshProfiles = new LinkedHashMap<>();
             if (data.aiSecrets == null) data.aiSecrets = new LinkedHashMap<>();
-            return data;
+            cachedStoreData = data;
+            return cloneStoreData(cachedStoreData);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to read V2 profile store at " + storePath, e);
         }
@@ -103,6 +124,7 @@ public final class ProfileStoreV2 {
 
     public static synchronized void save(StoreData data) {
         if (data == null) return;
+        cachedStoreData = cloneStoreData(data);
         try {
             Path storePath = getStorePath();
             Files.createDirectories(storePath.getParent());

@@ -216,8 +216,9 @@ public class SessionPoolManager implements ConnectionProvider {
         if (closed) {
             throw new SQLException("Session pool is closed.");
         }
-        if (databaseType == DatabaseType.MS_ACCESS) {
-            // UCanAccess holds file-level locks inside a single JVM unless opened read-only/serialized.
+        if (databaseType == DatabaseType.MS_ACCESS || isEmbeddedLockDb()) {
+            // Embedded databases (SQLite, UCanAccess/MS Access) hold file-level locks inside a single JVM.
+            // Borrowing through the pool leases the singleton connection safely without file lock contention.
             return borrowConnection();
         }
         return ConnectionUtil.getConnection(jdbcUrl, username, password);

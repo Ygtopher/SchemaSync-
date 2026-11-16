@@ -32,7 +32,7 @@ import com.dbtool.session.SessionManager;
 import com.dbtool.ui.components.SessionTabBar;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "2.4.0";
+    public static final String APP_VERSION = "2.4.1";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -623,18 +623,9 @@ public class Main extends JFrame {
                 statusBar.setDatabaseInfo(null, null, null);
             }
         } else {
-            String engine = "Database";
-            String host = "local";
-            String dbName = "";
-            try {
-                engine = dbManager.connection.getMetaData().getDatabaseProductName();
-                String url = dbManager.connection.getMetaData().getURL();
-                dbName = dbManager.connection.getCatalog();
-                if (dbName == null || dbName.isBlank()) {
-                    dbName = dbManager.connection.getSchema();
-                }
-                host = url;
-            } catch (Exception ignored) {}
+            String engine = dbManager.getLastType() != null && !dbManager.getLastType().isBlank() ? dbManager.getLastType() : "Database";
+            String host = dbManager.getLastHost() != null && !dbManager.getLastHost().isBlank() ? dbManager.getLastHost() : "local";
+            String dbName = dbManager.getLastDbName() != null ? dbManager.getLastDbName() : "";
 
             if (connectionStatusDot != null) {
                 connectionStatusDot.setText("●");
@@ -649,9 +640,7 @@ public class Main extends JFrame {
             }
             if (statusBar != null) {
                 statusBar.setDatabaseInfo(engine, host, dbName);
-                try {
-                    statusBar.setAutoCommit(dbManager.connection.getAutoCommit());
-                } catch (Exception ignored) {}
+                statusBar.setAutoCommit(true);
             }
         }
         if (connectionPill != null) {

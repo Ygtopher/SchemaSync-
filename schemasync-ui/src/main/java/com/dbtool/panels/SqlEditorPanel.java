@@ -58,6 +58,10 @@ public class SqlEditorPanel extends JPanel {
     private final JCheckBox historyPinnedOnlyCheck = new JCheckBox("⭐ Pinned");
     private final JLabel statusLabel = new JLabel("Ready.");
     private final javax.swing.JProgressBar progressBar = new javax.swing.JProgressBar();
+    private final JButton cancelBtn = new JButton("⏹ Cancel");
+    private JButton runBtn;
+    private JButton runAllBtn;
+    private JButton explainBtn;
     private final JComboBox<String> savedQueriesDropdown = new JComboBox<>();
     private java.util.function.Consumer<String> sendToVisualBuilderAction;
     private Runnable onSchemaModified;
@@ -163,18 +167,18 @@ public class SqlEditorPanel extends JPanel {
 
         // Toolbar
         JPanel toolbar = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
-        JButton runBtn = new JButton("Run");
+        runBtn = new JButton("Run");
         runBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
         runBtn.setForeground(com.dbtool.util.ThemeManager.getSuccessColor());
         runBtn.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.RUN, 13));
         runBtn.setToolTipText("Run current statement or selection (Ctrl+Enter / F5)");
 
-        JButton runAllBtn = new JButton("Run All");
+        runAllBtn = new JButton("Run All");
         runAllBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 12));
         runAllBtn.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
         runAllBtn.setIcon(com.dbtool.ui.components.UiIconFactory.getIcon(com.dbtool.ui.components.UiIconFactory.IconType.RUN, 13));
         runAllBtn.setToolTipText("Run all statements in the editor (Ctrl+Shift+Enter)");
-        JButton explainBtn = new JButton("⚡ Explain");
+        explainBtn = new JButton("⚡ Explain");
         JButton dryRunBtn = new JButton("🛡️ Dry-Run");
         dryRunBtn.setToolTipText("Preview exact rows affected by an UPDATE or DELETE query without modifying data");
         dryRunBtn.addActionListener(e -> runDryRunPreview());
@@ -336,9 +340,20 @@ public class SqlEditorPanel extends JPanel {
 
         progressBar.setIndeterminate(true);
         progressBar.setVisible(false);
+        cancelBtn.setVisible(false);
+        cancelBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 11));
+        cancelBtn.setForeground(new Color(220, 38, 38));
+        cancelBtn.setToolTipText("Immediately cancel running query (Terminates JDBC statement)");
+        cancelBtn.addActionListener(e -> {
+            cancellationMonitor.cancel();
+            statusLabel.setText("Cancelling execution...");
+            cancelBtn.setEnabled(false);
+        });
+
         JPanel statusPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 4, 2));
         statusPanel.add(statusLabel);
         statusPanel.add(progressBar);
+        statusPanel.add(cancelBtn);
         topSection.add(statusPanel, BorderLayout.SOUTH);
 
         // Upgraded History sidebar with Search & Pin filter
@@ -1232,159 +1247,197 @@ public class SqlEditorPanel extends JPanel {
 
         final String finalSqlToExecute = sql;
         statusLabel.setText(isDryRun ? "Running Dry-Run Preview..." : "Running...");
-        progressBar.setVisible(true);
+        cancellationMonitor.reset();
+        setExecutingState(true);
 
         com.dbtool.core.concurrency.TaskCoordinator.shared().submitRunnable("SQL Editor Query", cancellationMonitor, () -> {
-            long totalStart = System.currentTimeMillis();
-            List<SqlRange> statements = extractStatements(finalSqlToExecute);
-            if (statements.isEmpty()) {
-                statements.add(new SqlRange(0, finalSqlToExecute.length(), finalSqlToExecute.trim()));
-            }
-
-            int executedCount = 0;
-            int lastRowCount = -1;
-            boolean hadDdl = false;
-
-            java.sql.Connection editorConn;
             try {
-                editorConn = resolveEditorConnection();
-            } catch (Exception connEx) {
-                SwingUtilities.invokeLater(() -> {
-                    progressBar.setVisible(false);
-                    statusLabel.setText("Connection error: " + connEx.getMessage());
-                });
-                return;
-            }
-
-            for (int i = 0; i < statements.size(); i++) {
-                String rawStmt = statements.get(i).sql.trim();
-                if (rawStmt.isEmpty() || rawStmt.startsWith("--") || (rawStmt.startsWith("/*") && rawStmt.endsWith("*/"))) {
-                    continue;
+                long totalStart = System.currentTimeMillis();
+                List<SqlRange> statements = extractStatements(finalSqlToExecute);
+                if (statements.isEmpty()) {
+                    statements.add(new SqlRange(0, finalSqlToExecute.length(), finalSqlToExecute.trim()));
                 }
 
-                String queryToRun = translateCompatibilitySql(rawStmt, dbManager);
-                String kind = isDryRun ? "Dry-Run Preview" : getStatementKind(rawStmt);
-                if ("DDL".equals(kind)) hadDdl = true;
-                int stmtNum = i + 1;
-                long stmtStart = System.currentTimeMillis();
+                int executedCount = 0;
+                int lastRowCount = -1;
+                boolean hadDdl = false;
 
+                java.sql.Connection editorConn;
                 try {
-                    if (isExplain || "Explain".equals(kind)) {
-                        String explainSql = queryToRun;
-                        if (!explainSql.toUpperCase().startsWith("EXPLAIN")) {
-                            explainSql = "EXPLAIN " + explainSql;
-                        }
-                        try (java.sql.Statement s = editorConn.createStatement()) {
-                            cancellationMonitor.register(s);
-                            try (java.sql.ResultSet rs = s.executeQuery(explainSql)) {
-                                StringBuilder sb = new StringBuilder();
-                                while (rs.next()) sb.append(rs.getString(1)).append("\n");
-                                String plan = sb.toString();
-                                SwingUtilities.invokeLater(() -> {
-                                    JTextArea ta = new JTextArea(plan);
-                                    ta.setEditable(false);
-                                    ta.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-                                    addResultTab("Explain " + (statements.size() > 1 ? "#" + stmtNum : ""), new JScrollPane(ta));
-                                });
-                            } finally {
-                                cancellationMonitor.unregister();
-                            }
-                        }
-                    } else {
-                        try (java.sql.Statement stmt = editorConn.createStatement()) {
-                            cancellationMonitor.register(stmt);
-                            try {
-                                boolean hasRs = stmt.execute(queryToRun);
-                                long stmtElapsed = System.currentTimeMillis() - stmtStart;
+                    editorConn = resolveEditorConnection();
+                } catch (Exception connEx) {
+                    SwingUtilities.invokeLater(() -> {
+                        statusLabel.setText("Connection error: " + connEx.getMessage());
+                    });
+                    return;
+                }
 
-                                if (hasRs) {
-                                    try (java.sql.ResultSet rs = stmt.getResultSet()) {
-                                        java.sql.ResultSetMetaData metaData = rs.getMetaData();
-                                        java.util.Vector<String> columnNames = new java.util.Vector<>();
-                                        int columnCount = metaData.getColumnCount();
-                                        String[] columnTypes = new String[columnCount];
-                                        for (int col = 1; col <= columnCount; col++) {
-                                            columnNames.add(metaData.getColumnLabel(col));
-                                            columnTypes[col - 1] = metaData.getColumnTypeName(col);
-                                        }
-                                        java.util.Vector<java.util.Vector<Object>> data = new java.util.Vector<>();
-                                        while (rs.next()) {
-                                            java.util.Vector<Object> vector = new java.util.Vector<>();
+                for (int i = 0; i < statements.size(); i++) {
+                    if (cancellationMonitor.isCancelled()) {
+                        break;
+                    }
+
+                    String rawStmt = statements.get(i).sql.trim();
+                    if (rawStmt.isEmpty() || rawStmt.startsWith("--") || (rawStmt.startsWith("/*") && rawStmt.endsWith("*/"))) {
+                        continue;
+                    }
+
+                    String queryToRun = translateCompatibilitySql(rawStmt, dbManager);
+                    String kind = isDryRun ? "Dry-Run Preview" : getStatementKind(rawStmt);
+                    if ("DDL".equals(kind)) hadDdl = true;
+                    int stmtNum = i + 1;
+                    long stmtStart = System.currentTimeMillis();
+
+                    try {
+                        if (isExplain || "Explain".equals(kind)) {
+                            String explainSql = queryToRun;
+                            if (!explainSql.toUpperCase().startsWith("EXPLAIN")) {
+                                explainSql = "EXPLAIN " + explainSql;
+                            }
+                            try (java.sql.Statement s = editorConn.createStatement()) {
+                                cancellationMonitor.register(s);
+                                try (java.sql.ResultSet rs = s.executeQuery(explainSql)) {
+                                    StringBuilder sb = new StringBuilder();
+                                    while (rs.next()) sb.append(rs.getString(1)).append("\n");
+                                    String plan = sb.toString();
+                                    SwingUtilities.invokeLater(() -> {
+                                        JTextArea ta = new JTextArea(plan);
+                                        ta.setEditable(false);
+                                        ta.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+                                        addResultTab("Explain " + (statements.size() > 1 ? "#" + stmtNum : ""), new JScrollPane(ta));
+                                    });
+                                } finally {
+                                    cancellationMonitor.unregister();
+                                }
+                            }
+                        } else {
+                            try (java.sql.Statement stmt = editorConn.createStatement()) {
+                                stmt.setMaxRows(5000);
+                                cancellationMonitor.register(stmt);
+                                try {
+                                    boolean hasRs = stmt.execute(queryToRun);
+                                    long stmtElapsed = System.currentTimeMillis() - stmtStart;
+
+                                    if (hasRs) {
+                                        try (java.sql.ResultSet rs = stmt.getResultSet()) {
+                                            java.sql.ResultSetMetaData metaData = rs.getMetaData();
+                                            java.util.Vector<String> columnNames = new java.util.Vector<>();
+                                            int columnCount = metaData.getColumnCount();
+                                            String[] columnTypes = new String[columnCount];
                                             for (int col = 1; col <= columnCount; col++) {
-                                                vector.add(rs.getObject(col));
+                                                columnNames.add(metaData.getColumnLabel(col));
+                                                columnTypes[col - 1] = metaData.getColumnTypeName(col);
                                             }
-                                            data.add(vector);
+                                            java.util.Vector<java.util.Vector<Object>> data = new java.util.Vector<>();
+                                            while (rs.next()) {
+                                                java.util.Vector<Object> vector = new java.util.Vector<>();
+                                                for (int col = 1; col <= columnCount; col++) {
+                                                    vector.add(rs.getObject(col));
+                                                }
+                                                data.add(vector);
+                                            }
+                                            com.dbtool.util.TypedTableModel model = new com.dbtool.util.TypedTableModel(data, columnNames, columnTypes);
+                                            lastRowCount = model.getRowCount();
+                                            com.dbtool.util.AppUsageTracker.recordRowsFetched(lastRowCount);
+                                            String capSuffix = model.getRowCount() >= 5000 ? " [first 5,000 rows]" : "";
+                                            String tabTitle = (statements.size() > 1 ? kind + " #" + stmtNum : kind) + " (" + model.getRowCount() + " rows" + capSuffix + ")";
+                                            final String finalTableQuery = queryToRun;
+                                            SwingUtilities.invokeLater(() -> {
+                                                JComponent resultContainer = buildInteractiveResultTab(model, finalTableQuery, stmtElapsed);
+                                                addResultTab(tabTitle, resultContainer);
+                                            });
                                         }
-                                        com.dbtool.util.TypedTableModel model = new com.dbtool.util.TypedTableModel(data, columnNames, columnTypes);
-                                        lastRowCount = model.getRowCount();
-                                        com.dbtool.util.AppUsageTracker.recordRowsFetched(lastRowCount);
-                                        String tabTitle = (statements.size() > 1 ? kind + " #" + stmtNum : kind) + " (" + model.getRowCount() + " rows)";
-                                        final String finalTableQuery = queryToRun;
+                                    } else {
+                                        int affected = stmt.getUpdateCount();
+                                        lastRowCount = affected;
+                                        if (affected > 0) {
+                                            com.dbtool.util.AppUsageTracker.recordRowsMutated(affected);
+                                        }
+                                        String tabTitle = (statements.size() > 1 ? kind + " #" + stmtNum : kind + " Result");
+                                        String msg = ("DDL".equals(kind) || "DCL".equals(kind) || "TCL".equals(kind))
+                                                ? kind + " statement executed successfully." + (affected > 0 ? " (" + affected + " rows)" : "") + " [" + stmtElapsed + "ms]"
+                                                : (affected >= 0 ? affected + " row(s) affected. [" + stmtElapsed + "ms]" : kind + " executed successfully. [" + stmtElapsed + "ms]");
                                         SwingUtilities.invokeLater(() -> {
-                                            JComponent resultContainer = buildInteractiveResultTab(model, finalTableQuery, stmtElapsed);
-                                            addResultTab(tabTitle, resultContainer);
+                                            addResultTab(tabTitle, createTextTab(msg));
                                         });
                                     }
-                                } else {
-                                    int affected = stmt.getUpdateCount();
-                                    lastRowCount = affected;
-                                    if (affected > 0) {
-                                        com.dbtool.util.AppUsageTracker.recordRowsMutated(affected);
-                                    }
-                                    String tabTitle = (statements.size() > 1 ? kind + " #" + stmtNum : kind + " Result");
-                                    String msg = ("DDL".equals(kind) || "DCL".equals(kind) || "TCL".equals(kind))
-                                            ? kind + " statement executed successfully." + (affected > 0 ? " (" + affected + " rows)" : "") + " [" + stmtElapsed + "ms]"
-                                            : (affected >= 0 ? affected + " row(s) affected. [" + stmtElapsed + "ms]" : kind + " executed successfully. [" + stmtElapsed + "ms]");
-                                    SwingUtilities.invokeLater(() -> {
-                                        addResultTab(tabTitle, createTextTab(msg));
-                                    });
+                                } finally {
+                                    cancellationMonitor.unregister();
                                 }
-                            } finally {
-                                cancellationMonitor.unregister();
                             }
                         }
+                        executedCount++;
+                        long elapsed = System.currentTimeMillis() - stmtStart;
+                        com.dbtool.util.QueryLogger.log(rawStmt, elapsed, true);
+                        com.dbtool.core.events.WorkspaceEventBus.shared().publish(
+                                new com.dbtool.core.events.QueryExecutedEvent(rawStmt, elapsed, lastRowCount, true, null));
+                    } catch (Exception ex) {
+                        long elapsed = System.currentTimeMillis() - stmtStart;
+                        com.dbtool.util.QueryLogger.log(rawStmt, elapsed, false);
+                        com.dbtool.core.events.WorkspaceEventBus.shared().publish(
+                                new com.dbtool.core.events.QueryExecutedEvent(rawStmt, elapsed, 0, false, ex.getMessage()));
+                        final String errStmt = rawStmt;
+                        SwingUtilities.invokeLater(() -> {
+                            addResultTab("Error " + (statements.size() > 1 ? "#" + stmtNum : ""),
+                                    createTextTab("Statement:\n" + errStmt + "\n\nError:\n" + ex.getMessage()));
+                        });
                     }
-                    executedCount++;
-                    long elapsed = System.currentTimeMillis() - stmtStart;
-                    com.dbtool.util.QueryLogger.log(rawStmt, elapsed, true);
-                    com.dbtool.core.events.WorkspaceEventBus.shared().publish(
-                            new com.dbtool.core.events.QueryExecutedEvent(rawStmt, elapsed, lastRowCount, true, null));
-                } catch (Exception ex) {
-                    long elapsed = System.currentTimeMillis() - stmtStart;
-                    com.dbtool.util.QueryLogger.log(rawStmt, elapsed, false);
-                    com.dbtool.core.events.WorkspaceEventBus.shared().publish(
-                            new com.dbtool.core.events.QueryExecutedEvent(rawStmt, elapsed, 0, false, ex.getMessage()));
-                    final String errStmt = rawStmt;
-                    SwingUtilities.invokeLater(() -> {
-                        addResultTab("Error " + (statements.size() > 1 ? "#" + stmtNum : ""),
-                                createTextTab("Statement:\n" + errStmt + "\n\nError:\n" + ex.getMessage()));
-                    });
                 }
-            }
 
-            if (hadDdl) {
-                dbManager.clearCache();
-                if (onSchemaModified != null) {
-                    SwingUtilities.invokeLater(onSchemaModified);
+                if (hadDdl) {
+                    dbManager.clearCache();
+                    if (onSchemaModified != null) {
+                        SwingUtilities.invokeLater(onSchemaModified);
+                    }
                 }
-            }
 
-            long totalElapsed = System.currentTimeMillis() - totalStart;
-            final int finalExecuted = executedCount;
-            QueryHistory.addWithMetadata(finalSqlToExecute, totalElapsed, lastRowCount);
-            SwingUtilities.invokeLater(() -> {
-                progressBar.setVisible(false);
-                statusLabel.setText("Executed " + finalExecuted + " statement(s) in " + totalElapsed + "ms");
-                refreshHistory();
-            });
+                long totalElapsed = System.currentTimeMillis() - totalStart;
+                final int finalExecuted = executedCount;
+                final int finalLastRows = lastRowCount;
+                QueryHistory.addWithMetadata(finalSqlToExecute, totalElapsed, lastRowCount);
+                SwingUtilities.invokeLater(() -> {
+                    if (cancellationMonitor.isCancelled()) {
+                        statusLabel.setText("Query execution cancelled. [" + totalElapsed + "ms]");
+                    } else {
+                        statusLabel.setText("Executed " + finalExecuted + " statement(s) in " + totalElapsed + "ms" +
+                                (finalLastRows >= 5000 ? " (Capped at 5,000 rows)" : ""));
+                    }
+                    refreshHistory();
+                });
+            } finally {
+                setExecutingState(false);
+            }
+        });
+    }
+
+    private void setExecutingState(boolean running) {
+        SwingUtilities.invokeLater(() -> {
+            progressBar.setVisible(running);
+            if (cancelBtn != null) {
+                cancelBtn.setVisible(running);
+                cancelBtn.setEnabled(running);
+            }
+            if (runBtn != null) runBtn.setEnabled(!running);
+            if (runAllBtn != null) runAllBtn.setEnabled(!running);
+            if (explainBtn != null) explainBtn.setEnabled(!running);
         });
     }
 
     private synchronized java.sql.Connection resolveEditorConnection() throws java.sql.SQLException {
-        if (pinnedConnection == null || pinnedConnection.isClosed()) {
+        if (pinnedConnection == null || pinnedConnection.isClosed() || !isConnectionHealthy(pinnedConnection)) {
+            closePinnedConnectionQuietly();
             pinnedConnection = dbManager.openPinnedSession();
         }
         return pinnedConnection;
+    }
+
+    private static boolean isConnectionHealthy(java.sql.Connection c) {
+        if (c == null) return false;
+        try {
+            return c.isValid(2);
+        } catch (Throwable ignored) {
+            return true;
+        }
     }
 
     private synchronized void closePinnedConnectionQuietly() {
@@ -1608,11 +1661,19 @@ public class SqlEditorPanel extends JPanel {
 
     public void saveEditorDraft() {
         if (editor == null) return;
-        try {
-            File draftFile = getDraftFile();
-            String text = editor.getText();
-            Files.write(draftFile.toPath(), text.getBytes(StandardCharsets.UTF_8));
-        } catch (Exception ignored) {}
+        final String text = editor.getText();
+        if (customDraftFile != null) {
+            try {
+                Files.write(getDraftFile().toPath(), text.getBytes(StandardCharsets.UTF_8));
+            } catch (Exception ignored) {}
+            return;
+        }
+        java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor().submit(() -> {
+            try {
+                File draftFile = getDraftFile();
+                Files.write(draftFile.toPath(), text.getBytes(StandardCharsets.UTF_8));
+            } catch (Exception ignored) {}
+        });
     }
 
     private JTable getActiveResultTable() {

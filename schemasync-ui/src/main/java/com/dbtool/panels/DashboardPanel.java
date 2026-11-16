@@ -51,6 +51,7 @@ public class DashboardPanel extends JPanel {
     }
 
     private DatabaseManager dbManager;
+    private final java.util.concurrent.atomic.AtomicBoolean isRefreshing = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     public void setDbManager(DatabaseManager dbManager) {
         this.dbManager = dbManager;
@@ -135,8 +136,12 @@ public class DashboardPanel extends JPanel {
         initUI();
         refreshUsageStatistics();
 
-        // Auto-refresh when telemetry records new actions
-        AppUsageTracker.addListener(() -> SwingUtilities.invokeLater(this::refreshUsageStatistics));
+        // Auto-refresh when telemetry records new actions (only when dashboard is visible)
+        AppUsageTracker.addListener(() -> {
+            if (isShowing()) {
+                SwingUtilities.invokeLater(this::refreshUsageStatistics);
+            }
+        });
 
         // Periodic light heartbeat for live session time & RAM
         javax.swing.Timer heartbeat = new javax.swing.Timer(10000, e -> {
@@ -756,6 +761,10 @@ public class DashboardPanel extends JPanel {
             return;
         }
 
+        if (!isRefreshing.compareAndSet(false, true)) {
+            return;
+        }
+
         // Run heavy metadata inspection asynchronously on virtual threads
         Executors.newVirtualThreadPerTaskExecutor().submit(() -> {
             try (java.sql.Connection conn = dbManager.borrowConnection()) {
@@ -774,47 +783,87 @@ public class DashboardPanel extends JPanel {
                 try {
                     long t0 = System.currentTimeMillis();
                     try (Statement st = conn.createStatement()) {
+                        st.setQueryTimeout(2);
                         st.execute("SELECT 1");
                     }
                     pingMs = Math.max(1, System.currentTimeMillis() - t0);
                 } catch (Exception ignored) {}
 
-                // Catalog inspection
                 List<String> tableNames = dbManager.getTableNames();
                 int tableCount = tableNames.size();
-                int colCount = 0;
-                int fkCount = 0;
-                int missingPks = 0;
                 long totalRows = 0;
                 long totalBytes = 0;
 
                 List<TableStorageInfo> storageList = new ArrayList<>();
 
-                for (String tbl : tableNames) {
-                    // Check columns
-                    try (ResultSet rs = meta.getColumns(null, null, tbl, "%")) {
-                        while (rs.next()) colCount++;
+                // Fast catalog extraction for PostgreSQL and MySQL
+                String lowerEngine = engine != null ? engine.toLowerCase() : "";
+                if (lowerEngine.contains("postgresql")) {
+                    try (Statement st = conn.createStatement();
+                         ResultSet rs = st.executeQuery(
+                            "SELECT c.relname, GREATEST(0, c.reltuples::bigint) AS est_rows, " +
+                            "COALESCE(pg_total_relation_size(c.oid), 0) AS est_bytes " +
+                            "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace " +
+                            "WHERE n.nspname = CURRENT_SCHEMA() AND c.relkind = 'r'")) {
+                        while (rs.next()) {
+                            String tbl = rs.getString(1);
+                            long rCount = rs.getLong(2);
+                            long bCount = rs.getLong(3);
+                            storageList.add(new TableStorageInfo(tbl, rCount, bCount));
+                            totalRows += rCount;
+                            totalBytes += bCount;
+                        }
                     } catch (Exception ignored) {}
+                } else if (lowerEngine.contains("mysql") || lowerEngine.contains("mariadb")) {
+                    try (Statement st = conn.createStatement();
+                         ResultSet rs = st.executeQuery(
+                            "SELECT table_name, COALESCE(table_rows, 0) AS est_rows, " +
+                            "COALESCE(data_length + index_length, 0) AS est_bytes " +
+                            "FROM information_schema.tables WHERE table_schema = DATABASE()")) {
+                        while (rs.next()) {
+                            String tbl = rs.getString(1);
+                            long rCount = rs.getLong(2);
+                            long bCount = rs.getLong(3);
+                            storageList.add(new TableStorageInfo(tbl, rCount, bCount));
+                            totalRows += rCount;
+                            totalBytes += bCount;
+                        }
+                    } catch (Exception ignored) {}
+                }
 
-                    // Check primary keys
+                // If engine-specific catalog was not applicable or returned no rows, fall back to safe sampled scan
+                if (storageList.isEmpty()) {
+                    int maxTablesToSample = Math.min(tableNames.size(), 25);
+                    for (int i = 0; i < maxTablesToSample; i++) {
+                        String tbl = tableNames.get(i);
+                        long rows = estimateRowCount(conn, tbl);
+                        totalRows += rows;
+                        long estBytes = rows * 128L;
+                        totalBytes += estBytes;
+                        storageList.add(new TableStorageInfo(tbl, rows, estBytes));
+                    }
+                }
+
+                // Columns and Foreign Keys using in-memory cache
+                int colCount = dbManager.getCachedColumnCount();
+                int fkCount = dbManager.getCachedFkCount();
+                if (colCount == 0 && tableCount > 0) {
+                    dbManager.preloadAllColumns();
+                    colCount = dbManager.getCachedColumnCount();
+                }
+                if (fkCount == 0 && tableCount > 0) {
+                    dbManager.preloadAllForeignKeys();
+                    fkCount = dbManager.getCachedFkCount();
+                }
+
+                int missingPks = 0;
+                // Quick check for primary keys
+                for (String tbl : tableNames) {
                     boolean hasPk = false;
                     try (ResultSet rs = meta.getPrimaryKeys(null, null, tbl)) {
                         if (rs.next()) hasPk = true;
                     } catch (Exception ignored) {}
                     if (!hasPk) missingPks++;
-
-                    // Check foreign keys
-                    try (ResultSet rs = meta.getImportedKeys(null, null, tbl)) {
-                        while (rs.next()) fkCount++;
-                    } catch (Exception ignored) {}
-
-                    // Estimate row count
-                    long rows = estimateRowCount(conn, tbl);
-                    totalRows += rows;
-                    long estBytes = rows * 128L; // average record footprint
-                    totalBytes += estBytes;
-
-                    storageList.add(new TableStorageInfo(tbl, rows, estBytes));
                 }
 
                 // Compute percentages and sort top 5
@@ -870,19 +919,25 @@ public class DashboardPanel extends JPanel {
 
             } catch (Exception e) {
                 // Keep UI resilient on failure
+            } finally {
+                isRefreshing.set(false);
             }
         });
     }
 
     private long estimateRowCount(java.sql.Connection conn, String table) {
         if (conn == null) return 0L;
-        try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM \"" + table + "\"")) {
-            if (rs.next()) return rs.getLong(1);
-        } catch (Exception ignored) {
-            try (Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM " + table)) {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.setQueryTimeout(1);
+            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM \"" + table + "\"")) {
                 if (rs.next()) return rs.getLong(1);
+            }
+        } catch (Exception ignored) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.setQueryTimeout(1);
+                try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM " + table)) {
+                    if (rs.next()) return rs.getLong(1);
+                }
             } catch (Exception ignored2) {}
         }
         return 0L;

@@ -1,6 +1,6 @@
 # SchemaSync Comprehensive Feature Guide
 
-**Version:** 2.4.0  
+**Version:** 2.4.1  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -32,6 +32,17 @@ Streamlined connection workflow eliminating the need to guess or memorize databa
 * **Searchable Database Picker Dialog (`DatabasePickerDialog`):** Interactive modal dialog with real-time text filtering, vector engine icons, maintenance database badges (`postgres (maintenance)`), and active selection markers (`★ current`).
 * **Instant Double-Click & Keyboard Triggers:** Press Enter or double-click any discovered database to select and connect.
 * **Seamless Connection Profile Integration (`ConnectionManagerDialog`):** Editable combobox with `[ ↻ Fetch DBs ]` action button and placeholder `(Optional) Leave blank to pick from all databases`. Leaving database name blank automatically discovers databases upon clicking **Connect**.
+
+---
+
+## 0.2 Zero-Freeze Query Execution, High-Throughput Asynchronous Architecture & Interactive Query Cancellation (`SqlEditorPanel`, `StatementCancellationMonitor`)
+High-performance responsiveness enhancements eliminating UI freezes, unresponsiveness, and lockups:
+* **Interactive Query Cancellation:** Red **"⏹ Cancel"** button beside the status progress bar allowing instant abort of running queries via JDBC statement cancellation (`stmt.cancel()`).
+* **Execution State Locks:** Disables Run, Run All, and Explain buttons during query execution to prevent duplicate queries on busy connections.
+* **Asynchronous Persistence & In-Memory Caching:** All query history and application usage files (`query_history.txt`, `query_history_meta.json`, `app_usage_stats.json`) are cached in memory and serialized asynchronously on background daemon executors.
+* **Visibility-Guarded Dashboard Metrics:** Eliminates hidden background table scans (`SELECT COUNT(*)`) by updating metrics only when the Dashboard tab is visible (`isShowing()`) via high-speed catalog views (`pg_class`, `information_schema.tables`).
+* **Embedded Database Lock Prevention:** Pinned sessions in SQLite and MS Access reuse the active pooled connection to eliminate `SQLITE_BUSY` file contention.
+* **Result Set Protection:** Result sets capped at 5,000 rows by default (`stmt.setMaxRows(5000)`) to protect UI memory and table rendering.
 
 ---
 

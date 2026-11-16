@@ -44,9 +44,18 @@ public class NetworkScannerPanel extends JPanel {
         JPanel topPanel = new JPanel(new com.dbtool.ui.components.WrapLayout(FlowLayout.LEFT, 8, 4));
         topPanel.add(new JLabel("Subnet (e.g., 192.168.1):"));
         
-        String defaultSubnet = guessLocalSubnet();
-        subnetField = new JTextField(defaultSubnet, 12);
+        subnetField = new JTextField("192.168.1", 12);
         topPanel.add(subnetField);
+
+        // Resolve local subnet asynchronously on background virtual thread without stalling UI startup
+        java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor().submit(() -> {
+            try {
+                String detected = guessLocalSubnet();
+                if (detected != null && !detected.isEmpty()) {
+                    SwingUtilities.invokeLater(() -> subnetField.setText(detected));
+                }
+            } catch (Exception ignored) {}
+        });
 
         scanBtn = new JButton("Scan Network");
         scanBtn.addActionListener(e -> startScan());

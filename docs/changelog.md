@@ -1,8 +1,34 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 2.4.0  
+**Current Version:** 2.4.1  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v2.4.1] - 2026-11-16
+### Zero-Freeze Query Execution, High-Throughput Asynchronous Architecture & Interactive Query Cancellation
+* **Zero-Freeze Query Engine (`SqlEditorPanel`, `StatementCancellationMonitor`):**
+  * Eliminated all UI freezes, lockups, and unresponsiveness during query execution and general UI interaction.
+  * Added an interactive **"⏹ Cancel"** button right beside the query execution progress bar, enabling instant abort of long-running or stuck queries via `Statement.cancel()`.
+  * Implemented query execution state locks (`setExecutingState(true)`), disabling the Run, Run All, and Explain buttons during active execution to prevent accidental duplicate queries.
+  * Protected UI memory and table rendering with bounded result set fetches (`stmt.setMaxRows(5000)`).
+  * Hardened connection health verification before query execution to fast-fail on closed or stale connections.
+* **Non-Blocking Asynchronous Persistence & In-Memory Caching (`QueryHistory`, `AppUsageTracker`):**
+  * Added thread-safe in-memory caching (`cachedHistory`, `cachedMetaMap`, `UsageStatsData`) to eliminate repeated disk reads during UI navigation.
+  * Offloaded query history saves (`query_history.txt`), metadata writes (`query_history_meta.json`), and application usage stats (`app_usage_stats.json`) to background daemon single-threaded executors off the Swing Event Dispatch Thread (EDT).
+  * Debounced SQL Editor draft auto-persistence (`sql_editor_draft.sql`) onto virtual background threads.
+  * Added synchronous execution safeguards in test mode to guarantee 100% test reliability and clean Windows file-lock handling.
+* **Intelligent & Visibility-Guarded Dashboard Metrics (`DashboardPanel`):**
+  * Statistics auto-refresh is now strictly guarded to run only when the Dashboard tab is visible on screen (`isShowing()`).
+  * Replaced sequential per-table `SELECT COUNT(*)` loops and repeated `DatabaseMetaData` calls with single-query high-speed catalog views (`pg_class` for PostgreSQL, `information_schema.tables` for MySQL).
+  * Added strict 1-second query timeouts to row count estimators and an `AtomicBoolean` reentrancy guard to prevent stacked concurrent background refreshes.
+* **Embedded Database Lock Prevention (`SessionPoolManager`):**
+  * For file-based, lock-sensitive database engines (SQLite and MS Access), pinned sessions now reuse the active leased connection from the connection pool instead of attempting to open competing unpooled connections that caused `SQLITE_BUSY` file locks.
+* **Non-Blocking UI Initialization & Connection Badges (`NetworkScannerPanel`, `Main`):**
+  * Network scanner local subnet IP discovery runs asynchronously in background daemon tasks rather than blocking EDT startup.
+  * Connection pill badge updates on the EDT use cached connection properties instead of executing multiple blocking JDBC calls.
+  * Added in-memory profile caching in `ProfileStoreV2` to eliminate redundant disk serialization during connection searches.
 
 ---
 
