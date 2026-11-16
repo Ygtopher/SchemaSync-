@@ -20,6 +20,7 @@ import java.util.List;
     private JButton selectColsButton = new JButton("Columns (All)");
     private List<String> currentSelectedColumns = new ArrayList<>();
     private JTextField limitField = new JTextField(5);
+    private final JLabel browseRowCountLabel = new JLabel("");
     private final JTable browseTable;
     private JPanel browseWhereContainer = new JPanel();
     private List<Main.WherePanel> browseWherePanels = new ArrayList<>();
@@ -101,8 +102,15 @@ import java.util.List;
             
             tbSelect.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
             tbSelect.add(new JLabel(" Limit: "));
-            limitField.setPreferredSize(new Dimension(60, 26));
+            limitField.setPreferredSize(new Dimension(65, 26));
+            limitField.setToolTipText("Maximum rows to fetch (leave blank for infinite 100-row scroll; press Enter to run)");
+            limitField.putClientProperty("JTextField.placeholderText", "All / ∞");
+            limitField.addActionListener(e -> loadTableData());
             tbSelect.add(limitField);
+
+            browseRowCountLabel.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 11));
+            browseRowCountLabel.setForeground(com.dbtool.util.ThemeManager.getMutedTextColor());
+            tbSelect.add(browseRowCountLabel);
 
             tbSelect.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
             JToggleButton compactBuilderBtn = new JToggleButton("▲ Compact Grid");
@@ -1629,7 +1637,10 @@ import java.util.List;
         String limitStr = limitField.getText().trim();
         Integer userLimit = null;
         if (!limitStr.isEmpty()) {
-            try { userLimit = Integer.parseInt(limitStr); } catch (NumberFormatException ignored) {}
+            try {
+                userLimit = Integer.parseInt(limitStr);
+                if (userLimit <= 0) userLimit = null;
+            } catch (NumberFormatException ignored) {}
         }
         
         if (userLimit != null && append && browseCurrentOffset >= userLimit) {
@@ -1639,10 +1650,25 @@ import java.util.List;
         
         isBrowseLoading = true;
         
-        int fetchLimit = 100; // Show first 100 and add more as you scroll
+        int fetchLimit;
         if (userLimit != null) {
-            fetchLimit = Math.min(100, userLimit - browseCurrentOffset);
+            int remaining = userLimit - browseCurrentOffset;
+            if (remaining <= 0) {
+                browseHasMore = false;
+                isBrowseLoading = false;
+                return;
+            }
+            if (userLimit <= 1000) {
+                fetchLimit = remaining;
+                browseHasMore = false;
+            } else {
+                fetchLimit = Math.min(500, remaining);
+                browseHasMore = (browseCurrentOffset + fetchLimit < userLimit);
+            }
+        } else {
+            fetchLimit = 100; // Show first 100 and add more as you scroll
         }
+        
         if (fetchLimit <= 0) {
             browseHasMore = false;
             isBrowseLoading = false;
@@ -1651,15 +1677,20 @@ import java.util.List;
         
         String lockChoice = (String) browseLockDropdown.getSelectedItem();
         String lockStr = (lockChoice != null && !lockChoice.equals("Lock: None")) ? " " + lockChoice : "";
-        String query = lastBrowseBaseQuery + " LIMIT " + fetchLimit + " OFFSET " + browseCurrentOffset + lockStr;
+        String pagingStr = (browseCurrentOffset > 0)
+                ? " LIMIT " + fetchLimit + " OFFSET " + browseCurrentOffset
+                : " LIMIT " + fetchLimit;
+        String query = lastBrowseBaseQuery + pagingStr + lockStr;
         
         if (!append) {
             lastExecutedBrowseQuery = query;
             browseTable.setModel(new DefaultTableModel(new Object[][]{{"Loading..."}}, new String[]{"Status"}));
+            browseRowCountLabel.setText(" (Loading...)");
         }
         
         final String finalQuery = query;
         final int currentLimit = fetchLimit;
+        final Integer finalUserLimit = userLimit;
 
         com.dbtool.core.concurrency.TaskCoordinator.shared().submitRunnable("Browse Fetch", () -> {
             try {
@@ -1679,7 +1710,6 @@ import java.util.List;
                         }
                     } else {
                         browseTable.setModel(model);
-                        com.dbtool.ui.components.SmartTableCellRenderer.install(browseTable, null, null);
                         com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(browseTable);
                     }
 
@@ -1689,12 +1719,25 @@ import java.util.List;
                     if (model.getRowCount() < currentLimit) {
                         browseHasMore = false;
                     }
+                    if (finalUserLimit != null && browseCurrentOffset >= finalUserLimit) {
+                        browseHasMore = false;
+                    }
+
+                    int totalLoaded = browseTable.getRowCount();
+                    if (finalUserLimit != null) {
+                        browseRowCountLabel.setText(" (" + totalLoaded + " rows, Limit: " + finalUserLimit + ")");
+                    } else {
+                        browseRowCountLabel.setText(browseHasMore ? " (" + totalLoaded + "+ rows)" : " (" + totalLoaded + " rows)");
+                    }
                     isBrowseLoading = false;
                 });
             } catch (Exception ex) {
                 ex.printStackTrace();
                 SwingUtilities.invokeLater(() -> {
-                    if (!append) browseTable.setModel(new DefaultTableModel(new Object[][]{{"Error"}}, new String[]{"Status"}));
+                    if (!append) {
+                        browseTable.setModel(new DefaultTableModel(new Object[][]{{"Error"}}, new String[]{"Status"}));
+                        browseRowCountLabel.setText(" (Error)");
+                    }
                     isBrowseLoading = false;
                     String debugInfo = "Query: " + finalQuery + "\n";
                     try (java.sql.Connection c = mainFrame.getDbManager().borrowConnection();

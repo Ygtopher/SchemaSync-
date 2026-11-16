@@ -3,6 +3,7 @@ package com.dbtool.ui.components;
 import com.dbtool.util.ThemeManager;
 
 import javax.swing.*;
+import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
@@ -69,8 +70,11 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
 
         JTableHeader header = table.getTableHeader();
         if (header != null) {
-            TableCellRenderer baseHeaderRenderer = header.getDefaultRenderer();
-            header.setDefaultRenderer(new SmartHeaderRenderer(baseHeaderRenderer, isPrimaryKeyColumn, isForeignKeyColumn));
+            TableCellRenderer baseRenderer = header.getDefaultRenderer();
+            while (baseRenderer instanceof SmartHeaderRenderer) {
+                baseRenderer = ((SmartHeaderRenderer) baseRenderer).getDelegate();
+            }
+            header.setDefaultRenderer(new SmartHeaderRenderer(baseRenderer, isPrimaryKeyColumn, isForeignKeyColumn));
         }
 
         // Attach hover tracking and model change column auto-fit listener once
@@ -271,6 +275,10 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
             this.isFk = isFk;
         }
 
+        public TableCellRenderer getDelegate() {
+            return delegate;
+        }
+
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value,
                                                        boolean isSelected, boolean hasFocus,
@@ -290,7 +298,12 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
             } catch (Exception ignored) {
             }
 
-            Component c = delegate.getTableCellRendererComponent(table, decorated, isSelected, hasFocus, row, column);
+            Component c = delegate != null
+                    ? delegate.getTableCellRendererComponent(table, decorated, isSelected, hasFocus, row, column)
+                    : null;
+            if (c == null) {
+                c = new JLabel(decorated);
+            }
             Color hdrBg = UIManager.getColor("TableHeader.background");
             Color hdrFg = UIManager.getColor("TableHeader.foreground");
             c.setBackground(hdrBg != null ? hdrBg : ThemeManager.getHeaderBackgroundColor());
@@ -298,8 +311,14 @@ public class SmartTableCellRenderer extends DefaultTableCellRenderer {
             if (c instanceof JLabel) {
                 JLabel lbl = (JLabel) c;
                 lbl.setFont(lbl.getFont().deriveFont(Font.BOLD));
+                // Prevent compounding border growth on shared header renderer singleton
+                Border baseBorder = (Border) lbl.getClientProperty("SchemaSync.baseHeaderBorder");
+                if (baseBorder == null) {
+                    baseBorder = lbl.getBorder();
+                    lbl.putClientProperty("SchemaSync.baseHeaderBorder", baseBorder);
+                }
                 lbl.setBorder(BorderFactory.createCompoundBorder(
-                        lbl.getBorder(),
+                        baseBorder,
                         new EmptyBorder(2, 6, 2, 6)
                 ));
             }
