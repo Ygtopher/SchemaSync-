@@ -1,4 +1,4 @@
-# SchemaSync Error Code Taxonomy
+﻿# SchemaSync Error Code Taxonomy
 
 | Code | Exception Class | Recovery Strategy |
 |---|---|---|

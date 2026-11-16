@@ -1328,22 +1328,30 @@ public class SqlEditorPanel extends JPanel {
                                                 columnNames.add(metaData.getColumnLabel(col));
                                                 columnTypes[col - 1] = metaData.getColumnTypeName(col);
                                             }
-                                            java.util.Vector<java.util.Vector<Object>> data = new java.util.Vector<>();
+                                            java.util.Vector<java.util.Vector<Object>> allRows = new java.util.Vector<>();
                                             while (rs.next()) {
                                                 java.util.Vector<Object> vector = new java.util.Vector<>();
                                                 for (int col = 1; col <= columnCount; col++) {
                                                     vector.add(rs.getObject(col));
                                                 }
-                                                data.add(vector);
+                                                allRows.add(vector);
                                             }
-                                            com.dbtool.util.TypedTableModel model = new com.dbtool.util.TypedTableModel(data, columnNames, columnTypes);
-                                            lastRowCount = model.getRowCount();
+                                            int totalRows = allRows.size();
+                                            lastRowCount = totalRows;
                                             com.dbtool.util.AppUsageTracker.recordRowsFetched(lastRowCount);
-                                            String capSuffix = model.getRowCount() >= 5000 ? " [first 5,000 rows]" : "";
-                                            String tabTitle = (statements.size() > 1 ? kind + " #" + stmtNum : kind) + " (" + model.getRowCount() + " rows" + capSuffix + ")";
+                                            
+                                            // Chunked initial rendering: render first 100 rows immediately to avoid UI freeze
+                                            int initialCount = Math.min(100, totalRows);
+                                            java.util.Vector<java.util.Vector<Object>> initialData = new java.util.Vector<>(initialCount);
+                                            for (int r = 0; r < initialCount; r++) {
+                                                initialData.add(allRows.get(r));
+                                            }
+                                            com.dbtool.util.TypedTableModel model = new com.dbtool.util.TypedTableModel(initialData, columnNames, columnTypes);
+                                            String capSuffix = totalRows >= 5000 ? " [first 5,000 rows]" : "";
+                                            String tabTitle = (statements.size() > 1 ? kind + " #" + stmtNum : kind) + " (" + totalRows + " rows" + capSuffix + ")";
                                             final String finalTableQuery = queryToRun;
                                             SwingUtilities.invokeLater(() -> {
-                                                JComponent resultContainer = buildInteractiveResultTab(model, finalTableQuery, stmtElapsed);
+                                                JComponent resultContainer = buildInteractiveResultTab(model, allRows, finalTableQuery, stmtElapsed);
                                                 addResultTab(tabTitle, resultContainer);
                                             });
                                         }
@@ -1457,7 +1465,7 @@ public class SqlEditorPanel extends JPanel {
      * 2. Sortable JTable with row numbers & column type tooltips
      * 3. Live Selection Statistics footer (Selected Rows, Cells, Nulls, Numeric Count, Sum, Avg, Min, Max)
      */
-    private JComponent buildInteractiveResultTab(com.dbtool.util.TypedTableModel model, String querySql, long elapsedMs) {
+    JComponent buildInteractiveResultTab(com.dbtool.util.TypedTableModel model, java.util.Vector<java.util.Vector<Object>> allRows, String querySql, long elapsedMs) {
         JPanel container = new JPanel(new BorderLayout(0, 2));
 
         JTable table = new JTable(model);
@@ -1471,17 +1479,48 @@ public class SqlEditorPanel extends JPanel {
         com.dbtool.util.TableTooltipUtil.attachHeaderTooltips(table);
         attachResultTableContextMenu(table, querySql);
 
+        final int totalCount = allRows != null ? allRows.size() : model.getRowCount();
+
         // Top client-side filter bar
         JPanel filterBar = new JPanel(new BorderLayout(6, 0));
         filterBar.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
         JLabel filterLbl = new JLabel("🔍 Filter Results:");
         JTextField filterField = new JTextField();
         filterField.setToolTipText("Filter returned rows instantly (case-insensitive substring or regex)");
-        JLabel matchCountLbl = new JLabel(" " + model.getRowCount() + " rows [" + elapsedMs + "ms] ");
+        
+        String initialCountText = totalCount > model.getRowCount()
+                ? " Showing " + model.getRowCount() + " of " + totalCount + " rows [" + elapsedMs + "ms] "
+                : " " + totalCount + " rows [" + elapsedMs + "ms] ";
+        JLabel matchCountLbl = new JLabel(initialCountText);
 
+        JButton loadAllBtn = null;
+        if (allRows != null && totalCount > model.getRowCount()) {
+            loadAllBtn = new JButton("⚡ Load All (" + totalCount + ")");
+            loadAllBtn.setFont(loadAllBtn.getFont().deriveFont(Font.PLAIN, 11f));
+            loadAllBtn.setMargin(new Insets(1, 6, 1, 6));
+            loadAllBtn.setToolTipText("Load all " + totalCount + " pre-fetched rows into view immediately");
+            final JButton btnRef = loadAllBtn;
+            loadAllBtn.addActionListener(e -> {
+                int cur = model.getRowCount();
+                for (int i = cur; i < allRows.size(); i++) {
+                    model.addRow(allRows.get(i));
+                }
+                btnRef.setVisible(false);
+                matchCountLbl.setText(" " + totalCount + " rows [" + elapsedMs + "ms] ");
+            });
+        }
+
+        final JButton finalLoadAllBtn = loadAllBtn;
         filterField.getDocument().addDocumentListener(new DocumentListener() {
             private void applyFilter() {
                 String text = filterField.getText().trim();
+                if (!text.isEmpty() && allRows != null && model.getRowCount() < allRows.size()) {
+                    int cur = model.getRowCount();
+                    for (int i = cur; i < allRows.size(); i++) {
+                        model.addRow(allRows.get(i));
+                    }
+                    if (finalLoadAllBtn != null) finalLoadAllBtn.setVisible(false);
+                }
                 if (text.isEmpty()) {
                     sorter.setRowFilter(null);
                 } else {
@@ -1500,11 +1539,56 @@ public class SqlEditorPanel extends JPanel {
 
         filterBar.add(filterLbl, BorderLayout.WEST);
         filterBar.add(filterField, BorderLayout.CENTER);
-        filterBar.add(matchCountLbl, BorderLayout.EAST);
+        
+        JPanel eastActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        eastActions.setOpaque(false);
+        if (loadAllBtn != null) {
+            eastActions.add(loadAllBtn);
+        }
+        eastActions.add(matchCountLbl);
+        filterBar.add(eastActions, BorderLayout.EAST);
 
         // Center scroll pane with row numbers
         JScrollPane scrollPane = new JScrollPane(table);
         com.dbtool.util.TableRowUtilities.addRowNumbers(table, scrollPane);
+
+        // Infinite scroll: fetch/append next 100 rows as user scrolls near bottom
+        if (allRows != null && totalCount > model.getRowCount()) {
+            final boolean[] loadingMore = new boolean[]{false};
+            scrollPane.getVerticalScrollBar().addAdjustmentListener(e -> {
+                if (loadingMore[0] || e.getValueIsAdjusting()) return;
+                int currentLoaded = model.getRowCount();
+                if (currentLoaded >= allRows.size()) return;
+
+                JScrollBar bar = scrollPane.getVerticalScrollBar();
+                int extent = bar.getModel().getExtent();
+                int maximum = bar.getMaximum();
+                int value = bar.getValue();
+
+                if (maximum > 0 && value + extent >= maximum - 60) {
+                    loadingMore[0] = true;
+                    SwingUtilities.invokeLater(() -> {
+                        try {
+                            int start = model.getRowCount();
+                            if (start < allRows.size()) {
+                                int end = Math.min(start + 100, allRows.size());
+                                for (int i = start; i < end; i++) {
+                                    model.addRow(allRows.get(i));
+                                }
+                                if (model.getRowCount() >= allRows.size()) {
+                                    if (finalLoadAllBtn != null) finalLoadAllBtn.setVisible(false);
+                                    matchCountLbl.setText(" " + allRows.size() + " rows [" + elapsedMs + "ms] ");
+                                } else {
+                                    matchCountLbl.setText(" Showing " + model.getRowCount() + " of " + allRows.size() + " rows [" + elapsedMs + "ms] ");
+                                }
+                            }
+                        } finally {
+                            loadingMore[0] = false;
+                        }
+                    });
+                }
+            });
+        }
 
         // Bottom live selection statistics footer
         JLabel statsFooter = new JLabel(" " + SqlInsertGenerator.calculateSelectionStats(table));

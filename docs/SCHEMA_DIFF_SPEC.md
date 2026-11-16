@@ -1,4 +1,4 @@
-# Schema Comparison Specification
+﻿# Schema Comparison Specification
 
 ## Algorithm
 1. Retrieve metadata for Source and Target schemas.

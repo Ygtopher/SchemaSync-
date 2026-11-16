@@ -1,4 +1,4 @@
-# Query Engine Architecture
+﻿# Query Engine Architecture
 
 ## Execution Flow
 1. User provides SQL statement.

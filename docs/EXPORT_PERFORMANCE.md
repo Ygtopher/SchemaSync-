@@ -1,4 +1,4 @@
-# Data Export Performance
+﻿# Data Export Performance
 
 - **CSV:** Fastest (streams ~100k rows/sec).
 - **Excel XLSX:** Memory heavy; auto-sizes columns up to 20 columns.

@@ -42,6 +42,7 @@ import java.util.List;
     private String lastExecutedBrowseQuery = "";
     private int browseCurrentOffset = 0;
     private boolean isBrowseLoading = false;
+    private boolean browseHasMore = true;
     private String lastBrowseBaseQuery = "";
     private JCheckBox browseDistinctCheckbox = new JCheckBox("Distinct");
 
@@ -1618,92 +1619,93 @@ import java.util.List;
             
             lastBrowseBaseQuery = buildCurrentBrowseQuery(false);
             browseCurrentOffset = 0;
+            browseHasMore = true;
             fetchBrowseData(false);
         }
     private void fetchBrowseData(boolean append) {
-            if (isBrowseLoading || lastBrowseBaseQuery == null || lastBrowseBaseQuery.isEmpty()) return;
-            
-            String limitStr = limitField.getText().trim();
-            Integer userLimit = null;
-            if (!limitStr.isEmpty()) {
-                try { userLimit = Integer.parseInt(limitStr); } catch (NumberFormatException ignored) {}
-            }
-            
-            if (userLimit != null && append && browseCurrentOffset >= userLimit) {
-                return;
-            }
-            
-            isBrowseLoading = true;
-            
-            int fetchLimit = 1000;
-            if (userLimit != null) {
-                fetchLimit = Math.min(1000, userLimit - browseCurrentOffset);
-            }
-            
-            String lockChoice = (String) browseLockDropdown.getSelectedItem();
-            String lockStr = (lockChoice != null && !lockChoice.equals("Lock: None")) ? " " + lockChoice : "";
-            String query = lastBrowseBaseQuery + " LIMIT " + fetchLimit + " OFFSET " + browseCurrentOffset + lockStr;
-            
-            if (!append) {
-                lastExecutedBrowseQuery = query;
-                browseTable.setModel(new DefaultTableModel(new Object[][]{{"Loading..."}}, new String[]{"Status"}));
-            }
-            
-            final String finalQuery = query;
-            final int currentLimit = fetchLimit;
-            final boolean tryVirtual = !append && userLimit == null && lockStr.isEmpty()
-                    && mainFrame.getDbManager().resolveDialect().supportsFeature(com.dbtool.core.dialect.SqlFeature.OFFSET_LIMIT_PAGING);
-
-            com.dbtool.core.concurrency.TaskCoordinator.shared().submitRunnable("Browse Fetch", () -> {
-                try {
-                    DefaultTableModel fetchedModel = null;
-                    if (tryVirtual) {
-                        try {
-                            fetchedModel = mainFrame.getDbManager().createVirtualQueryModel(lastBrowseBaseQuery, 500);
-                        } catch (Exception ignoredVirtualFallback) {
-                            fetchedModel = null;
-                        }
-                    }
-                    final DefaultTableModel model = fetchedModel != null ? fetchedModel : mainFrame.getDbManager().executeQuery(finalQuery);
-                    final boolean usedVirtual = fetchedModel != null;
-                    SwingUtilities.invokeLater(() -> {
-                        if (append) {
-                            if (!usedVirtual && !(browseTable.getModel() instanceof com.dbtool.ui.VirtualResultTableModel)
-                                    && browseTable.getModel() instanceof DefaultTableModel
-                                    && browseTable.getModel().getColumnCount() == model.getColumnCount()) {
-                                DefaultTableModel existing = (DefaultTableModel) browseTable.getModel();
-                                for (int r = 0; r < model.getRowCount(); r++) {
-                                    java.util.Vector<Object> row = new java.util.Vector<>();
-                                    for (int c = 0; c < model.getColumnCount(); c++) {
-                                        row.add(model.getValueAt(r, c));
-                                    }
-                                    existing.addRow(row);
-                                }
-                            }
-                        } else {
-                            browseTable.setModel(model);
-                        }
-
-                        if (!usedVirtual && model.getRowCount() > 0) {
-                            browseCurrentOffset += currentLimit;
-                        }
-                        isBrowseLoading = false;
-                    });
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                    SwingUtilities.invokeLater(() -> {
-                        if (!append) browseTable.setModel(new DefaultTableModel(new Object[][]{{"Error"}}, new String[]{"Status"}));
-                        isBrowseLoading = false;
-                        String debugInfo = "Query: " + finalQuery + "\n";
-                        try (java.sql.Connection c = mainFrame.getDbManager().borrowConnection();
-                             java.sql.ResultSet rs = c.createStatement().executeQuery("SELECT current_database(), current_schema()")) {
-                            if (rs.next()) debugInfo += "DB: " + rs.getString(1) + ", Schema: " + rs.getString(2) + "\n";
-                        } catch (Exception e) {}
-                        JOptionPane.showMessageDialog(mainFrame, debugInfo + "Error fetching data: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                    });
-                }
-            });
+        if (isBrowseLoading || lastBrowseBaseQuery == null || lastBrowseBaseQuery.isEmpty()) return;
+        if (append && !browseHasMore) return;
+        
+        String limitStr = limitField.getText().trim();
+        Integer userLimit = null;
+        if (!limitStr.isEmpty()) {
+            try { userLimit = Integer.parseInt(limitStr); } catch (NumberFormatException ignored) {}
         }
+        
+        if (userLimit != null && append && browseCurrentOffset >= userLimit) {
+            browseHasMore = false;
+            return;
+        }
+        
+        isBrowseLoading = true;
+        
+        int fetchLimit = 100; // Show first 100 and add more as you scroll
+        if (userLimit != null) {
+            fetchLimit = Math.min(100, userLimit - browseCurrentOffset);
+        }
+        if (fetchLimit <= 0) {
+            browseHasMore = false;
+            isBrowseLoading = false;
+            return;
+        }
+        
+        String lockChoice = (String) browseLockDropdown.getSelectedItem();
+        String lockStr = (lockChoice != null && !lockChoice.equals("Lock: None")) ? " " + lockChoice : "";
+        String query = lastBrowseBaseQuery + " LIMIT " + fetchLimit + " OFFSET " + browseCurrentOffset + lockStr;
+        
+        if (!append) {
+            lastExecutedBrowseQuery = query;
+            browseTable.setModel(new DefaultTableModel(new Object[][]{{"Loading..."}}, new String[]{"Status"}));
+        }
+        
+        final String finalQuery = query;
+        final int currentLimit = fetchLimit;
+
+        com.dbtool.core.concurrency.TaskCoordinator.shared().submitRunnable("Browse Fetch", () -> {
+            try {
+                final DefaultTableModel model = mainFrame.getDbManager().executeQuery(finalQuery);
+                SwingUtilities.invokeLater(() -> {
+                    if (append) {
+                        if (browseTable.getModel() instanceof DefaultTableModel
+                                && browseTable.getModel().getColumnCount() == model.getColumnCount()) {
+                            DefaultTableModel existing = (DefaultTableModel) browseTable.getModel();
+                            for (int r = 0; r < model.getRowCount(); r++) {
+                                java.util.Vector<Object> row = new java.util.Vector<>();
+                                for (int c = 0; c < model.getColumnCount(); c++) {
+                                    row.add(model.getValueAt(r, c));
+                                }
+                                existing.addRow(row);
+                            }
+                        }
+                    } else {
+                        browseTable.setModel(model);
+                        com.dbtool.ui.components.SmartTableCellRenderer.install(browseTable, null, null);
+                        com.dbtool.ui.components.SmartTableColumnAdjuster.adjustColumnWidths(browseTable);
+                    }
+
+                    if (model.getRowCount() > 0) {
+                        browseCurrentOffset += model.getRowCount();
+                    }
+                    if (model.getRowCount() < currentLimit) {
+                        browseHasMore = false;
+                    }
+                    isBrowseLoading = false;
+                });
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                SwingUtilities.invokeLater(() -> {
+                    if (!append) browseTable.setModel(new DefaultTableModel(new Object[][]{{"Error"}}, new String[]{"Status"}));
+                    isBrowseLoading = false;
+                    String debugInfo = "Query: " + finalQuery + "\n";
+                    try (java.sql.Connection c = mainFrame.getDbManager().borrowConnection();
+                         java.sql.ResultSet rs = c.createStatement().executeQuery("SELECT current_database(), current_schema()")) {
+                        if (rs.next()) debugInfo += "DB: " + rs.getString(1) + ", Schema: " + rs.getString(2) + "\n";
+                    } catch (Exception e) {}
+                    JOptionPane.showMessageDialog(mainFrame, debugInfo + "Error fetching data: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        });
+    }
     private String buildBrowseWhereClause() {
             if (browseWherePanels.isEmpty()) return "";
             StringBuilder sb = new StringBuilder(" WHERE ");

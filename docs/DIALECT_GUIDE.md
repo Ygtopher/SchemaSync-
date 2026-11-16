@@ -1,4 +1,4 @@
-# Database Dialect Extension Guide
+﻿# Database Dialect Extension Guide
 
 SchemaSync isolates all RDBMS specific nuances inside `DatabaseDialect` implementations.
 

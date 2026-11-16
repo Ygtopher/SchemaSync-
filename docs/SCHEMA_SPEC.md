@@ -1,4 +1,4 @@
-# SchemaSync Metadata Specification
+﻿# SchemaSync Metadata Specification
 
 ## Objects
 - `TableMetadata`: Encapsulates schema and table identification, along with column and index lists.

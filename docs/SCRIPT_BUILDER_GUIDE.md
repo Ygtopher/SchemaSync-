@@ -1,4 +1,4 @@
-# SchemaSync Script Builder & PSQL Emulation
+﻿# SchemaSync Script Builder & PSQL Emulation
 
 ## Supported Meta-Commands
 - `\set variable_name value`: Assigns a script variable.

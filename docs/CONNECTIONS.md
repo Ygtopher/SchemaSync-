@@ -1,4 +1,4 @@
-# SchemaSync Connection Management
+﻿# SchemaSync Connection Management
 
 SchemaSync provides unified access to PostgreSQL, MS Access, and embedded H2.
 
