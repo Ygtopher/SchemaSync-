@@ -74,6 +74,10 @@ public class DatabasePickerDialogTest {
                 gPicker.dispose();
 
                 File outDir = new File("C:/Users/CHRISTOPHE/.gemini/antigravity/brain/452c91c6-5676-46e5-9238-c057a8809e4a");
+                if (!outDir.isDirectory()) {
+                    outDir = new File("target");
+                    outDir.mkdirs();
+                }
                 File pickerFile = new File(outDir, "database_picker_dialog.png");
                 javax.imageio.ImageIO.write(imgPicker, "png", pickerFile);
                 System.out.println("Saved DatabasePickerDialog render: " + pickerFile.getAbsolutePath());

@@ -56,6 +56,10 @@ public class MultiConnectionWindowRenderTest {
                 g2.dispose();
 
                 File outDir = new File("C:/Users/CHRISTOPHE/.gemini/antigravity/brain/452c91c6-5676-46e5-9238-c057a8809e4a");
+                if (!outDir.isDirectory()) {
+                    outDir = new File("target");
+                    outDir.mkdirs();
+                }
                 File mainFile = new File(outDir, "multi_connection_workspace_tabs.png");
                 ImageIO.write(mainImg, "png", mainFile);
                 System.out.println("Saved main workspace tabs render: " + mainFile.getAbsolutePath());
