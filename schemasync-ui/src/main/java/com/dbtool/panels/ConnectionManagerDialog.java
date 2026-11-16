@@ -114,6 +114,9 @@ public class ConnectionManagerDialog extends JDialog {
     private JTextField userField;
     private JPasswordField passField;
     private JTextField dbNameField;
+    private JComboBox<String> dbNameCombo;
+    private JButton discoverDbsBtn;
+    private JButton connectBtn;
     private JComboBox<String> dbTypeCombo = new JComboBox<>(new String[]{"PostgreSQL", "MySQL", "SQLite"});
     private JComboBox<com.dbtool.core.model.SslMode> sslModeCombo = new JComboBox<>(com.dbtool.core.model.SslMode.values());
     
@@ -129,9 +132,40 @@ public class ConnectionManagerDialog extends JDialog {
     public String getSelectedType() { return selectedType != null ? selectedType : "PostgreSQL"; }
     public com.dbtool.core.model.SslMode getSelectedSslMode() { return selectedSslMode != null ? selectedSslMode : com.dbtool.core.model.SslMode.PREFER; }
 
+    public String getEnteredDbName() {
+        if (dbNameCombo == null) return dbNameField != null ? dbNameField.getText().trim() : "";
+        Object item = dbNameCombo.getEditor().getItem();
+        if (item == null) {
+            item = dbNameCombo.getSelectedItem();
+        }
+        return item != null ? item.toString().trim() : "";
+    }
+
+    public void setEnteredDbName(String name) {
+        String val = name != null ? name.trim() : "";
+        if (dbNameCombo != null) {
+            dbNameCombo.getEditor().setItem(val);
+            boolean exists = false;
+            for (int i = 0; i < dbNameCombo.getItemCount(); i++) {
+                if (val.equalsIgnoreCase(dbNameCombo.getItemAt(i))) {
+                    dbNameCombo.setSelectedIndex(i);
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists && !val.isEmpty()) {
+                dbNameCombo.addItem(val);
+                dbNameCombo.setSelectedItem(val);
+            }
+        }
+        if (dbNameField != null && !dbNameField.getText().equals(val)) {
+            dbNameField.setText(val);
+        }
+    }
+
     public ConnectionManagerDialog(JFrame parent, DatabaseManager dbManager) {
         super(parent, "Connection Profile Manager", true);
-        this.dbManager = dbManager;
+        this.dbManager = dbManager != null ? dbManager : new DatabaseManager();
         
         setSize(800, 500);
         setLocationRelativeTo(parent);
@@ -255,7 +289,32 @@ public class ConnectionManagerDialog extends JDialog {
         portField = new JTextField();
         userField = new JTextField();
         passField = new JPasswordField();
-        dbNameField = new JTextField();
+        
+        dbNameCombo = new JComboBox<>();
+        dbNameCombo.setEditable(true);
+        dbNameField = (JTextField) dbNameCombo.getEditor().getEditorComponent();
+        dbNameField.putClientProperty("JTextField.placeholderText", "(Optional) Leave blank to pick from all databases");
+
+        discoverDbsBtn = new JButton("↻ Fetch DBs");
+        discoverDbsBtn.setFocusable(false);
+        discoverDbsBtn.setFont(discoverDbsBtn.getFont().deriveFont(Font.BOLD, 11f));
+        discoverDbsBtn.setToolTipText("Fetch all databases on this PostgreSQL/MySQL server using credentials");
+        discoverDbsBtn.addActionListener(e -> discoverDatabases(false));
+
+        // Ergonomic keyboard navigation & instant Enter-to-connect
+        hostField.addActionListener(e -> portField.requestFocusInWindow());
+        portField.addActionListener(e -> userField.requestFocusInWindow());
+        userField.addActionListener(e -> passField.requestFocusInWindow());
+        passField.addActionListener(e -> {
+            if (connectBtn != null) connectBtn.doClick();
+        });
+        dbNameField.addActionListener(e -> {
+            if (connectBtn != null) connectBtn.doClick();
+        });
+
+        JPanel dbNamePanel = new JPanel(new BorderLayout(5, 0));
+        dbNamePanel.add(dbNameCombo, BorderLayout.CENTER);
+        dbNamePanel.add(discoverDbsBtn, BorderLayout.EAST);
         
         JToggleButton showPassBtn = new JToggleButton("\uD83D\uDC41"); // Eye icon
         showPassBtn.setMargin(new Insets(0, 4, 0, 4));
@@ -278,7 +337,7 @@ public class ConnectionManagerDialog extends JDialog {
         addFormRow(formPanel, "Database Type:", dbTypeCombo, gbc, row++);
         addFormRow(formPanel, "Host:", hostField, gbc, row++);
         addFormRow(formPanel, "Port:", portField, gbc, row++);
-        addFormRow(formPanel, "Database Name:", dbNameField, gbc, row++);
+        addFormRow(formPanel, "Database Name:", dbNamePanel, gbc, row++);
         addFormRow(formPanel, "Username:", userField, gbc, row++);
         addFormRow(formPanel, "Password:", passPanel, gbc, row++);
         addFormRow(formPanel, "SSL / TLS Mode:", sslModeCombo, gbc, row++);
@@ -293,12 +352,16 @@ public class ConnectionManagerDialog extends JDialog {
                 userField.setEnabled(true);
                 passField.setEnabled(true);
                 sslModeCombo.setEnabled(true);
+                discoverDbsBtn.setEnabled(true);
+                discoverDbsBtn.setToolTipText("Fetch all databases from MySQL server");
             } else if ("SQLite".equalsIgnoreCase(t)) {
                 hostField.setEnabled(false);
                 portField.setEnabled(false);
                 userField.setEnabled(false);
                 passField.setEnabled(false);
                 sslModeCombo.setEnabled(false);
+                discoverDbsBtn.setEnabled(false);
+                discoverDbsBtn.setToolTipText("Auto-discovery is for network database servers");
             } else {
                 if (portField.getText().isEmpty() || portField.getText().equals("3306")) portField.setText("5432");
                 if (userField.getText().isEmpty() || userField.getText().equals("root")) userField.setText("postgres");
@@ -307,6 +370,8 @@ public class ConnectionManagerDialog extends JDialog {
                 userField.setEnabled(true);
                 passField.setEnabled(true);
                 sslModeCombo.setEnabled(true);
+                discoverDbsBtn.setEnabled(true);
+                discoverDbsBtn.setToolTipText("Fetch all databases from PostgreSQL server using credentials");
             }
         });
         
@@ -327,7 +392,7 @@ public class ConnectionManagerDialog extends JDialog {
 
         // --- Bottom Panel: Action Buttons ---
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
-        JButton connectBtn = new JButton("Connect");
+        connectBtn = new JButton("Connect");
         connectBtn.setFont(connectBtn.getFont().deriveFont(Font.BOLD));
         JButton cancelBtn = new JButton("Cancel");
         bottomPanel.add(cancelBtn);
@@ -441,9 +506,9 @@ public class ConnectionManagerDialog extends JDialog {
             profileList.clearSelection();
             hostField.setText("localhost");
             portField.setText("5432");
-            dbNameField.setText("postgres");
+            setEnteredDbName("");
             userField.setText("postgres");
-            passField.setText("postgres");
+            passField.setText("");
             hostField.requestFocusInWindow();
             updateStatusBadge(null);
         });
@@ -465,11 +530,11 @@ public class ConnectionManagerDialog extends JDialog {
             com.dbtool.core.model.SslMode ssl = (com.dbtool.core.model.SslMode) sslModeCombo.getSelectedItem();
             String h = hostField.getText().trim();
             String p = portField.getText().trim();
-            String d = dbNameField.getText().trim();
+            String d = getEnteredDbName();
             String u = userField.getText().trim();
             String pw = new String(passField.getPassword());
             if (!"SQLite".equalsIgnoreCase(typeLabel) && (h.isEmpty() || d.isEmpty() || u.isEmpty())) {
-                JOptionPane.showMessageDialog(this, "Host, Database, and User cannot be empty.");
+                JOptionPane.showMessageDialog(this, "Host, Database, and User cannot be empty.\nTip: Click '↻ Fetch DBs' to discover available databases on the server.");
                 return;
             }
             if ("SQLite".equalsIgnoreCase(typeLabel) && d.isEmpty()) {
@@ -496,7 +561,7 @@ public class ConnectionManagerDialog extends JDialog {
         testBtn.addActionListener(e -> {
             String h = hostField.getText().trim();
             String p = portField.getText().trim();
-            String d = dbNameField.getText().trim();
+            String d = getEnteredDbName();
             String u = userField.getText().trim();
             String pw = new String(passField.getPassword());
             String type = (String) dbTypeCombo.getSelectedItem();
@@ -507,16 +572,23 @@ public class ConnectionManagerDialog extends JDialog {
             new Thread(() -> {
                 long start = System.currentTimeMillis();
                 try {
-                    com.dbtool.core.model.ConnectionConfig cfg = buildConfigFromInputs(type, h, p, d, u, pw, ssl, 5);
-                    String url = com.dbtool.core.connection.JdbcUrlBuilder.buildUrl(cfg);
-                    if (cfg.getType() == com.dbtool.core.model.DatabaseType.POSTGRESQL) {
-                        url += "&connectTimeout=5&socketTimeout=10";
+                    List<String> discovered = Collections.emptyList();
+                    if (d.isEmpty() && !"SQLite".equalsIgnoreCase(type)) {
+                        // Test server connection via catalog discovery
+                        discovered = dbManager.discoverRemoteDatabases(type, h, p, u, pw, ssl);
+                    } else {
+                        com.dbtool.core.model.ConnectionConfig cfg = buildConfigFromInputs(type, h, p, d, u, pw, ssl, 5);
+                        String url = com.dbtool.core.connection.JdbcUrlBuilder.buildUrl(cfg);
+                        if (cfg.getType() == com.dbtool.core.model.DatabaseType.POSTGRESQL) {
+                            url += "&connectTimeout=5&socketTimeout=10";
+                        }
+                        try (java.sql.Connection conn = (cfg.getType() == com.dbtool.core.model.DatabaseType.SQLITE)
+                                ? com.dbtool.core.connection.ConnectionUtil.getConnection(url)
+                                : com.dbtool.core.connection.ConnectionUtil.getConnection(url, u, pw)) {
+                            // Verified live connectivity
+                        }
                     }
-                    try (java.sql.Connection conn = (cfg.getType() == com.dbtool.core.model.DatabaseType.SQLITE)
-                            ? com.dbtool.core.connection.ConnectionUtil.getConnection(url)
-                            : com.dbtool.core.connection.ConnectionUtil.getConnection(url, u, pw)) {
-                        // Verified live connectivity
-                    }
+                    final List<String> finalDiscovered = discovered;
                     long elapsed = System.currentTimeMillis() - start;
                     SwingUtilities.invokeLater(() -> {
                         testBtn.setEnabled(true);
@@ -528,7 +600,20 @@ public class ConnectionManagerDialog extends JDialog {
                             updateCountLabel();
                             updateStatusBadge(selected);
                         }
-                        JOptionPane.showMessageDialog(this, "Connection Successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                        if (!finalDiscovered.isEmpty()) {
+                            dbNameCombo.removeAllItems();
+                            for (String dbItem : finalDiscovered) {
+                                dbNameCombo.addItem(dbItem);
+                            }
+                            setEnteredDbName(finalDiscovered.get(0));
+                            JOptionPane.showMessageDialog(this,
+                                    "Connection Successful! (" + elapsed + " ms)\n\n"
+                                    + "Discovered " + finalDiscovered.size() + " database(s) on server.\n"
+                                    + "Databases loaded into selector dropdown.",
+                                    "Success", JOptionPane.INFORMATION_MESSAGE);
+                        } else {
+                            JOptionPane.showMessageDialog(this, "Connection Successful! (" + elapsed + " ms)", "Success", JOptionPane.INFORMATION_MESSAGE);
+                        }
                     });
                 } catch (Exception ex) {
                     long elapsed = System.currentTimeMillis() - start;
@@ -554,9 +639,16 @@ public class ConnectionManagerDialog extends JDialog {
             selectedSslMode = (com.dbtool.core.model.SslMode) sslModeCombo.getSelectedItem();
             selectedHost = hostField.getText().trim();
             selectedPort = portField.getText().trim();
-            selectedDbName = dbNameField.getText().trim();
+            selectedDbName = getEnteredDbName();
             selectedUser = userField.getText().trim();
             selectedPass = new String(passField.getPassword());
+
+            if (selectedDbName.isEmpty() && !"SQLite".equalsIgnoreCase(selectedType)) {
+                // User didn't specify a database name — auto-discover and show picker dialog
+                discoverDatabases(true);
+                return;
+            }
+
             isApproved = true;
             setVisible(false);
         });
@@ -753,7 +845,7 @@ public class ConnectionManagerDialog extends JDialog {
                     } catch (Exception ex) {
                         passField.setText("");
                     }
-                    dbNameField.setText(parts[4]);
+                    setEnteredDbName(parts[4]);
                 }
             }
             updateStatusBadge(selected);
@@ -953,6 +1045,109 @@ public class ConnectionManagerDialog extends JDialog {
         super.dispose();
     }
 
+    public void discoverDatabases(boolean connectAfterSelection) {
+        String type = (String) dbTypeCombo.getSelectedItem();
+        if ("SQLite".equalsIgnoreCase(type)) {
+            JOptionPane.showMessageDialog(this,
+                    "Auto-discovery is only applicable for network databases (PostgreSQL, MySQL).",
+                    "Notice", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        String h = hostField.getText().trim();
+        String p = portField.getText().trim();
+        String u = userField.getText().trim();
+        String pw = new String(passField.getPassword());
+        com.dbtool.core.model.SslMode ssl = (com.dbtool.core.model.SslMode) sslModeCombo.getSelectedItem();
+
+        if (h.isEmpty()) {
+            h = "localhost";
+            hostField.setText(h);
+        }
+        if (p.isEmpty()) {
+            p = "MySQL".equalsIgnoreCase(type) ? "3306" : "5432";
+            portField.setText(p);
+        }
+        if (u.isEmpty()) {
+            u = "MySQL".equalsIgnoreCase(type) ? "root" : "postgres";
+            userField.setText(u);
+        }
+
+        final String finalHost = h;
+        final String finalPort = p;
+        final String finalUser = u;
+
+        if (discoverDbsBtn != null) {
+            discoverDbsBtn.setEnabled(false);
+            discoverDbsBtn.setText("Fetching...");
+        }
+        if (connectAfterSelection && connectBtn != null) {
+            connectBtn.setEnabled(false);
+            connectBtn.setText("Discovering...");
+        }
+
+        new Thread(() -> {
+            try {
+                List<String> dbs = dbManager.discoverRemoteDatabases(type, finalHost, finalPort, finalUser, pw, ssl);
+                SwingUtilities.invokeLater(() -> {
+                    if (discoverDbsBtn != null) {
+                        discoverDbsBtn.setEnabled(true);
+                        discoverDbsBtn.setText("↻ Fetch DBs");
+                    }
+                    if (connectAfterSelection && connectBtn != null) {
+                        connectBtn.setEnabled(true);
+                        connectBtn.setText("Connect");
+                    }
+                    if (dbs == null || dbs.isEmpty()) {
+                        JOptionPane.showMessageDialog(ConnectionManagerDialog.this,
+                                "No accessible databases found on " + finalHost + ":" + finalPort + " for user '" + finalUser + "'.",
+                                "No Databases Found", JOptionPane.WARNING_MESSAGE);
+                        return;
+                    }
+
+                    // Populate combo box with discovered databases
+                    String current = getEnteredDbName();
+                    dbNameCombo.removeAllItems();
+                    for (String db : dbs) {
+                        dbNameCombo.addItem(db);
+                    }
+
+                    // Show visual picker dialog so the user can easily see and choose
+                    String chosen = DatabasePickerDialog.showPicker(ConnectionManagerDialog.this, finalHost, parsePortOrDefault(finalPort, 5432), finalUser, dbs, current);
+                    if (chosen != null && !chosen.trim().isEmpty()) {
+                        setEnteredDbName(chosen);
+                        if (connectAfterSelection) {
+                            selectedType = (String) dbTypeCombo.getSelectedItem();
+                            selectedSslMode = (com.dbtool.core.model.SslMode) sslModeCombo.getSelectedItem();
+                            selectedHost = hostField.getText().trim();
+                            selectedPort = portField.getText().trim();
+                            selectedDbName = chosen;
+                            selectedUser = userField.getText().trim();
+                            selectedPass = new String(passField.getPassword());
+                            isApproved = true;
+                            setVisible(false);
+                        }
+                    }
+                });
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> {
+                    if (discoverDbsBtn != null) {
+                        discoverDbsBtn.setEnabled(true);
+                        discoverDbsBtn.setText("↻ Fetch DBs");
+                    }
+                    if (connectAfterSelection && connectBtn != null) {
+                        connectBtn.setEnabled(true);
+                        connectBtn.setText("Connect");
+                    }
+                    String msg = ex.getMessage() != null ? ex.getMessage() : "Unknown error";
+                    JOptionPane.showMessageDialog(ConnectionManagerDialog.this,
+                            "Failed to discover databases from " + finalHost + ":" + finalPort + ":\n" + msg,
+                            "Database Discovery Failed", JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        }).start();
+    }
+
     private static String escapeHtml(String s) {
         if (s == null) return "";
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
@@ -980,6 +1175,8 @@ public class ConnectionManagerDialog extends JDialog {
     public String getUser() { return selectedUser; }
     public String getPass() { return selectedPass; }
     public String getDbName() { return selectedDbName; }
+    public JComboBox<String> getDbNameCombo() { return dbNameCombo; }
+    public JButton getDiscoverDbsBtn() { return discoverDbsBtn; }
     public JTextField getSearchField() { return searchField; }
     public JList<String> getProfileList() { return profileList; }
     public DefaultListModel<String> getProfileListModel() { return profileListModel; }

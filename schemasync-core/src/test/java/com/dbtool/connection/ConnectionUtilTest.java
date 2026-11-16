@@ -62,4 +62,19 @@ public class ConnectionUtilTest {
             TimeZone.setDefault(original);
         }
     }
+
+    @Test
+    void testListDatabasesUnsupportedTypesReturnEmptyList() throws SQLException {
+        assertTrue(ConnectionUtil.listDatabases(com.dbtool.core.model.DatabaseType.SQLITE, "localhost", 0, "u", "p", null, 1).isEmpty());
+        assertTrue(ConnectionUtil.listDatabases(com.dbtool.core.model.DatabaseType.H2, "localhost", 0, "u", "p", null, 1).isEmpty());
+        assertTrue(ConnectionUtil.listDatabases(com.dbtool.core.model.DatabaseType.MS_ACCESS, "localhost", 0, "u", "p", null, 1).isEmpty());
+    }
+
+    @Test
+    void testListPostgresDatabasesFailsFastOnUnreachableHost() {
+        assertThrows(SQLException.class, () -> {
+            // 192.0.2.1 is TEST-NET-1 (RFC 5737), unreachable
+            ConnectionUtil.listPostgresDatabases("192.0.2.1", 5432, "testuser", "testpass", com.dbtool.core.model.SslMode.DISABLE, 1);
+        });
+    }
 }

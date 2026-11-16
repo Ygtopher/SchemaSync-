@@ -1,8 +1,17 @@
 package com.dbtool.core.connection;
 
+import com.dbtool.core.model.ConnectionConfig;
+import com.dbtool.core.model.DatabaseType;
+import com.dbtool.core.model.SslMode;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 import java.util.TimeZone;
 
@@ -100,5 +109,143 @@ public class ConnectionUtil {
      */
     public static Connection getConnection(String url) throws SQLException {
         return getConnection(url, null, null);
+    }
+
+    /**
+     * Discovers all connectable databases on a PostgreSQL server using credentials.
+     * Connects to candidate default maintenance catalogs ("postgres", "template1", or the username)
+     * and queries pg_database for all non-template databases the user has CONNECT privilege on.
+     *
+     * @param host Target host IP or hostname (defaults to "localhost" if null/empty)
+     * @param port Target port (defaults to 5432 if <= 0)
+     * @param user Authenticating database username (defaults to "postgres" if null/empty)
+     * @param pass Database password
+     * @param sslMode SSL encryption preference
+     * @param timeoutSeconds Connection timeout in seconds (minimum 1 second)
+     * @return Ordered list of discovered database names
+     * @throws SQLException If authentication fails or host is unreachable
+     */
+    public static List<String> listPostgresDatabases(String host, int port, String user, String pass, SslMode sslMode, int timeoutSeconds) throws SQLException {
+        String effectiveHost = (host == null || host.trim().isEmpty()) ? "localhost" : host.trim();
+        int effectivePort = port > 0 ? port : 5432;
+        String effectiveUser = (user == null || user.trim().isEmpty()) ? "postgres" : user.trim();
+        int effectiveTimeout = Math.max(1, timeoutSeconds);
+        SslMode effectiveSsl = sslMode != null ? sslMode : SslMode.PREFER;
+
+        String[] candidateDbs = new String[]{"postgres", "template1", effectiveUser};
+        SQLException lastEx = null;
+
+        for (String initialDb : candidateDbs) {
+            ConnectionConfig cfg = new ConnectionConfig();
+            cfg.setType(DatabaseType.POSTGRESQL);
+            cfg.setHost(effectiveHost);
+            cfg.setPort(effectivePort);
+            cfg.setDatabaseName(initialDb);
+            cfg.setSslMode(effectiveSsl);
+            cfg.setTimeoutSeconds(effectiveTimeout);
+
+            String url = JdbcUrlBuilder.buildUrl(cfg) + "&connectTimeout=" + effectiveTimeout + "&socketTimeout=" + (effectiveTimeout * 2);
+            try (Connection conn = getConnection(url, effectiveUser, pass)) {
+                List<String> databases = new ArrayList<>();
+                // 1. Query pg_database filtered by CONNECT privilege
+                String queryWithPriv = "SELECT datname FROM pg_database WHERE datistemplate = false AND has_database_privilege(current_user, datname, 'CONNECT') ORDER BY datname;";
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.setQueryTimeout(effectiveTimeout);
+                    try (ResultSet rs = stmt.executeQuery(queryWithPriv)) {
+                        while (rs.next()) {
+                            String name = rs.getString(1);
+                            if (name != null && !name.trim().isEmpty() && !databases.contains(name.trim())) {
+                                databases.add(name.trim());
+                            }
+                        }
+                    }
+                } catch (SQLException privEx) {
+                    // 2. Fallback to querying pg_database without privilege function
+                    try (Statement stmt2 = conn.createStatement()) {
+                        stmt2.setQueryTimeout(effectiveTimeout);
+                        try (ResultSet rs2 = stmt2.executeQuery("SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname;")) {
+                            while (rs2.next()) {
+                                String name = rs2.getString(1);
+                                if (name != null && !name.trim().isEmpty() && !databases.contains(name.trim())) {
+                                    databases.add(name.trim());
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!databases.isEmpty()) {
+                    return databases;
+                }
+            } catch (SQLException ex) {
+                lastEx = ex;
+                String msg = ex.getMessage() != null ? ex.getMessage().toLowerCase() : "";
+                // If it is an auth error, connection refused, or timeout, fail fast rather than trying template1
+                if (msg.contains("password authentication failed") || msg.contains("connection refused") || msg.contains("timed out")) {
+                    throw ex;
+                }
+            }
+        }
+
+        if (lastEx != null) {
+            throw lastEx;
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * Discovers all available databases/schemas on a MySQL/MariaDB server using credentials.
+     *
+     * @param host Target host IP or hostname (defaults to "localhost" if null/empty)
+     * @param port Target port (defaults to 3306 if <= 0)
+     * @param user Authenticating database username (defaults to "root" if null/empty)
+     * @param pass Database password
+     * @param sslMode SSL encryption preference
+     * @param timeoutSeconds Connection timeout in seconds (minimum 1 second)
+     * @return Ordered list of discovered database names
+     * @throws SQLException If authentication fails or host is unreachable
+     */
+    public static List<String> listMySQLDatabases(String host, int port, String user, String pass, SslMode sslMode, int timeoutSeconds) throws SQLException {
+        String effectiveHost = (host == null || host.trim().isEmpty()) ? "localhost" : host.trim();
+        int effectivePort = port > 0 ? port : 3306;
+        String effectiveUser = (user == null || user.trim().isEmpty()) ? "root" : user.trim();
+        int effectiveTimeout = Math.max(1, timeoutSeconds);
+        SslMode effectiveSsl = sslMode != null ? sslMode : SslMode.PREFER;
+
+        ConnectionConfig cfg = new ConnectionConfig();
+        cfg.setType(DatabaseType.MYSQL);
+        cfg.setHost(effectiveHost);
+        cfg.setPort(effectivePort);
+        cfg.setDatabaseName("");
+        cfg.setSslMode(effectiveSsl);
+        cfg.setTimeoutSeconds(effectiveTimeout);
+
+        String url = JdbcUrlBuilder.buildUrl(cfg);
+        try (Connection conn = getConnection(url, effectiveUser, pass)) {
+            List<String> databases = new ArrayList<>();
+            try (Statement stmt = conn.createStatement()) {
+                stmt.setQueryTimeout(effectiveTimeout);
+                try (ResultSet rs = stmt.executeQuery("SHOW DATABASES;")) {
+                    while (rs.next()) {
+                        String name = rs.getString(1);
+                        if (name != null && !name.trim().isEmpty() && !databases.contains(name.trim())) {
+                            databases.add(name.trim());
+                        }
+                    }
+                }
+            }
+            return databases;
+        }
+    }
+
+    /**
+     * Unified database auto-discovery dispatcher based on database type.
+     */
+    public static List<String> listDatabases(DatabaseType type, String host, int port, String user, String pass, SslMode sslMode, int timeoutSeconds) throws SQLException {
+        if (type == DatabaseType.POSTGRESQL) {
+            return listPostgresDatabases(host, port, user, pass, sslMode, timeoutSeconds);
+        } else if (type == DatabaseType.MYSQL) {
+            return listMySQLDatabases(host, port, user, pass, sslMode, timeoutSeconds);
+        }
+        return Collections.emptyList();
     }
 }

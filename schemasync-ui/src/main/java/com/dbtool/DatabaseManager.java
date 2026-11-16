@@ -409,6 +409,23 @@ public class DatabaseManager {
         com.dbtool.util.AppUsageTracker.recordConnection("MySQL / MariaDB");
     }
 
+    /**
+     * Auto-discovers all accessible databases on a remote PostgreSQL or MySQL server
+     * using the provided host, port, username, and password credentials.
+     */
+    public List<String> discoverRemoteDatabases(String type, String host, String port, String user, String pass, com.dbtool.core.model.SslMode sslMode) throws Exception {
+        com.dbtool.core.model.DatabaseType dbType = "MySQL".equalsIgnoreCase(type)
+                ? com.dbtool.core.model.DatabaseType.MYSQL
+                : com.dbtool.core.model.DatabaseType.POSTGRESQL;
+        int portNum = "MySQL".equalsIgnoreCase(type) ? 3306 : 5432;
+        try {
+            if (port != null && !port.trim().isEmpty()) {
+                portNum = Integer.parseInt(port.trim());
+            }
+        } catch (Exception ignored) {}
+        return com.dbtool.core.connection.ConnectionUtil.listDatabases(dbType, host, portNum, user, pass, sslMode, 6);
+    }
+
     public void connectSQLite(String dbFilePath) throws Exception {
         this.lastType = "SQLITE";
         this.lastHost = null; this.lastPort = null; this.lastDbName = new File(dbFilePath).getName(); this.lastUser = null; this.lastPass = null; this.lastDumpFile = dbFilePath;
