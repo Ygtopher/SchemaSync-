@@ -62,4 +62,41 @@ public class SqlEditorPanelTest {
             assertFalse(loadAllBtn.isVisible(), "Load All button should hide after loading all rows");
         });
     }
+
+    @Test
+    void testMaxRowsDropdownAndEffectiveLimits() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            SqlEditorPanel panel = new SqlEditorPanel(new DatabaseManager());
+
+            // Default should be "No Limit (∞)" which translates to 0 (unlimited in JDBC)
+            assertEquals(0, panel.getEffectiveMaxRows(), "Default should be unlimited (0)");
+
+            // Preset values
+            panel.setMaxRowsValue("50,000");
+            assertEquals(50000, panel.getEffectiveMaxRows());
+
+            panel.setMaxRowsValue("10,000");
+            assertEquals(10000, panel.getEffectiveMaxRows());
+
+            panel.setMaxRowsValue("1,000");
+            assertEquals(1000, panel.getEffectiveMaxRows());
+
+            panel.setMaxRowsValue("100,000");
+            assertEquals(100000, panel.getEffectiveMaxRows());
+
+            // Custom user typing
+            panel.setMaxRowsValue("2500");
+            assertEquals(2500, panel.getEffectiveMaxRows());
+
+            // Unlimited keywords
+            panel.setMaxRowsValue("No Limit (∞)");
+            assertEquals(0, panel.getEffectiveMaxRows());
+
+            panel.setMaxRowsValue("All");
+            assertEquals(0, panel.getEffectiveMaxRows());
+
+            panel.setMaxRowsValue("0");
+            assertEquals(0, panel.getEffectiveMaxRows());
+        });
+    }
 }

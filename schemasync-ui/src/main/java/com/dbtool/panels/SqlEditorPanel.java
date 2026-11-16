@@ -62,6 +62,9 @@ public class SqlEditorPanel extends JPanel {
     private JButton runBtn;
     private JButton runAllBtn;
     private JButton explainBtn;
+    private final JComboBox<String> maxRowsDropdown = new JComboBox<>(new String[]{
+            "No Limit (∞)", "50,000", "10,000", "5,000", "1,000", "100,000"
+    });
     private final JComboBox<String> savedQueriesDropdown = new JComboBox<>();
     private java.util.function.Consumer<String> sendToVisualBuilderAction;
     private Runnable onSchemaModified;
@@ -81,6 +84,34 @@ public class SqlEditorPanel extends JPanel {
 
     public void setSendToVisualBuilderAction(java.util.function.Consumer<String> action) {
         this.sendToVisualBuilderAction = action;
+    }
+
+    public int getEffectiveMaxRows() {
+        if (maxRowsDropdown == null) return 0;
+        Object sel = maxRowsDropdown.getSelectedItem();
+        if (sel == null) return 0;
+        String str = sel.toString().trim();
+        if (str.isEmpty() || str.toLowerCase().contains("no limit") || str.contains("∞")
+                || str.equalsIgnoreCase("all") || str.equalsIgnoreCase("none") || str.equals("0")) {
+            return 0; // 0 = unlimited in JDBC
+        }
+        str = str.replaceAll("[,\\s]", "");
+        try {
+            int val = Integer.parseInt(str);
+            return Math.max(0, val);
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    public void setMaxRowsValue(String val) {
+        if (maxRowsDropdown != null && val != null) {
+            maxRowsDropdown.setSelectedItem(val);
+        }
+    }
+
+    public JComboBox<String> getMaxRowsDropdown() {
+        return maxRowsDropdown;
     }
 
     public SqlEditorPanel(DatabaseManager dbManager) {
@@ -291,8 +322,15 @@ public class SqlEditorPanel extends JPanel {
 
         savedQueriesDropdown.setPrototypeDisplayValue("Select saved query...");
 
+        maxRowsDropdown.setEditable(true);
+        maxRowsDropdown.setPreferredSize(new Dimension(115, 26));
+        maxRowsDropdown.setToolTipText("Maximum query rows to fetch (select preset or type number; 'No Limit' for unlimited)");
+
         toolbar.add(runBtn);
         toolbar.add(runAllBtn);
+        toolbar.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
+        toolbar.add(new JLabel(" Limit: "));
+        toolbar.add(maxRowsDropdown);
         toolbar.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
         toolbar.add(explainBtn);
         toolbar.add(dryRunBtn);
@@ -1312,7 +1350,12 @@ public class SqlEditorPanel extends JPanel {
                             }
                         } else {
                             try (java.sql.Statement stmt = editorConn.createStatement()) {
-                                stmt.setMaxRows(5000);
+                                int maxRows = getEffectiveMaxRows();
+                                if (maxRows > 0) {
+                                    stmt.setMaxRows(maxRows);
+                                } else {
+                                    stmt.setMaxRows(0);
+                                }
                                 cancellationMonitor.register(stmt);
                                 try {
                                     boolean hasRs = stmt.execute(queryToRun);
@@ -1347,7 +1390,9 @@ public class SqlEditorPanel extends JPanel {
                                                 initialData.add(allRows.get(r));
                                             }
                                             com.dbtool.util.TypedTableModel model = new com.dbtool.util.TypedTableModel(initialData, columnNames, columnTypes);
-                                            String capSuffix = totalRows >= 5000 ? " [first 5,000 rows]" : "";
+                                            String capSuffix = (maxRows > 0 && totalRows >= maxRows)
+                                                    ? " [Capped at " + java.text.NumberFormat.getInstance().format(maxRows) + " rows]"
+                                                    : "";
                                             String tabTitle = (statements.size() > 1 ? kind + " #" + stmtNum : kind) + " (" + totalRows + " rows" + capSuffix + ")";
                                             final String finalTableQuery = queryToRun;
                                             SwingUtilities.invokeLater(() -> {
@@ -1407,8 +1452,11 @@ public class SqlEditorPanel extends JPanel {
                     if (cancellationMonitor.isCancelled()) {
                         statusLabel.setText("Query execution cancelled. [" + totalElapsed + "ms]");
                     } else {
-                        statusLabel.setText("Executed " + finalExecuted + " statement(s) in " + totalElapsed + "ms" +
-                                (finalLastRows >= 5000 ? " (Capped at 5,000 rows)" : ""));
+                        int configuredMax = getEffectiveMaxRows();
+                        String capNote = (configuredMax > 0 && finalLastRows >= configuredMax)
+                                ? " (Capped at " + java.text.NumberFormat.getInstance().format(configuredMax) + " rows)"
+                                : "";
+                        statusLabel.setText("Executed " + finalExecuted + " statement(s) in " + totalElapsed + "ms" + capNote);
                     }
                     refreshHistory();
                 });
@@ -1428,6 +1476,7 @@ public class SqlEditorPanel extends JPanel {
             if (runBtn != null) runBtn.setEnabled(!running);
             if (runAllBtn != null) runAllBtn.setEnabled(!running);
             if (explainBtn != null) explainBtn.setEnabled(!running);
+            if (maxRowsDropdown != null) maxRowsDropdown.setEnabled(!running);
         });
     }
 
