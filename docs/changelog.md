@@ -1,8 +1,24 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 2.4.3  
+**Current Version:** 2.4.4  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v2.4.4] - 2026-11-17
+### Responsive Header Bar Layout & Collision-Free Window Resize Architecture
+* **Enterprise Responsive Header Bar (`ResponsiveHeaderBarLayout`):**
+  * Replaced Swing's standard `BorderLayout(14, 0)` on the application header bar with a dedicated custom `ResponsiveHeaderBarLayout` implementing `LayoutManager2`.
+  * **Root Cause Fixed:** When window width was reduced (e.g. 960px half-screen split snap on 1080p, or 850px minimum width), `BorderLayout` computed negative width for the center region (`right - left < 0`). Coupled with `FlowLayout(FlowLayout.CENTER)`, the search pill calculated a negative horizontal offset `(cW - pillW) / 2`, shifting the Quick Jump pill up to 135px leftward directly over the session tab pill (`[O No Database Connected]`) and colliding with the action buttons on the right.
+  * **Zero-Overlap Invariant:** East action buttons remain cleanly anchored to the right edge. West brand/session tabs are strictly bounded by `eastX - hgap`. The center region receives non-negative boundaries and is placed in true horizontal center whenever space permits.
+  * **Smooth Responsive Hiding & Compression:** When available horizontal space between West and East drops below `minCenterWidth` (110px), the Quick Jump pill is cleanly hidden (`setVisible(false)` and `setBounds(0,0,0,0)`), completely eliminating overlap across all small display resolutions down to the window's minimum width.
+  * **Keyboard & Menu Accessibility Maintained:** Quick Jump / Command Palette remains 100% accessible at all times via global keyboard shortcuts (<kbd>Ctrl+K</kbd>, <kbd>Ctrl+P</kbd>) and via a new dedicated item inside the `⋮ More ▾` menu.
+  * **Dynamic Component Adaptation (`ResponsiveAdapter`):** Integrated a callback that dynamically compacts East toolbar action buttons (`+ Connect` $\to$ `+`, `⚡ Sandbox` $\to$ `⚡`, `Profiles ▾` $\to$ `Profiles`, and version badge visibility) as window width scales between 1400px, 1120px, 960px, and below.
+* **Header Bar Layout Unit Tests (`ResponsiveHeaderBarLayoutTest`):**
+  * Added automated JUnit 5 test suite validating layout behavior at 1400px (wide/centered), 1080px (compact/clamped), 850px (narrow/hidden with 0px overlap), 600px (extreme narrow), and responsive adapter callback execution.
+* **Synchronized In-App Delta Release Pipeline:**
+  * Rebuilt universal binaries (`SchemaSync.jar`, `SchemaSync-patch.jar`, `SchemaSync.exe`, `.deb`, `.rpm`, `SHA256SUMS.txt`) to deliver the responsive layout update instantly to all installed applications.
 
 ---
 

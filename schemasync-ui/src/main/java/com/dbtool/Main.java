@@ -32,7 +32,7 @@ import com.dbtool.session.SessionManager;
 import com.dbtool.ui.components.SessionTabBar;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "2.4.3";
+    public static final String APP_VERSION = "2.4.4";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -901,7 +901,36 @@ public class Main extends JFrame {
         });
 
         // Modern Application Header Bar
-        JPanel headerBar = new JPanel(new BorderLayout(14, 0)) {
+        final JLabel verBadge = new JLabel(" v" + APP_VERSION + " ");
+        verBadge.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 10.5f));
+        verBadge.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
+
+        com.dbtool.ui.components.ResponsiveHeaderBarLayout headerLayout =
+                new com.dbtool.ui.components.ResponsiveHeaderBarLayout(10, 110);
+        headerLayout.setResponsiveAdapter(width -> {
+            boolean ultraCompact = (width < 960);
+            boolean compact = (width < 1120);
+
+            if (ultraCompact) {
+                loadDbButton.setText("+");
+                loadDbButton.setToolTipText("Open Database File (.sqlite, .db, .accdb, .sql)");
+                connectExistingBtn.setText("Profiles");
+                sandboxBtn.setText("⚡");
+                verBadge.setVisible(false);
+            } else if (compact) {
+                loadDbButton.setText("+ Connect");
+                connectExistingBtn.setText("Profiles");
+                sandboxBtn.setText("⚡ Sandbox");
+                verBadge.setVisible(true);
+            } else {
+                loadDbButton.setText("+ Connect");
+                connectExistingBtn.setText("Profiles ▾");
+                sandboxBtn.setText("⚡ Sandbox");
+                verBadge.setVisible(true);
+            }
+        });
+
+        JPanel headerBar = new JPanel(headerLayout) {
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
@@ -945,10 +974,6 @@ public class Main extends JFrame {
         JLabel brandTitle = new JLabel("SchemaSync");
         brandTitle.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 15));
         headerWest.add(brandTitle);
-
-        JLabel verBadge = new JLabel(" v" + APP_VERSION + " ");
-        verBadge.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.BOLD, 10.5f));
-        verBadge.setForeground(com.dbtool.util.ThemeManager.getPrimaryActionColor());
         headerWest.add(verBadge);
 
         JSeparator brandSep = new JSeparator(JSeparator.VERTICAL);
@@ -1051,7 +1076,7 @@ public class Main extends JFrame {
         headerBar.add(headerWest, BorderLayout.WEST);
 
         // Center Section: Command Palette / Quick Search Pill
-        JPanel headerCenter = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        JPanel headerCenter = new JPanel(new BorderLayout(0, 0));
         headerCenter.setOpaque(false);
 
         JPanel searchPill = new JPanel(new BorderLayout(8, 0)) {
@@ -1073,6 +1098,8 @@ public class Main extends JFrame {
         };
         searchPill.setOpaque(false);
         searchPill.setPreferredSize(new Dimension(220, 26));
+        searchPill.setMinimumSize(new Dimension(100, 26));
+        searchPill.setMaximumSize(new Dimension(240, 26));
         searchPill.setBorder(BorderFactory.createEmptyBorder(2, 10, 2, 10));
         searchPill.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         searchPill.setToolTipText("Quick Jump / Command Palette (Ctrl+K or Ctrl+P)");
@@ -1098,7 +1125,7 @@ public class Main extends JFrame {
         });
 
         if (!isDetachedWindow) {
-            headerCenter.add(searchPill);
+            headerCenter.add(searchPill, BorderLayout.CENTER);
             headerBar.add(headerCenter, BorderLayout.CENTER);
         }
 
@@ -1257,6 +1284,10 @@ public class Main extends JFrame {
         moreMenuBtn.setFont(com.dbtool.util.ThemeManager.getUiFont(Font.PLAIN, 11.5f));
         moreMenuBtn.addActionListener(e -> {
             JPopupMenu menu = new JPopupMenu();
+            JMenuItem mQuickJump = new JMenuItem("⚡ Quick Jump / Command Palette (Ctrl+K)");
+            mQuickJump.addActionListener(ev -> openCommandPaletteDialog());
+            menu.add(mQuickJump);
+
             JMenuItem mOmni = new JMenuItem("🔍 Global OmniSearch (Ctrl+Shift+F)");
             mOmni.addActionListener(ev -> openOmniSearchDialog());
             menu.add(mOmni);

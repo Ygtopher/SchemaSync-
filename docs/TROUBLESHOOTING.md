@@ -1,6 +1,6 @@
 # Troubleshooting & FAQ Guide
 
-**Version:** 2.4.3  
+**Version:** 2.4.4  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
 
@@ -92,10 +92,10 @@ SchemaSync launches and operates normally, but the dock/taskbar displays a gener
 Clicking **Update & Restart** fails to replace files in `/usr/lib/schemasync/`.
 
 #### Solution
-System directories under `/usr/lib/` are owned by `root`. SchemaSync v2.4.3 automatically manages updates in user-space (`~/.local/share/schemasync/`) so that updates succeed without prompting for `sudo` passwords. If running from the system directory, install new releases via:
+System directories under `/usr/lib/` are owned by `root`. SchemaSync v2.4.4 automatically manages updates in user-space (`~/.local/share/schemasync/`) so that updates succeed without prompting for `sudo` passwords. If running from the system directory, install new releases via:
 ```bash
-sudo apt install ./schemasync_2.4.3_all.deb     # Ubuntu
-sudo dnf install ./schemasync-2.4.3-1.fc44.noarch.rpm # Fedora
+sudo apt install ./schemasync_2.4.4_all.deb     # Ubuntu
+sudo dnf install ./schemasync-2.4.4-1.fc44.noarch.rpm # Fedora
 ```
 
 ---
