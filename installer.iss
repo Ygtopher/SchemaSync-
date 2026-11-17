@@ -37,6 +37,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "release\SchemaSync.jar"; DestDir: "{app}"; Flags: ignoreversion
 Source: "release\schemasync-cli.jar"; DestDir: "{app}"; Flags: ignoreversion
+Source: "release\SchemaSync.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "schemasync-ui\src\main\resources\icons\app.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
