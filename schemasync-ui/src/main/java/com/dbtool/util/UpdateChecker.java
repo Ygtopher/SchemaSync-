@@ -857,7 +857,7 @@ public class UpdateChecker {
             File parent = runningJar.getParentFile();
             if (parent != null) {
                 File siblingExe = new File(parent, "SchemaSync.exe");
-                if (siblingExe.exists() && siblingExe.canWrite()) {
+                if (siblingExe.exists()) {
                     targets.add(siblingExe);
                 }
             }
@@ -869,7 +869,7 @@ public class UpdateChecker {
             File parent = runningExe.getParentFile();
             if (parent != null) {
                 File siblingJar = new File(parent, "SchemaSync.jar");
-                if (siblingJar.exists() && siblingJar.canWrite()) {
+                if (siblingJar.exists()) {
                     targets.add(siblingJar);
                 }
             }
@@ -877,13 +877,29 @@ public class UpdateChecker {
 
         boolean isWin = System.getProperty("os.name", "").toLowerCase().contains("win");
         if (isWin && targets.isEmpty()) {
+            String progFiles = System.getenv("ProgramFiles");
+            if (progFiles != null) {
+                File appDir = new File(progFiles, "SchemaSync");
+                File installedJar = new File(appDir, "SchemaSync.jar");
+                File installedExe = new File(appDir, "SchemaSync.exe");
+                if (installedJar.exists()) targets.add(installedJar);
+                if (installedExe.exists()) targets.add(installedExe);
+            }
+            String progFilesX86 = System.getenv("ProgramFiles(x86)");
+            if (progFilesX86 != null) {
+                File appDir = new File(progFilesX86, "SchemaSync");
+                File installedJar = new File(appDir, "SchemaSync.jar");
+                File installedExe = new File(appDir, "SchemaSync.exe");
+                if (installedJar.exists()) targets.add(installedJar);
+                if (installedExe.exists()) targets.add(installedExe);
+            }
             String localAppData = System.getenv("LOCALAPPDATA");
             if (localAppData != null) {
                 File appDir = new File(localAppData, "Programs\\SchemaSync");
                 File installedJar = new File(appDir, "SchemaSync.jar");
                 File installedExe = new File(appDir, "SchemaSync.exe");
-                if (installedJar.exists() && installedJar.canWrite()) targets.add(installedJar);
-                if (installedExe.exists() && installedExe.canWrite()) targets.add(installedExe);
+                if (installedJar.exists()) targets.add(installedJar);
+                if (installedExe.exists()) targets.add(installedExe);
             }
         } else if (!isWin && targets.isEmpty()) {
             File userHome = new File(System.getProperty("user.home", "."));
@@ -1243,6 +1259,24 @@ public class UpdateChecker {
             batch.append("setlocal enabledelayedexpansion\r\n");
             batch.append("timeout /t 1 /nobreak >nul\r\n");
 
+            // Permission pre-check: verify write access to each target directory
+            batch.append("set \"NEED_ELEVATION=0\"\r\n");
+            for (File target : stagedMap.keySet()) {
+                File parentDir = target.getParentFile();
+                String dirPath = parentDir != null ? parentDir.getAbsolutePath() : "C:\\";
+                String testFile = dirPath + "\\__perm_chk_" + Math.abs(target.hashCode()) + ".tmp";
+                batch.append("copy /y nul \"").append(testFile).append("\" >nul 2>&1\r\n");
+                batch.append("if errorlevel 1 (\r\n");
+                batch.append("    set \"NEED_ELEVATION=1\"\r\n");
+                batch.append(") else (\r\n");
+                batch.append("    del \"").append(testFile).append("\" >nul 2>&1\r\n");
+                batch.append(")\r\n");
+            }
+            batch.append("if \"!NEED_ELEVATION!\"==\"1\" (\r\n");
+            batch.append("    powershell -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process -FilePath cmd.exe -ArgumentList '/c \\\"\\\"%~f0\\\"\\\"' -Verb RunAs\"\r\n");
+            batch.append("    exit /b\r\n");
+            batch.append(")\r\n");
+
             File primaryLaunchTarget = null;
             for (Map.Entry<File, File> entry : stagedMap.entrySet()) {
                 File target = entry.getKey();
@@ -1257,11 +1291,16 @@ public class UpdateChecker {
                 batch.append("    timeout /t 1 /nobreak >nul\r\n");
                 batch.append("    set /a RETRIES+=1\r\n");
                 batch.append("    if !RETRIES! lss 15 goto retry_").append(Math.abs(target.hashCode())).append("\r\n");
+                batch.append("    powershell -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process -FilePath cmd.exe -ArgumentList '/c \\\"\\\"%~f0\\\"\\\"' -Verb RunAs\"\r\n");
+                batch.append("    exit /b\r\n");
                 batch.append(")\r\n");
             }
 
             if (autoRestart && primaryLaunchTarget != null) {
-                if (primaryLaunchTarget.getName().toLowerCase().endsWith(".jar")) {
+                File siblingExe = new File(primaryLaunchTarget.getParentFile(), "SchemaSync.exe");
+                if (getRunningExeFile() != null && siblingExe.exists()) {
+                    batch.append("start \"\" \"").append(siblingExe.getAbsolutePath()).append("\"\r\n");
+                } else if (primaryLaunchTarget.getName().toLowerCase().endsWith(".jar")) {
                     String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "javaw.exe";
                     if (!new File(javaBin).exists()) {
                         javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java.exe";
@@ -1364,9 +1403,20 @@ public class UpdateChecker {
             }
             if (!new File(javaBin).exists()) javaBin = "javaw";
 
+            File parentDir = targetJar.getParentFile();
+            String dirPath = parentDir != null ? parentDir.getAbsolutePath() : "C:\\";
+            String testFile = dirPath + "\\__perm_chk_jar.tmp";
+
             String batchContent = "@echo off\r\n"
                     + "setlocal enabledelayedexpansion\r\n"
                     + "timeout /t 1 /nobreak >nul\r\n"
+                    + "copy /y nul \"" + testFile + "\" >nul 2>&1\r\n"
+                    + "if errorlevel 1 (\r\n"
+                    + "    powershell -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process -FilePath cmd.exe -ArgumentList '/c \\\"\\\"%~f0\\\"\\\"' -Verb RunAs\"\r\n"
+                    + "    exit /b\r\n"
+                    + ") else (\r\n"
+                    + "    del \"" + testFile + "\" >nul 2>&1\r\n"
+                    + ")\r\n"
                     + "set RETRIES=0\r\n"
                     + ":retry\r\n"
                     + "copy /y \"" + downloadedFile.getAbsolutePath() + "\" \"" + targetJar.getAbsolutePath() + "\" >nul 2>&1\r\n"
@@ -1374,6 +1424,8 @@ public class UpdateChecker {
                     + "    timeout /t 1 /nobreak >nul\r\n"
                     + "    set /a RETRIES+=1\r\n"
                     + "    if !RETRIES! lss 15 goto retry\r\n"
+                    + "    powershell -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process -FilePath cmd.exe -ArgumentList '/c \\\"\\\"%~f0\\\"\\\"' -Verb RunAs\"\r\n"
+                    + "    exit /b\r\n"
                     + ")\r\n"
                     + "start \"\" \"" + javaBin + "\" -Duser.timezone=UTC -jar \"" + targetJar.getAbsolutePath() + "\"\r\n"
                     + "del \"%~f0\" >nul 2>&1\r\n";
@@ -1392,16 +1444,16 @@ public class UpdateChecker {
 
             File targetExe = runningExe;
             if (targetExe == null || !targetExe.exists()) {
-                String localAppData = System.getenv("LOCALAPPDATA");
-                if (localAppData != null) {
-                    File candidate = new File(localAppData, "Programs\\SchemaSync\\SchemaSync.exe");
+                String programFiles = System.getenv("ProgramFiles");
+                if (programFiles != null) {
+                    File candidate = new File(programFiles, "SchemaSync\\SchemaSync.exe");
                     if (candidate.exists()) targetExe = candidate;
                 }
             }
             if (targetExe == null || !targetExe.exists()) {
-                String programFiles = System.getenv("ProgramFiles");
-                if (programFiles != null) {
-                    File candidate = new File(programFiles, "SchemaSync\\SchemaSync.exe");
+                String localAppData = System.getenv("LOCALAPPDATA");
+                if (localAppData != null) {
+                    File candidate = new File(localAppData, "Programs\\SchemaSync\\SchemaSync.exe");
                     if (candidate.exists()) targetExe = candidate;
                 }
             }
@@ -1411,15 +1463,15 @@ public class UpdateChecker {
             String batchContent = "@echo off\r\n"
                     + "setlocal enabledelayedexpansion\r\n"
                     + "timeout /t 1 /nobreak >nul\r\n"
-                    + "start /wait \"\" \"" + downloadedFile.getAbsolutePath() + "\" /SILENT /FORCECLOSEAPPLICATIONS /SUPPRESSMSGBOXES\r\n"
+                    + "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process -FilePath '" + downloadedFile.getAbsolutePath() + "' -ArgumentList '/SILENT /FORCECLOSEAPPLICATIONS /SUPPRESSMSGBOXES' -Verb RunAs -Wait\"\r\n"
                     + "timeout /t 1 /nobreak >nul\r\n"
                     + "set TARGET=\"" + targetExePath + "\"\r\n"
                     + "if exist !TARGET! (\r\n"
                     + "    start \"\" !TARGET!\r\n"
-                    + ") else if exist \"%LOCALAPPDATA%\\Programs\\SchemaSync\\SchemaSync.exe\" (\r\n"
-                    + "    start \"\" \"%LOCALAPPDATA%\\Programs\\SchemaSync\\SchemaSync.exe\"\r\n"
                     + ") else if exist \"%ProgramFiles%\\SchemaSync\\SchemaSync.exe\" (\r\n"
                     + "    start \"\" \"%ProgramFiles%\\SchemaSync\\SchemaSync.exe\"\r\n"
+                    + ") else if exist \"%LOCALAPPDATA%\\Programs\\SchemaSync\\SchemaSync.exe\" (\r\n"
+                    + "    start \"\" \"%LOCALAPPDATA%\\Programs\\SchemaSync\\SchemaSync.exe\"\r\n"
                     + ")\r\n"
                     + "del \"%~f0\" >nul 2>&1\r\n";
 
@@ -1436,9 +1488,20 @@ public class UpdateChecker {
                 return;
             }
 
+            File parentDir = targetExe.getParentFile();
+            String dirPath = parentDir != null ? parentDir.getAbsolutePath() : "C:\\";
+            String testFile = dirPath + "\\__perm_chk_exe.tmp";
+
             String batchContent = "@echo off\r\n"
                     + "setlocal enabledelayedexpansion\r\n"
                     + "timeout /t 1 /nobreak >nul\r\n"
+                    + "copy /y nul \"" + testFile + "\" >nul 2>&1\r\n"
+                    + "if errorlevel 1 (\r\n"
+                    + "    powershell -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process -FilePath cmd.exe -ArgumentList '/c \\\"\\\"%~f0\\\"\\\"' -Verb RunAs\"\r\n"
+                    + "    exit /b\r\n"
+                    + ") else (\r\n"
+                    + "    del \"" + testFile + "\" >nul 2>&1\r\n"
+                    + ")\r\n"
                     + "set RETRIES=0\r\n"
                     + ":retry\r\n"
                     + "copy /y \"" + downloadedFile.getAbsolutePath() + "\" \"" + targetExe.getAbsolutePath() + "\" >nul 2>&1\r\n"
@@ -1446,6 +1509,8 @@ public class UpdateChecker {
                     + "    timeout /t 1 /nobreak >nul\r\n"
                     + "    set /a RETRIES+=1\r\n"
                     + "    if !RETRIES! lss 15 goto retry\r\n"
+                    + "    powershell -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process -FilePath cmd.exe -ArgumentList '/c \\\"\\\"%~f0\\\"\\\"' -Verb RunAs\"\r\n"
+                    + "    exit /b\r\n"
                     + ")\r\n"
                     + "start \"\" \"" + targetExe.getAbsolutePath() + "\"\r\n"
                     + "del \"%~f0\" >nul 2>&1\r\n";

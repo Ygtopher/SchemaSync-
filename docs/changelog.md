@@ -1,8 +1,26 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 2.4.5  
+**Current Version:** 2.4.6  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v2.4.6] - 2026-11-25
+### Self-Healing Windows UAC Elevation Auto-Updater & Cascade Update Dynamic Query Engine
+* **Self-Healing Windows UAC Elevation Auto-Updater (`UpdateChecker`):**
+  * **Root Cause Fixed:** When SchemaSync is installed in protected system directories such as `C:\Program Files\SchemaSync\`, Windows standard non-elevated user processes have read-only access. In previous builds, the background replacement script (`instant_update_restart.bat` / `update_and_restart.bat`) attempted `copy /y "%staged%" "%target%"` which silently failed with `Access is denied` (errorlevel 1), exhausted retry attempts, and restarted the old binary without updating.
+  * **Pre-Flight Write Permission Verification:** Added explicit pre-flight write testing on all target installation directories.
+  * **Automatic UAC Elevation:** If target directories require elevated privileges, the update script instantly triggers PowerShell `Start-Process cmd.exe -ArgumentList '/c ""%~f0""' -Verb RunAs` to self-elevate via standard Windows User Account Control (UAC).
+  * **Unrestricted Binary Detection (`resolveLocalPatchableBinaries`):** Removed premature `.canWrite()` checks that previously skipped `SchemaSync.exe` in protected directories, allowing both JAR and native EXE binaries to be patched elevated simultaneously.
+  * **Global Directory Fallback Discovery:** Added automatic detection for standard installation paths (`%ProgramFiles%\SchemaSync` and `%ProgramFiles(x86)%\SchemaSync`) alongside `%LOCALAPPDATA%`.
+* **Inno Setup Installer Administrative Privileges (`installer.iss`):**
+  * Configured `PrivilegesRequired=admin` for `SchemaSync-Setup.exe`.
+  * Guarantees that installation and manual updates cleanly target `C:\Program Files\SchemaSync`, updating system shortcuts in `C:\Users\Public\Desktop` and `C:\ProgramData\Microsoft\Windows\Start Menu\Programs` without redirecting to user AppData.
+* **Cascade Update Dynamic Query & Multi-Dialect Portability (`CascadeUpdateDialog`):**
+  * **Dynamic User Filter Resolution:** When an explicit filter or record ID is entered into `filterField`, the dialog re-queries the database immediately rather than falling back to stale pre-selected rows.
+  * **Smart Condition Parsing:** Automatically detects raw numeric IDs (e.g. `1` $\to$ `<primary_key> = 1`), handles conditions with or without `WHERE` keyword, and enforces safe bounding with JDBC `stmt.setMaxRows(1000)`.
+  * **Universal Cross-Dialect Portability:** Removed hardcoded `" LIMIT 10"` which caused SQL syntax exceptions on database engines that do not support the `LIMIT` keyword (e.g. MS Access, SQL Server).
 
 ---
 

@@ -506,22 +506,54 @@ public class CascadeUpdateDialog extends JDialog {
 
         setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
         try {
-            List<Map<String, Object>> targetRows = currentRows;
-            if (targetRows == null || targetRows.isEmpty()) {
-                // Query root rows based on filter
-                String filter = filterField.getText().trim();
-                String query = "SELECT * FROM " + dbManager.quoteTableName(tbl) + (filter.isEmpty() ? " LIMIT 10" : " WHERE " + filter);
+            String filter = filterField.getText().trim();
+            List<Map<String, Object>> targetRows = null;
+
+            if (!filter.isEmpty()) {
+                // User provided an explicit filter or ID condition - query directly from database
                 targetRows = new ArrayList<>();
-                try (java.sql.Statement stmt = dbManager.connection.createStatement();
-                     java.sql.ResultSet rs = stmt.executeQuery(query)) {
-                    java.sql.ResultSetMetaData md = rs.getMetaData();
-                    int cc = md.getColumnCount();
-                    while (rs.next()) {
-                        Map<String, Object> row = new LinkedHashMap<>();
-                        for (int c = 1; c <= cc; c++) {
-                            row.put(md.getColumnName(c), rs.getObject(c));
+                String whereClause = filter;
+                if (whereClause.toLowerCase().startsWith("where ")) {
+                    whereClause = whereClause.substring(6).trim();
+                } else if (whereClause.matches("^\\d+$")) {
+                    List<String> pks = dbManager.getPrimaryKeys(tbl);
+                    if (!pks.isEmpty()) {
+                        whereClause = dbManager.quoteColumnName(pks.get(0)) + " = " + whereClause;
+                    }
+                }
+                String query = "SELECT * FROM " + dbManager.quoteTableName(tbl) + " WHERE " + whereClause;
+                try (java.sql.Statement stmt = dbManager.connection.createStatement()) {
+                    stmt.setMaxRows(1000);
+                    try (java.sql.ResultSet rs = stmt.executeQuery(query)) {
+                        java.sql.ResultSetMetaData md = rs.getMetaData();
+                        int cc = md.getColumnCount();
+                        while (rs.next()) {
+                            Map<String, Object> row = new LinkedHashMap<>();
+                            for (int c = 1; c <= cc; c++) {
+                                row.put(md.getColumnName(c), rs.getObject(c));
+                            }
+                            targetRows.add(row);
                         }
-                        targetRows.add(row);
+                    }
+                }
+            } else if (currentRows != null && !currentRows.isEmpty()) {
+                targetRows = currentRows;
+            } else {
+                // No filter and no current table selection: query all rows from the table (up to 1000)
+                targetRows = new ArrayList<>();
+                String query = "SELECT * FROM " + dbManager.quoteTableName(tbl);
+                try (java.sql.Statement stmt = dbManager.connection.createStatement()) {
+                    stmt.setMaxRows(1000);
+                    try (java.sql.ResultSet rs = stmt.executeQuery(query)) {
+                        java.sql.ResultSetMetaData md = rs.getMetaData();
+                        int cc = md.getColumnCount();
+                        while (rs.next()) {
+                            Map<String, Object> row = new LinkedHashMap<>();
+                            for (int c = 1; c <= cc; c++) {
+                                row.put(md.getColumnName(c), rs.getObject(c));
+                            }
+                            targetRows.add(row);
+                        }
                     }
                 }
             }
