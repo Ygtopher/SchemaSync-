@@ -32,7 +32,7 @@ import com.dbtool.session.SessionManager;
 import com.dbtool.ui.components.SessionTabBar;
 
 public class Main extends JFrame {
-    public static final String APP_VERSION = "2.4.4";
+    public static final String APP_VERSION = "2.4.5";
     private JTabbedPane tabbedPane;
     private com.dbtool.panels.MultiTabContainer<BrowseTab> browseTabContainer;
     private com.dbtool.panels.MultiTabContainer<VisualJoinTab> joinTabContainer;
@@ -1292,6 +1292,11 @@ public class Main extends JFrame {
             mOmni.addActionListener(ev -> openOmniSearchDialog());
             menu.add(mOmni);
 
+            JMenuItem mCascadeUpdate = new JMenuItem("⚡ Cascade Update Studio (Ctrl+Shift+U)...");
+            mCascadeUpdate.addActionListener(ev -> openCascadeUpdateDialog());
+            mCascadeUpdate.setEnabled(dbManager.connection != null);
+            menu.add(mCascadeUpdate);
+
             JMenuItem mExport = new JMenuItem("📤 Export Entire Database...");
             mExport.addActionListener(ev -> showExportDatabaseDialog());
             mExport.setEnabled(dbManager.connection != null);
@@ -1768,6 +1773,15 @@ public class Main extends JFrame {
             }
         });
 
+        // Global Shortcut: Ctrl+Shift+U for Multi-Table Cascade Update Studio
+        KeyStroke cascadeUpdateKs = KeyStroke.getKeyStroke(KeyEvent.VK_U, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK);
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(cascadeUpdateKs, "cascadeUpdateGlobal");
+        getRootPane().getActionMap().put("cascadeUpdateGlobal", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) {
+                openCascadeUpdateDialog();
+            }
+        });
+
         // Global Shortcuts: Ctrl+K and Ctrl+P for Command Palette & Quick Table Switcher
         KeyStroke ctrlK = KeyStroke.getKeyStroke(KeyEvent.VK_K, InputEvent.CTRL_DOWN_MASK);
         KeyStroke ctrlP = KeyStroke.getKeyStroke(KeyEvent.VK_P, InputEvent.CTRL_DOWN_MASK);
@@ -1846,6 +1860,8 @@ public class Main extends JFrame {
         }
 
         // 3. Studio Tools & Actions
+        items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
+                "STUDIO", "⚡ Multi-Table Cascade Update Studio", "Cascade update attributes (e.g. first_name) or IDs across all linked tables", "Ctrl+Shift+U", this::openCascadeUpdateDialog));
         items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
                 "STUDIO", "🔍 Global Database OmniSearch", "Search across all tables and columns", "Ctrl+Shift+F", this::openOmniSearchDialog));
         items.add(new com.dbtool.panels.CommandPaletteDialog.PaletteItem(
@@ -1996,6 +2012,21 @@ public class Main extends JFrame {
             return (String) browseTabContainer.getActiveTab().browseTableDropdown.getSelectedItem();
         }
         return null;
+    }
+
+    public void openCascadeUpdateDialog() {
+        if (dbManager.connection == null) {
+            JOptionPane.showMessageDialog(this, "Please connect to a database first to perform a cascade update.", "No Database Connected", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        com.dbtool.util.AppUsageTracker.recordFeatureUse("⚡ Cascade Update");
+        String tbl = getActiveBrowseTable();
+        new com.dbtool.panels.CascadeUpdateDialog(this, dbManager, tbl, java.util.Collections.emptyList(), null, "", () -> {
+            if (browseTabContainer != null) {
+                BrowseTab active = browseTabContainer.getActiveTab();
+                if (active != null) active.loadTableData();
+            }
+        }).setVisible(true);
     }
 
     public void openDataMaskingDialog() {

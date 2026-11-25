@@ -1,8 +1,31 @@
 # SchemaSync Changelog & Version History
 
-**Current Version:** 2.4.4  
+**Current Version:** 2.4.5  
 **Author:** NSENGIYUMVA Christophe  
 *Copyright © 2026 NSENGIYUMVA Christophe. All rights reserved.*
+
+---
+
+## [v2.4.5] - 2026-11-25
+### Multi-Table Cascade Update Studio & Relational Constraint Propagation
+* **Multi-Table Cascade Update Engine (`DatabaseManager`):**
+  * Implemented an enterprise-grade multi-table relational cascade update engine supporting single-ID, multiple-ID, and composite-key targeting across databases.
+  * Recursively discovers all child, grandchild, and related tables referencing target records via foreign key constraints (`getExportedForeignKeys`) and reverse lookups (`getForeignKeys`).
+  * Intelligent column mapping: automatically detects matching attribute columns (e.g. `first_name` $\to$ `first_name` exact match, or `customer_first_name`, `user_first_name` suffix matches) in referencing tables.
+  * Atomic transactional execution (`executeCascadeUpdatePlan`): wraps all multi-table update statements into a single atomic transaction with dialect-specific referential integrity deferral (`PRAGMA foreign_keys = OFF;` for SQLite, `SET CONSTRAINTS ALL DEFERRED;` for PostgreSQL, `SET FOREIGN_KEY_CHECKS = 0;` for MySQL, `SET REFERENTIAL_INTEGRITY FALSE;` for H2) and automatic rollback on failure.
+* **Interactive Cascade Update Studio Dialog (`CascadeUpdateDialog`):**
+  * Four dedicated analysis and configuration tabs:
+    * **Linked Dependency Tree & Field Diffs:** Visual hierarchical tree of target records and all affected child/parent records with side-by-side Before $\to$ After column inspection highlighted in green.
+    * **Column & Table Mapping Configurator:** Interactive table mapping grid with checkable table inclusion, column target dropdowns, and live SQL plan recalculation.
+    * **Generated SQL Script:** Syntax-highlighted transactional SQL review with RSyntaxTextArea and one-click clipboard copy.
+    * **Affected Tables Breakdown:** Summary table with record counts, target columns, and relational paths.
+* **Integrated UI Entry Points:**
+  * Added `⚡ Cascade Update` to `BrowseTabPanel` toolbar.
+  * Added `⚡ Cascade Update Linked Records...` to `BrowseTabPanel` right-click row context menu.
+  * Added `⚡ Cascade...` to `RowInspectorDrawer`.
+  * Added `⚡ Multi-Table Cascade Update Studio` to Main application menu (`⋮ More ▾`), Command Palette (<kbd>Ctrl+K</kbd>), and global shortcut (<kbd>Ctrl+Shift+U</kbd>).
+* **Automated Unit Tests (`CascadeUpdateTest`):**
+  * Added comprehensive JUnit 5 test suite verifying dependency graph discovery, exact and suffix column matching, atomic multi-table execution, table exclusion, and multi-row batch cascade updates.
 
 ---
 

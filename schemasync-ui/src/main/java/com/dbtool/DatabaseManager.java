@@ -1621,6 +1621,98 @@ public class DatabaseManager {
         public String fullScript = "";
     }
 
+    public static class PreparedUpdate {
+        public String tableName;
+        public String sql;
+        public List<Object> params;
+        public String previewSql;
+        public String targetColumn;
+        public Object oldValue;
+        public Object newValue;
+        public String relationReason;
+
+        public PreparedUpdate(String tableName, String sql, List<Object> params, String previewSql,
+                              String targetColumn, Object oldValue, Object newValue, String relationReason) {
+            this.tableName = tableName;
+            this.sql = sql;
+            this.params = params;
+            this.previewSql = previewSql;
+            this.targetColumn = targetColumn;
+            this.oldValue = oldValue;
+            this.newValue = newValue;
+            this.relationReason = relationReason;
+        }
+    }
+
+    public static class CascadeUpdateRowNode {
+        public String tableName;
+        public Map<String, Object> keyValues = new LinkedHashMap<>();
+        public Map<String, Object> allRowValues = new LinkedHashMap<>();
+        public String relationReason;
+        public String updateColumn;
+        public Object oldValue;
+        public Object newValue;
+        public boolean isIncluded = true;
+        public List<CascadeUpdateRowNode> children = new ArrayList<>();
+        public int depth = 0;
+
+        public String getDisplayLabel() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(tableName).append(" (");
+            if (!keyValues.isEmpty()) {
+                boolean first = true;
+                for (Map.Entry<String, Object> e : keyValues.entrySet()) {
+                    if (!first) sb.append(", ");
+                    first = false;
+                    sb.append(e.getKey()).append("=").append(e.getValue());
+                }
+            } else {
+                sb.append("Row");
+            }
+            sb.append(")");
+            if (updateColumn != null) {
+                sb.append(" ➔ ").append(updateColumn).append(": '")
+                  .append(oldValue != null ? oldValue : "<NULL>").append("' ➔ '")
+                  .append(newValue != null ? newValue : "<NULL>").append("'");
+            } else {
+                sb.append(" (No direct column update)");
+            }
+            return sb.toString();
+        }
+    }
+
+    public static class CascadeUpdateTableMapping {
+        public String tableName;
+        public String linkRelationship;
+        public String targetColumn;
+        public Object newValue;
+        public int affectedRowCount = 0;
+        public boolean isIncluded = true;
+        public List<String> availableColumns = new ArrayList<>();
+
+        public CascadeUpdateTableMapping(String tableName, String linkRelationship, String targetColumn,
+                                         Object newValue, List<String> availableColumns) {
+            this.tableName = tableName;
+            this.linkRelationship = linkRelationship;
+            this.targetColumn = targetColumn;
+            this.newValue = newValue;
+            this.availableColumns = availableColumns != null ? availableColumns : new ArrayList<>();
+        }
+    }
+
+    public static class CascadeUpdatePlan {
+        public String rootTable;
+        public List<Map<String, Object>> rootTargetRows = new ArrayList<>();
+        public Map<String, Object> fieldUpdates = new LinkedHashMap<>();
+        public List<CascadeUpdateRowNode> rootNodes = new ArrayList<>();
+        public int totalRows = 0;
+        public Map<String, Integer> tableCounts = new LinkedHashMap<>();
+        public Map<String, CascadeUpdateTableMapping> tableMappings = new LinkedHashMap<>();
+        public List<PreparedUpdate> executableUpdates = new ArrayList<>();
+        public String fullScript = "";
+        public boolean isKeyCascade = false;
+    }
+
     public List<ExportedForeignKey> getExportedForeignKeys(String parentTable) {
         List<ExportedForeignKey> result = new ArrayList<>();
         if (connection == null || parentTable == null) return result;
@@ -1961,6 +2053,538 @@ public class DatabaseManager {
             try {
                 connection.setAutoCommit(origAutoCommit);
             } catch (Exception e) {}
+        }
+    }
+
+    public CascadeUpdatePlan buildCascadeUpdatePlan(String rootTable,
+                                                    List<Map<String, Object>> targetRows,
+                                                    Map<String, Object> fieldUpdates) {
+        return buildCascadeUpdatePlan(rootTable, targetRows, fieldUpdates, null, null, null);
+    }
+
+    public CascadeUpdatePlan buildCascadeUpdatePlan(String rootTable,
+                                                    List<Map<String, Object>> targetRows,
+                                                    Map<String, Object> fieldUpdates,
+                                                    Map<String, String> tableColumnOverrides,
+                                                    Map<String, Object> tableValueOverrides,
+                                                    Set<String> excludedTables) {
+        CascadeUpdatePlan plan = new CascadeUpdatePlan();
+        plan.rootTable = rootTable;
+        if (connection == null || rootTable == null || targetRows == null || targetRows.isEmpty()
+                || fieldUpdates == null || fieldUpdates.isEmpty()) {
+            return plan;
+        }
+
+        plan.rootTargetRows.addAll(targetRows);
+        plan.fieldUpdates.putAll(fieldUpdates);
+
+        // Detect if key cascade (updating PK)
+        List<String> rootPks = getPrimaryKeys(rootTable);
+        for (String pk : rootPks) {
+            for (String updatedCol : fieldUpdates.keySet()) {
+                if (pk.equalsIgnoreCase(updatedCol)) {
+                    plan.isKeyCascade = true;
+                    break;
+                }
+            }
+            if (plan.isKeyCascade) break;
+        }
+
+        // Initialize root mapping
+        String rootUpdateCol = fieldUpdates.keySet().iterator().next();
+        Object rootNewVal = fieldUpdates.get(rootUpdateCol);
+        List<String> rootCols = getColumnNames(rootTable);
+        CascadeUpdateTableMapping rootMapping = new CascadeUpdateTableMapping(
+                rootTable,
+                "🎯 Root Target Table",
+                rootUpdateCol,
+                rootNewVal,
+                rootCols
+        );
+        rootMapping.affectedRowCount = targetRows.size();
+        plan.tableMappings.put(rootTable, rootMapping);
+
+        Set<String> visitedRows = new HashSet<>();
+
+        for (Map<String, Object> targetRow : targetRows) {
+            CascadeUpdateRowNode rootNode = new CascadeUpdateRowNode();
+            rootNode.tableName = rootTable;
+            rootNode.allRowValues.putAll(targetRow);
+            rootNode.depth = 0;
+            rootNode.relationReason = "🎯 Target root record";
+            rootNode.updateColumn = rootUpdateCol;
+            rootNode.oldValue = targetRow.get(rootUpdateCol);
+            rootNode.newValue = rootNewVal;
+
+            if (!rootPks.isEmpty()) {
+                for (String pk : rootPks) {
+                    for (Map.Entry<String, Object> entry : targetRow.entrySet()) {
+                        String clean = entry.getKey().contains(".") ? entry.getKey().split("\\.", 2)[1] : entry.getKey();
+                        if (clean.equalsIgnoreCase(pk)) {
+                            rootNode.keyValues.put(pk, entry.getValue());
+                            break;
+                        }
+                    }
+                }
+            }
+            if (rootNode.keyValues.isEmpty()) {
+                rootNode.keyValues.putAll(targetRow);
+            }
+
+            String fingerprint = rootTable + "::" + rootNode.keyValues.toString();
+            visitedRows.add(fingerprint);
+            plan.rootNodes.add(rootNode);
+
+            // Recursively trace referencing child rows
+            inspectChildUpdateDependencies(rootNode, visitedRows, 1, plan, tableColumnOverrides, tableValueOverrides, excludedTables);
+
+            // Also inspect parent tables if this root table points to other tables
+            inspectParentUpdateDependencies(rootNode, visitedRows, 1, plan, tableColumnOverrides, tableValueOverrides, excludedTables);
+        }
+
+        regenerateCascadeUpdateScript(plan);
+        return plan;
+    }
+
+    private void inspectChildUpdateDependencies(CascadeUpdateRowNode parentNode,
+                                                Set<String> visitedRows,
+                                                int depth,
+                                                CascadeUpdatePlan plan,
+                                                Map<String, String> tableColumnOverrides,
+                                                Map<String, Object> tableValueOverrides,
+                                                Set<String> excludedTables) {
+        if (depth > 10) return; // Prevent infinite recursion on cyclic foreign keys
+
+        List<ExportedForeignKey> exportedFks = getExportedForeignKeys(parentNode.tableName);
+
+        for (ExportedForeignKey efk : exportedFks) {
+            String childTable = efk.childTable;
+            boolean isExcluded = (excludedTables != null && excludedTables.contains(childTable));
+
+            // Match parent values with parent columns
+            List<Object> matchParams = new ArrayList<>();
+            StringBuilder where = new StringBuilder();
+            boolean matchable = true;
+
+            for (int i = 0; i < efk.parentColumns.size(); i++) {
+                String parentCol = efk.parentColumns.get(i);
+                String childCol = efk.childColumns.get(i);
+
+                Object parentVal = null;
+                for (Map.Entry<String, Object> e : parentNode.allRowValues.entrySet()) {
+                    String clean = e.getKey().contains(".") ? e.getKey().split("\\.", 2)[1] : e.getKey();
+                    if (clean.equalsIgnoreCase(parentCol)) {
+                        parentVal = e.getValue();
+                        break;
+                    }
+                }
+                if (parentVal == null) {
+                    matchable = false;
+                    break;
+                }
+                if (i > 0) where.append(" AND ");
+                where.append(quoteColumnName(childCol)).append(" = ?");
+                matchParams.add(parentVal);
+            }
+
+            if (!matchable || matchParams.isEmpty()) continue;
+
+            String query = "SELECT * FROM " + quoteTableName(childTable) + " WHERE " + where.toString();
+            try (PreparedStatement pstmt = connection.prepareStatement(query)) {
+                for (int p = 0; p < matchParams.size(); p++) {
+                    pstmt.setObject(p + 1, matchParams.get(p));
+                }
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    ResultSetMetaData md = rs.getMetaData();
+                    int colCount = md.getColumnCount();
+                    List<String> childPks = getPrimaryKeys(childTable);
+                    List<String> childColNames = getColumnNames(childTable);
+
+                    // Determine target column and new value for this child table
+                    String targetCol = resolveChildUpdateColumn(childTable, childColNames, efk, plan, tableColumnOverrides);
+                    Object childNewVal = resolveChildNewValue(childTable, targetCol, plan, tableValueOverrides);
+
+                    // Ensure table mapping exists
+                    CascadeUpdateTableMapping mapping = plan.tableMappings.computeIfAbsent(childTable, tbl -> {
+                        String rel = "🔗 " + childTable + "(" + String.join(", ", efk.childColumns) + ") ➔ "
+                                + parentNode.tableName + "(" + String.join(", ", efk.parentColumns) + ")";
+                        CascadeUpdateTableMapping m = new CascadeUpdateTableMapping(tbl, rel, targetCol, childNewVal, childColNames);
+                        if (isExcluded) {
+                            m.isIncluded = false;
+                        }
+                        return m;
+                    });
+                    if (isExcluded) {
+                        mapping.isIncluded = false;
+                    }
+
+                    while (rs.next()) {
+                        CascadeUpdateRowNode childNode = new CascadeUpdateRowNode();
+                        childNode.tableName = childTable;
+                        childNode.depth = depth;
+                        childNode.relationReason = "Referenced by " + childTable + "(" + String.join(", ", efk.childColumns) + ") ➔ " + parentNode.tableName;
+
+                        for (int c = 1; c <= colCount; c++) {
+                            String cName = md.getColumnName(c);
+                            childNode.allRowValues.put(cName, rs.getObject(c));
+                        }
+
+                        // Extract primary keys for exact row targeting
+                        if (!childPks.isEmpty()) {
+                            for (String pk : childPks) {
+                                for (Map.Entry<String, Object> e : childNode.allRowValues.entrySet()) {
+                                    if (e.getKey().equalsIgnoreCase(pk)) {
+                                        childNode.keyValues.put(pk, e.getValue());
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (childNode.keyValues.isEmpty()) {
+                            childNode.keyValues.putAll(childNode.allRowValues);
+                        }
+
+                        // Set update parameters for this node
+                        if (targetCol != null && !targetCol.trim().isEmpty() && childNode.allRowValues.containsKey(targetCol)) {
+                            childNode.updateColumn = targetCol;
+                            childNode.oldValue = childNode.allRowValues.get(targetCol);
+                            childNode.newValue = childNewVal;
+                        }
+
+                        String fingerprint = childTable + "::" + childNode.keyValues.toString();
+                        if (!visitedRows.contains(fingerprint)) {
+                            visitedRows.add(fingerprint);
+                            parentNode.children.add(childNode);
+                            inspectChildUpdateDependencies(childNode, visitedRows, depth + 1, plan, tableColumnOverrides, tableValueOverrides, excludedTables);
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                // Skip gracefully if table query fails
+            }
+        }
+    }
+
+    private void inspectParentUpdateDependencies(CascadeUpdateRowNode rootNode,
+                                                 Set<String> visitedRows,
+                                                 int depth,
+                                                 CascadeUpdatePlan plan,
+                                                 Map<String, String> tableColumnOverrides,
+                                                 Map<String, Object> tableValueOverrides,
+                                                 Set<String> excludedTables) {
+        if (depth > 2) return; // Only traverse immediate parents and their children
+        Map<String, String[]> parentFks = getForeignKeys(rootNode.tableName);
+        if (parentFks == null || parentFks.isEmpty()) return;
+
+        for (Map.Entry<String, String[]> entry : parentFks.entrySet()) {
+            String childCol = entry.getKey();
+            String[] targetInfo = entry.getValue();
+            if (targetInfo == null || targetInfo.length < 2) continue;
+            String parentTable = targetInfo[0];
+            String parentPkCol = targetInfo[1];
+            boolean isExcluded = (excludedTables != null && excludedTables.contains(parentTable));
+
+            Object linkVal = rootNode.allRowValues.get(childCol);
+            if (linkVal == null) continue;
+
+            String query = "SELECT * FROM " + quoteTableName(parentTable) + " WHERE " + quoteColumnName(parentPkCol) + " = ?";
+            try (PreparedStatement pstmt = connection.prepareStatement(query)) {
+                pstmt.setObject(1, linkVal);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    ResultSetMetaData md = rs.getMetaData();
+                    int colCount = md.getColumnCount();
+                    List<String> parentPks = getPrimaryKeys(parentTable);
+                    List<String> parentCols = getColumnNames(parentTable);
+
+                    String targetCol = resolveChildUpdateColumn(parentTable, parentCols, null, plan, tableColumnOverrides);
+                    Object parentNewVal = resolveChildNewValue(parentTable, targetCol, plan, tableValueOverrides);
+
+                    CascadeUpdateTableMapping mapping = plan.tableMappings.computeIfAbsent(parentTable, tbl -> {
+                        String rel = "⬆ Parent table referenced by " + rootNode.tableName + "." + childCol + " ➔ " + parentTable + "." + parentPkCol;
+                        CascadeUpdateTableMapping m = new CascadeUpdateTableMapping(tbl, rel, targetCol, parentNewVal, parentCols);
+                        if (isExcluded) {
+                            m.isIncluded = false;
+                        }
+                        return m;
+                    });
+                    if (isExcluded) {
+                        mapping.isIncluded = false;
+                    }
+
+                    while (rs.next()) {
+                        CascadeUpdateRowNode parentNode = new CascadeUpdateRowNode();
+                        parentNode.tableName = parentTable;
+                        parentNode.depth = depth;
+                        parentNode.relationReason = "Referenced parent table via " + rootNode.tableName + "." + childCol + " ➔ " + parentTable + "." + parentPkCol;
+
+                        for (int c = 1; c <= colCount; c++) {
+                            parentNode.allRowValues.put(md.getColumnName(c), rs.getObject(c));
+                        }
+                        if (!parentPks.isEmpty()) {
+                            for (String pk : parentPks) {
+                                for (Map.Entry<String, Object> e : parentNode.allRowValues.entrySet()) {
+                                    if (e.getKey().equalsIgnoreCase(pk)) {
+                                        parentNode.keyValues.put(pk, e.getValue());
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (parentNode.keyValues.isEmpty()) {
+                            parentNode.keyValues.putAll(parentNode.allRowValues);
+                        }
+
+                        if (targetCol != null && !targetCol.trim().isEmpty() && parentNode.allRowValues.containsKey(targetCol)) {
+                            parentNode.updateColumn = targetCol;
+                            parentNode.oldValue = parentNode.allRowValues.get(targetCol);
+                            parentNode.newValue = parentNewVal;
+                        }
+
+                        String fingerprint = parentTable + "::" + parentNode.keyValues.toString();
+                        if (!visitedRows.contains(fingerprint)) {
+                            visitedRows.add(fingerprint);
+                            rootNode.children.add(parentNode);
+                            inspectChildUpdateDependencies(parentNode, visitedRows, depth + 1, plan, tableColumnOverrides, tableValueOverrides, excludedTables);
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private String resolveChildUpdateColumn(String tableName,
+                                            List<String> tableCols,
+                                            ExportedForeignKey efk,
+                                            CascadeUpdatePlan plan,
+                                            Map<String, String> tableColumnOverrides) {
+        if (tableColumnOverrides != null && tableColumnOverrides.containsKey(tableName)) {
+            String override = tableColumnOverrides.get(tableName);
+            if ("__SKIP__".equalsIgnoreCase(override) || override == null || override.trim().isEmpty()) {
+                return null;
+            }
+            return override;
+        }
+
+        if (plan.isKeyCascade && efk != null && !efk.childColumns.isEmpty()) {
+            return efk.childColumns.get(0);
+        }
+
+        String rootCol = plan.fieldUpdates.keySet().iterator().next();
+
+        // 1. Exact match (case-insensitive)
+        for (String col : tableCols) {
+            if (col.equalsIgnoreCase(rootCol)) {
+                return col;
+            }
+        }
+
+        // 2. Suffix match: e.g. customer_first_name, user_first_name, billing_first_name
+        for (String col : tableCols) {
+            String lower = col.toLowerCase();
+            String rootLower = rootCol.toLowerCase();
+            if (lower.endsWith("_" + rootLower) || lower.endsWith(rootLower)) {
+                return col;
+            }
+        }
+
+        return null;
+    }
+
+    private Object resolveChildNewValue(String tableName, String targetCol, CascadeUpdatePlan plan, Map<String, Object> tableValueOverrides) {
+        if (tableValueOverrides != null && tableValueOverrides.containsKey(tableName)) {
+            return tableValueOverrides.get(tableName);
+        }
+        if (targetCol == null) return null;
+        if (plan.fieldUpdates.containsKey(targetCol)) {
+            return plan.fieldUpdates.get(targetCol);
+        }
+        return !plan.fieldUpdates.isEmpty() ? plan.fieldUpdates.values().iterator().next() : null;
+    }
+
+    public void regenerateCascadeUpdateScript(CascadeUpdatePlan plan) {
+        plan.executableUpdates.clear();
+        plan.tableCounts.clear();
+
+        List<CascadeUpdateRowNode> allNodes = new ArrayList<>();
+        collectAllUpdateNodes(plan.rootNodes, allNodes);
+
+        List<CascadeUpdateRowNode> activeNodes = new ArrayList<>();
+        for (CascadeUpdateRowNode node : allNodes) {
+            CascadeUpdateTableMapping mapping = plan.tableMappings.get(node.tableName);
+            if (mapping != null && mapping.isIncluded && mapping.targetColumn != null && !mapping.targetColumn.trim().isEmpty()) {
+                node.updateColumn = mapping.targetColumn;
+                node.newValue = mapping.newValue;
+                node.oldValue = node.allRowValues.get(mapping.targetColumn);
+                node.isIncluded = true;
+                activeNodes.add(node);
+                plan.tableCounts.put(node.tableName, plan.tableCounts.getOrDefault(node.tableName, 0) + 1);
+            } else {
+                node.isIncluded = false;
+            }
+        }
+
+        plan.totalRows = activeNodes.size();
+
+        StringBuilder script = new StringBuilder();
+        script.append("-- ==========================================================\n");
+        script.append("-- SchemaSync Safe Multi-Table Cascade Update Transaction Script\n");
+        script.append("-- Generated: ").append(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date())).append("\n");
+        script.append("-- Total Records Affected: ").append(plan.totalRows).append(" across ").append(plan.tableCounts.size()).append(" table(s)\n");
+        script.append("-- Root Target Table: ").append(plan.rootTable).append("\n");
+        script.append("-- Cascade Mode: ").append(plan.isKeyCascade ? "Primary Key / Foreign Key Reference Cascade" : "Multi-Table Linked Attribute Cascade").append("\n");
+        script.append("-- ==========================================================\n\n");
+
+        if (isPostgres()) {
+            script.append("BEGIN TRANSACTION;\n");
+            script.append("SET CONSTRAINTS ALL DEFERRED;\n\n");
+        } else if (isMySQL()) {
+            script.append("START TRANSACTION;\n");
+            script.append("SET FOREIGN_KEY_CHECKS = 0;\n\n");
+        } else if (isSQLite()) {
+            script.append("PRAGMA foreign_keys = OFF;\n");
+            script.append("BEGIN TRANSACTION;\n\n");
+        } else if (isH2()) {
+            script.append("SET REFERENTIAL_INTEGRITY FALSE;\n\n");
+        } else {
+            script.append("BEGIN TRANSACTION;\n\n");
+        }
+
+        int step = 1;
+        for (CascadeUpdateRowNode node : activeNodes) {
+            StringBuilder sql = new StringBuilder("UPDATE ").append(quoteTableName(node.tableName)).append(" SET ");
+            StringBuilder preview = new StringBuilder("UPDATE ").append(quoteTableName(node.tableName)).append(" SET ");
+            List<Object> params = new ArrayList<>();
+
+            sql.append(quoteColumnName(node.updateColumn)).append(" = ? WHERE ");
+            preview.append(quoteColumnName(node.updateColumn)).append(" = ");
+            appendFormattedSqlLiteral(preview, node.newValue);
+            preview.append(" WHERE ");
+            params.add(node.newValue);
+
+            boolean first = true;
+            for (Map.Entry<String, Object> entry : node.keyValues.entrySet()) {
+                if (!first) {
+                    sql.append(" AND ");
+                    preview.append(" AND ");
+                }
+                first = false;
+                sql.append(quoteColumnName(entry.getKey()));
+                preview.append(quoteColumnName(entry.getKey()));
+
+                Object val = entry.getValue();
+                if (val == null) {
+                    sql.append(" IS NULL");
+                    preview.append(" IS NULL");
+                } else {
+                    sql.append(" = ?");
+                    params.add(val);
+                    preview.append(" = ");
+                    appendFormattedSqlLiteral(preview, val);
+                }
+            }
+            sql.append(";");
+            preview.append(";");
+
+            script.append("-- Step ").append(step++).append(": [").append(node.tableName).append("] ")
+                  .append(node.updateColumn).append(" ('").append(node.oldValue != null ? node.oldValue : "<NULL>")
+                  .append("' ➔ '").append(node.newValue != null ? node.newValue : "<NULL>").append("')\n");
+            script.append("-- ").append(node.relationReason).append("\n");
+            script.append(preview.toString()).append("\n\n");
+
+            plan.executableUpdates.add(new PreparedUpdate(
+                    node.tableName,
+                    sql.toString().replace(";", ""),
+                    params,
+                    preview.toString(),
+                    node.updateColumn,
+                    node.oldValue,
+                    node.newValue,
+                    node.relationReason
+            ));
+        }
+
+        if (isMySQL()) {
+            script.append("SET FOREIGN_KEY_CHECKS = 1;\n");
+        } else if (isSQLite()) {
+            script.append("PRAGMA foreign_keys = ON;\n");
+        } else if (isH2()) {
+            script.append("SET REFERENTIAL_INTEGRITY TRUE;\n");
+        }
+
+        script.append("COMMIT;\n");
+        plan.fullScript = script.toString();
+    }
+
+    private void collectAllUpdateNodes(List<CascadeUpdateRowNode> nodes, List<CascadeUpdateRowNode> out) {
+        for (CascadeUpdateRowNode node : nodes) {
+            out.add(node);
+            collectAllUpdateNodes(node.children, out);
+        }
+    }
+
+    private void appendFormattedSqlLiteral(StringBuilder sb, Object val) {
+        if (val == null) {
+            sb.append("NULL");
+        } else if (val instanceof Number || val instanceof Boolean) {
+            sb.append(val);
+        } else {
+            sb.append("'").append(val.toString().replace("'", "''")).append("'");
+        }
+    }
+
+    public void executeCascadeUpdatePlan(CascadeUpdatePlan plan) throws SQLException {
+        if (connection == null) throw new SQLException("Not connected to a database.");
+        boolean origAutoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+
+        Statement stmt = null;
+        try {
+            stmt = connection.createStatement();
+            if (isPostgres()) {
+                try { stmt.execute("SET CONSTRAINTS ALL DEFERRED;"); } catch (Exception ignored) {}
+            } else if (isMySQL()) {
+                try { stmt.execute("SET FOREIGN_KEY_CHECKS = 0;"); } catch (Exception ignored) {}
+            } else if (isSQLite()) {
+                try { stmt.execute("PRAGMA foreign_keys = OFF;"); } catch (Exception ignored) {}
+            } else if (isH2()) {
+                try { stmt.execute("SET REFERENTIAL_INTEGRITY FALSE;"); } catch (Exception ignored) {}
+            }
+        } catch (Exception ignored) {}
+
+        int totalUpdated = 0;
+        try {
+            for (PreparedUpdate pu : plan.executableUpdates) {
+                try (PreparedStatement pstmt = connection.prepareStatement(pu.sql)) {
+                    for (int i = 0; i < pu.params.size(); i++) {
+                        pstmt.setObject(i + 1, pu.params.get(i));
+                    }
+                    int count = pstmt.executeUpdate();
+                    totalUpdated += count;
+                }
+            }
+
+            try {
+                if (isMySQL() && stmt != null) {
+                    stmt.execute("SET FOREIGN_KEY_CHECKS = 1;");
+                } else if (isSQLite() && stmt != null) {
+                    stmt.execute("PRAGMA foreign_keys = ON;");
+                } else if (isH2() && stmt != null) {
+                    stmt.execute("SET REFERENTIAL_INTEGRITY TRUE;");
+                }
+            } catch (Exception ignored) {}
+
+            connection.commit();
+            com.dbtool.util.AppUsageTracker.recordRowsMutated(Math.max(1, totalUpdated));
+        } catch (SQLException ex) {
+            connection.rollback();
+            throw ex;
+        } finally {
+            if (stmt != null) {
+                try { stmt.close(); } catch (Exception ignored) {}
+            }
+            try {
+                connection.setAutoCommit(origAutoCommit);
+            } catch (Exception ignored) {}
         }
     }
 }

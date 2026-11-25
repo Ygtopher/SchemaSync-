@@ -53,6 +53,7 @@ public class RowInspectorDrawer extends JPanel {
     private final JPanel fieldsListPanel = new JPanel(new GridBagLayout());
     private final JLabel statusFooterLabel = new JLabel("Select any row in the table to inspect");
     private final JButton saveChangesBtn = new JButton("💾 Save Changes");
+    private final JButton cascadeUpdateBtn = new JButton("⚡ Cascade...");
     private final JButton revertBtn = new JButton("↺ Revert");
 
     private String currentTableName;
@@ -121,15 +122,19 @@ public class RowInspectorDrawer extends JPanel {
         btnRow.setOpaque(false);
         revertBtn.setEnabled(false);
         saveChangesBtn.setEnabled(false);
+        cascadeUpdateBtn.setEnabled(false);
         saveChangesBtn.setFont(saveChangesBtn.getFont().deriveFont(Font.BOLD));
         saveChangesBtn.setForeground(ThemeManager.getSuccessColor());
         saveChangesBtn.setToolTipText("Commit edited fields to the database (Ctrl+S)");
+        cascadeUpdateBtn.setToolTipText("Cascade update modified fields across all related tables linked by foreign keys");
 
         revertBtn.addActionListener(e -> revertChanges());
         saveChangesBtn.addActionListener(e -> saveRowChanges());
+        cascadeUpdateBtn.addActionListener(e -> openCascadeUpdateFromDrawer());
 
         btnRow.add(revertBtn);
         btnRow.add(saveChangesBtn);
+        btnRow.add(cascadeUpdateBtn);
         footer.add(btnRow, BorderLayout.SOUTH);
 
         add(footer, BorderLayout.SOUTH);
@@ -257,7 +262,9 @@ public class RowInspectorDrawer extends JPanel {
             fieldRows.add(new FieldRow(colName, isPk, isFk, val, tf, nullCb, card));
         }
 
-        saveChangesBtn.setEnabled(tableName != null && dbManager != null && dbManager.connection != null);
+        boolean canEdit = (tableName != null && dbManager != null && dbManager.connection != null);
+        saveChangesBtn.setEnabled(canEdit);
+        cascadeUpdateBtn.setEnabled(canEdit);
         revertBtn.setEnabled(true);
         statusFooterLabel.setText(colCount + " columns loaded  •  Press Ctrl+S to save");
 
@@ -359,5 +366,40 @@ public class RowInspectorDrawer extends JPanel {
                     "Row Inspector Update Error",
                     JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private void openCascadeUpdateFromDrawer() {
+        if (currentTableName == null || dbManager == null || dbManager.connection == null) return;
+        Map<String, Object> rowVals = new LinkedHashMap<>();
+        String modifiedCol = null;
+        Object modifiedVal = null;
+
+        for (FieldRow fr : fieldRows) {
+            Object newVal = fr.nullCheck.isSelected() ? null : fr.valueField.getText();
+            rowVals.put(fr.colName, newVal);
+            String oldValStr = fr.originalValue != null ? fr.originalValue.toString() : "";
+            String newValStr = fr.valueField.getText().trim();
+            if (!newValStr.equals(oldValStr)) {
+                modifiedCol = fr.colName;
+                modifiedVal = newVal;
+            }
+        }
+
+        if (modifiedCol == null && !fieldRows.isEmpty()) {
+            modifiedCol = fieldRows.get(0).colName;
+            modifiedVal = rowVals.get(modifiedCol);
+        }
+
+        Window win = SwingUtilities.getWindowAncestor(this);
+        Frame frame = (win instanceof Frame) ? (Frame) win : null;
+        new com.dbtool.panels.CascadeUpdateDialog(
+                frame,
+                dbManager,
+                currentTableName,
+                Collections.singletonList(rowVals),
+                modifiedCol,
+                modifiedVal,
+                onRowUpdated
+        ).setVisible(true);
     }
 }

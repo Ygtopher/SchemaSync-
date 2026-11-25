@@ -195,18 +195,22 @@ import java.util.List;
             JButton updateRowBtn = new JButton("✏️ Update Row");
             JButton deleteRowBtn = new JButton("🗑 Delete Row");
             JButton cascadeDeleteBtn = new JButton("⚡ Cascade Delete");
+            JButton cascadeUpdateBtn = new JButton("⚡ Cascade Update");
             insertRowBtn.setToolTipText("Insert a new record into the current table");
             updateRowBtn.setToolTipText("Edit & update the selected table row in a dialog (or double-click row)");
             deleteRowBtn.setToolTipText("Permanently delete selected row(s) (or press Delete key)");
             cascadeDeleteBtn.setToolTipText("Inspect foreign key dependencies and safely cascade-delete selected record(s) in a transaction");
+            cascadeUpdateBtn.setToolTipText("Cascade update attributes (e.g. first_name) or IDs across all related tables linked by foreign keys");
             insertRowBtn.addActionListener(e -> openInsertRowDialog());
             updateRowBtn.addActionListener(e -> openUpdateRowDialog());
             deleteRowBtn.addActionListener(e -> deleteSelectedRow());
             cascadeDeleteBtn.addActionListener(e -> openCascadeDeleteDialog());
+            cascadeUpdateBtn.addActionListener(e -> openCascadeUpdateDialog());
             tbRecordActions.add(insertRowBtn);
             tbRecordActions.add(updateRowBtn);
             tbRecordActions.add(deleteRowBtn);
             tbRecordActions.add(cascadeDeleteBtn);
+            tbRecordActions.add(cascadeUpdateBtn);
             tbRecordActions.add(com.dbtool.util.ThemeManager.createToolbarSeparator());
 
             JButton importDataBtn = new JButton("📥 Import Data");
@@ -564,6 +568,12 @@ import java.util.List;
                 cascadeDelMenuItem.setForeground(new Color(234, 88, 12));
                 cascadeDelMenuItem.addActionListener(e -> openCascadeDeleteDialog());
                 tableMenu.add(cascadeDelMenuItem);
+
+                JMenuItem cascadeUpdateMenuItem = new JMenuItem("⚡ Cascade Update Linked Records...");
+                cascadeUpdateMenuItem.setFont(cascadeUpdateMenuItem.getFont().deriveFont(Font.BOLD));
+                cascadeUpdateMenuItem.setForeground(new Color(16, 185, 129));
+                cascadeUpdateMenuItem.addActionListener(e -> openCascadeUpdateDialog());
+                tableMenu.add(cascadeUpdateMenuItem);
 
                 tableMenu.addSeparator();
                 JMenuItem codeGenMenuItem = new JMenuItem("💻 Generate Entity / ORM Code...");
@@ -1078,6 +1088,94 @@ import java.util.List;
         } catch (Exception ex) {
             setCursor(Cursor.getDefaultCursor());
             JOptionPane.showMessageDialog(this, "Failed to inspect foreign key dependencies:\n" + ex.getMessage(), "Inspection Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    public String getSelectedTable() {
+        return (String) browseTableDropdown.getSelectedItem();
+    }
+
+    public void openCascadeUpdateDialog() {
+        String tbl = (String) browseTableDropdown.getSelectedItem();
+        if (tbl == null || tbl.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No table is currently selected.", "Warning", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int[] rows = browseTable.getSelectedRows();
+        List<Map<String, Object>> targetRows = new ArrayList<>();
+        DefaultTableModel model = (DefaultTableModel) browseTable.getModel();
+        int totalCols = model.getColumnCount();
+
+        if (rows.length > 0 && totalCols > 0) {
+            for (int viewRow : rows) {
+                int modelRow = browseTable.convertRowIndexToModel(viewRow);
+                Map<String, Object> rowVals = new LinkedHashMap<>();
+                for (int c = 0; c < totalCols; c++) {
+                    String colHeader = model.getColumnName(c);
+                    String cleanHeader = colHeader.contains(".") ? colHeader.split("\\.", 2)[1] : colHeader;
+                    rowVals.put(cleanHeader, model.getValueAt(modelRow, c));
+                }
+                targetRows.add(rowVals);
+            }
+        }
+
+        List<String> colNames = mainFrame.getDbManager().getColumnNames(tbl);
+        if (colNames.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No columns found for table " + tbl, "Warning", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JComboBox<String> colBox = new JComboBox<>(colNames.toArray(new String[0]));
+        for (String c : colNames) {
+            if (c.equalsIgnoreCase("first_name") || c.equalsIgnoreCase("name")) {
+                colBox.setSelectedItem(c);
+                break;
+            }
+        }
+        if (colBox.getSelectedIndex() <= 0 && colNames.size() > 1) {
+            colBox.setSelectedIndex(1);
+        }
+
+        JTextField newValField = new JTextField(20);
+        if (!targetRows.isEmpty()) {
+            String selectedCol = (String) colBox.getSelectedItem();
+            Object currVal = targetRows.get(0).get(selectedCol);
+            if (currVal != null) newValField.setText(currVal.toString());
+        }
+
+        colBox.addActionListener(ev -> {
+            if (!targetRows.isEmpty()) {
+                String sc = (String) colBox.getSelectedItem();
+                Object cv = targetRows.get(0).get(sc);
+                newValField.setText(cv != null ? cv.toString() : "");
+            }
+        });
+
+        JPanel promptPanel = new JPanel(new GridLayout(3, 2, 8, 8));
+        promptPanel.add(new JLabel("Target Table:"));
+        promptPanel.add(new JLabel("<html><b>" + tbl + "</b> (" + (targetRows.isEmpty() ? "All / Filtered" : targetRows.size() + " row(s) selected") + ")</html>"));
+        promptPanel.add(new JLabel("Column to Cascade:"));
+        promptPanel.add(colBox);
+        promptPanel.add(new JLabel("New Value:"));
+        promptPanel.add(newValField);
+
+        int opt = JOptionPane.showConfirmDialog(this, promptPanel,
+                "⚡ Configure Multi-Table Cascade Update",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (opt != JOptionPane.OK_OPTION) return;
+
+        String chosenCol = (String) colBox.getSelectedItem();
+        String newVal = newValField.getText().trim();
+        if (chosenCol == null) return;
+
+        setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+        try {
+            new com.dbtool.panels.CascadeUpdateDialog(mainFrame, mainFrame.getDbManager(), tbl, targetRows, chosenCol, newVal, this::loadTableData).setVisible(true);
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Failed to launch Cascade Update:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        } finally {
+            setCursor(Cursor.getDefaultCursor());
         }
     }
 
