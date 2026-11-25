@@ -33,6 +33,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
+[Dirs]
+Name: "{app}"; Permissions: users-modify
+
 [Files]
 Source: "release\SchemaSync.jar"; DestDir: "{app}"; Flags: ignoreversion
 Source: "release\schemasync-cli.jar"; DestDir: "{app}"; Flags: ignoreversion
