@@ -117,8 +117,10 @@ public class UpdateChecker {
                 String patchName = null;
                 long patchSize = 0;
                 String setupUrl = null;
+                String setupName = null;
                 long setupSize = 0;
                 String exeUrl = null;
+                String exeName = null;
                 long exeSize = 0;
                 String debUrl = null;
                 String debName = null;
@@ -147,11 +149,13 @@ public class UpdateChecker {
                             patchUrl = aUrl;
                             patchName = aName;
                             patchSize = aSize;
-                        } else if (aName.equalsIgnoreCase("SchemaSync-Setup.exe")) {
+                        } else if (aName.equalsIgnoreCase("SchemaSync-Setup.exe") || (lower.contains("setup") && lower.endsWith(".exe"))) {
                             setupUrl = aUrl;
+                            setupName = aName;
                             setupSize = aSize;
-                        } else if (aName.equalsIgnoreCase("SchemaSync.exe")) {
+                        } else if (aName.equalsIgnoreCase("SchemaSync.exe") || (!lower.contains("setup") && lower.endsWith(".exe"))) {
                             exeUrl = aUrl;
+                            exeName = aName;
                             exeSize = aSize;
                             if (setupSize == 0) setupSize = aSize;
                         } else if (lower.endsWith(".deb")) {
@@ -182,11 +186,11 @@ public class UpdateChecker {
                 if (isWindows) {
                     if (setupUrl != null) {
                         manualDownloadUrl = setupUrl;
-                        manualDownloadFileName = "SchemaSync-Setup-" + tagName + ".exe";
+                        manualDownloadFileName = setupName != null ? setupName : "SchemaSync-Setup.exe";
                         manualDownloadSize = setupSize;
                     } else if (exeUrl != null) {
                         manualDownloadUrl = exeUrl;
-                        manualDownloadFileName = "SchemaSync-" + tagName + ".exe";
+                        manualDownloadFileName = exeName != null ? exeName : "SchemaSync.exe";
                         manualDownloadSize = exeSize;
                     } else if (jarUrl != null) {
                         manualDownloadUrl = jarUrl;
@@ -194,7 +198,7 @@ public class UpdateChecker {
                         manualDownloadSize = jarSize;
                     } else {
                         manualDownloadUrl = htmlUrl;
-                        manualDownloadFileName = "SchemaSync-Setup-" + tagName + ".exe";
+                        manualDownloadFileName = "SchemaSync-Setup.exe";
                         manualDownloadSize = 0;
                     }
                 } else if (hasDpkg && debUrl != null) {
@@ -248,7 +252,7 @@ public class UpdateChecker {
                         autoUpdateSize = jarSize;
                     } else if (setupUrl != null) {
                         autoUpdateUrl = setupUrl;
-                        autoUpdateFileName = "SchemaSync-Setup-" + tagName + ".exe";
+                        autoUpdateFileName = setupName != null ? setupName : "SchemaSync-Setup.exe";
                         autoUpdateSize = setupSize;
                     } else {
                         autoUpdateUrl = manualDownloadUrl;

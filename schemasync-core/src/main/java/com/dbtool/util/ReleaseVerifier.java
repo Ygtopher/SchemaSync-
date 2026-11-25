@@ -88,6 +88,15 @@ public final class ReleaseVerifier {
             expected = sha256Map.get(artifact.getName().toLowerCase());
         }
         if (expected == null) {
+            // Strip version suffixes like '-v2.4.6' or '-2.4.6' to match base asset in manifest (e.g. SchemaSync-v2.4.6.exe -> SchemaSync.exe)
+            String normalizedLookup = lookup.replaceAll("-(?:v)?\\d+(?:\\.\\d+)*(?:-[a-z0-9.]+)?(?=\\.[a-z0-9]+$)", "");
+            expected = sha256Map.get(normalizedLookup);
+        }
+        if (expected == null) {
+            String normalizedArtifact = artifact.getName().toLowerCase().replaceAll("-(?:v)?\\d+(?:\\.\\d+)*(?:-[a-z0-9.]+)?(?=\\.[a-z0-9]+$)", "");
+            expected = sha256Map.get(normalizedArtifact);
+        }
+        if (expected == null) {
             throw new SecurityException("SHA256SUMS manifest does not contain checksum for '" + expectedAssetName + "'.");
         }
         String actual = computeSha256Hex(artifact).toLowerCase();
